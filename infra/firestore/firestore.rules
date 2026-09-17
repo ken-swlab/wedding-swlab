@@ -1,0 +1,170 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // ABAC ヘルパー
+    //   タグの実体は Custom Claims (request.auth.token.tags)。
+    //   Firestore を読まずに判定できるのでクエリでも破綻しない。
+    // =====================================================
+    function signedIn() { return request.auth != null; }
+    function myUid()    { return request.auth.uid; }
+
+    function myTags() {
+      return signedIn() && 'tags' in request.auth.token
+        ? request.auth.token.tags : [];
+    }
+
+    function isAdmin() {
+      return signedIn() && 'admin' in request.auth.token
+        && request.auth.token.admin == true;
+    }
+
+    // 閲覧判定: visibleToTags と自分の tags が1つでも交差するか
+    function canSee(data) {
+      return isAdmin() || data.visibleToTags.hasAny(myTags());
+    }
+
+    // 配信先の詐称防止: 自分が持たないタグ宛には投稿させない
+    function tagsInMyScope(data) {
+      return isAdmin() || (
+        data.visibleToTags is list
+        && data.visibleToTags.size() >= 1
+        && data.visibleToTags.size() <= 20
+        && data.visibleToTags.hasOnly(myTags())
+      );
+    }
+
+    // =====================================================
+    // /guests/{uid} : プロフィール
+    //   ここの tags は「表示用ミラー」。権限の実体は Claims 側。
+    // =====================================================
+    match /guests/{uid} {
+      allow get:  if signedIn();
+      allow list: if signedIn() && request.query.limit <= 200;
+
+      allow create: if signedIn() && uid == myUid()
+        && request.resource.data.keys().hasOnly(
+             ['displayName','photoURL','bio','createdAt','updatedAt'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 40;
+
+      allow update: if isAdmin() || (
+        signedIn() && uid == myUid()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['displayName','photoURL','bio','updatedAt'])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // =====================================================
+    // /posts/{postId} : ゲストブックのタイムライン
+    // =====================================================
+    function validPost(d) {
+      return d.keys().hasAll(
+               ['authorUid','authorName','text','media','visibleToTags',
+                'status','reactionCount','commentCount','createdAt'])
+        && d.keys().hasOnly(
+               ['authorUid','authorName','authorPhotoURL','text','media',
+                'visibleToTags','status','reactionCount','commentCount',
+                'createdAt','updatedAt'])
+        && d.text is string  && d.text.size() <= 2000
+        && d.media is list   && d.media.size() <= 4
+        && d.status == 'visible'
+        && d.reactionCount == 0
+        && d.commentCount == 0
+        && d.createdAt == request.time;
+    }
+
+    match /posts/{postId} {
+      allow get: if signedIn() && resource != null && canSee(resource.data);
+
+      // ★Rules はフィルタではない★
+      //   クライアント側に where('visibleToTags','array-contains-any',myTags)
+      //   が無いと、不可視が1件混ざった時点でクエリ全体が失敗する。
+      allow list: if signedIn()
+        && request.query.limit <= 50
+        && canSee(resource.data);
+
+      allow create: if signedIn()
+        && request.resource.data.authorUid == myUid()
+        && validPost(request.resource.data)
+        && tagsInMyScope(request.resource.data);
+
+      allow update: if isAdmin()
+        // (a) 本文・公開範囲の編集は投稿者本人のみ
+        || (signedIn() && resource.data.authorUid == myUid()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['text','media','visibleToTags','updatedAt'])
+            && tagsInMyScope(request.resource.data))
+        // (b) リアクション数は閲覧できる人が ±1 だけ動かせる。
+        //     厳密な整合が要るなら Cloud Functions に寄せる（Phase 5想定）。
+        || (signedIn() && canSee(resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['reactionCount','updatedAt'])
+            && (request.resource.data.reactionCount == resource.data.reactionCount + 1
+             || request.resource.data.reactionCount == resource.data.reactionCount - 1));
+
+      allow delete: if isAdmin()
+        || (signedIn() && resource.data.authorUid == myUid());
+
+      // ----- コメント -----
+      match /comments/{commentId} {
+        function parentPost() {
+          return get(/databases/$(database)/documents/posts/$(postId)).data;
+        }
+
+        allow get, list: if signedIn() && canSee(parentPost());
+
+        allow create: if signedIn()
+          && request.resource.data.authorUid == myUid()
+          && request.resource.data.keys().hasOnly(
+               ['authorUid','authorName','authorPhotoURL','text','createdAt'])
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 500
+          && request.resource.data.createdAt == request.time
+          && canSee(parentPost());
+
+        allow update: if false;
+        allow delete: if isAdmin()
+          || (signedIn() && resource.data.authorUid == myUid());
+      }
+
+      // ----- リアクション (docId = uid で 1人1件を構造的に保証) -----
+      match /reactions/{uid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && uid == myUid()
+          && request.resource.data.emoji is string
+          && request.resource.data.emoji.size() <= 8;
+        allow delete: if signedIn() && uid == myUid();
+      }
+    }
+
+    // =====================================================
+    // /challenges/{id} : CTF 問題
+    //   ★フラグ・正答は絶対にここに置かない★ 投入は Admin SDK のみ。
+    //   visibleToTags で段階的に出題を解放する。
+    // =====================================================
+    match /challenges/{challengeId} {
+      allow get:  if signedIn() && resource != null && canSee(resource.data);
+      allow list: if signedIn() && request.query.limit <= 100
+                  && canSee(resource.data);
+      allow write: if false;
+    }
+
+    // /solves : 解答記録。採点は Route Handler + Admin SDK 側でのみ書く。
+    match /solves/{solveId} {
+      allow get, list: if signedIn()
+        && (isAdmin() || resource.data.uid == myUid());
+      allow write: if false;
+    }
+
+    // 明示的な全拒否（より具体的な allow とは OR されるので影響しない）
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
