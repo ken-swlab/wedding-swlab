@@ -1,0 +1,18 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# 実値の tfvars はコミットしない（example のみ追跡）
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# .terraform.lock.hcl は「コミットする」ので無視しない
