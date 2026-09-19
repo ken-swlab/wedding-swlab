@@ -4,14 +4,12 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { TAG_DEFS, tagDef } from "@/config/tags";
-import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
   mediaPaths, uploadThumb,
 } from "@/lib/media";
 import { createPost } from "@/lib/posts";
-import { postJson } from "@/lib/api-client";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import { useAuthorName } from "./AuthorNameProvider";
 import type { MediaItem } from "@/types";
@@ -28,24 +26,6 @@ type Picked = {
   height?: number;
 };
 
-const DEFAULT_PLACEHOLDER = "おふたりへのメッセージや、当日の写真をどうぞ 🌿";
-
-/**
- * お題のラベルをハッシュタグとして末尾に足す。
- * 既に書かれていれば何もしない。全角の ＃ も NFKC で吸収する。
- * 「その他」はタグにしても意味がないので付けない。
- */
-function withThemeHashtag(raw: string, themeId: string): string {
-  if (!themeId || themeId === "other") return raw;
-
-  const label = themeDef(themeId).label;
-  const flat = (s: string) => s.normalize("NFKC").replace(/\s+/g, "");
-  if (flat(raw).includes(`#${flat(label)}`)) return raw;
-
-  const body = raw.trimEnd();
-  return body ? `${body}\n\n#${label}` : `#${label}`;
-}
-
 export function Composer({
   user,
   tags,
@@ -59,13 +39,7 @@ export function Composer({
   const [picked, setPicked] = useState<Picked[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** 投稿は成功したが副次処理が失敗したときの控えめな知らせ */
-  const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // --- 思い出エピソード ---
-  const [episodeOn, setEpisodeOn] = useState(false);
-  const [theme, setTheme] = useState<string>("");
 
   const available = useMemo(
     () => TAG_DEFS.filter((t) => t.selectable && tags.includes(t.id)),
@@ -75,8 +49,8 @@ export function Composer({
     tags.includes("all") ? ["all"] : tags.slice(0, 1),
   );
 
+  const authorNameVal = useAuthorName();
   const storageReady = isStorageConfigured();
-  const name = useAuthorName();
 
   // プレビュー用の objectURL を確実に解放する
   useEffect(() => {
@@ -136,29 +110,19 @@ export function Composer({
 
   const preparing = picked.some((p) => p.compressing);
   const hasError = picked.some((p) => p.error);
-  const needsThemeText = episodeOn && !text.trim();
   const canSubmit =
     !busy && !preparing && !hasError && selected.length > 0 &&
-    (!episodeOn || (Boolean(theme) && !needsThemeText)) &&
     (text.trim().length > 0 || picked.length > 0);
-
-  const placeholder = episodeOn && theme ? themeDef(theme).prompt : DEFAULT_PLACEHOLDER;
 
   async function onSubmit() {
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
-    setNotice(null);
 
     try {
-      // お題を選んでいればハッシュタグを付ける。
-      // 投稿本文とエピソード本文で同じテキストを使う。
-      const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
-
       // --- 第1段: 軽量版だけを先に上げる ---
       const media: MediaItem[] = [];
       const originals: EnqueueItem[] = [];
-      const photoUrls: string[] = [];
 
       for (const p of picked) {
         const ext = extOf(p.file);
@@ -168,7 +132,9 @@ export function Composer({
         if (p.isVideo) {
           // 動画は圧縮せず1段階で送る
           const url = await uploadThumb(paths.original, p.file, p.file.type);
-          media.push({ type: "video", url, storagePath: paths.original, alt: p.file.name });
+          media.push({
+            type: "video", url, storagePath: paths.original, alt: p.file.name,
+          });
           continue;
         }
 
@@ -182,9 +148,8 @@ export function Composer({
           alt: p.file.name,
           originalStatus: "pending",
         });
-        photoUrls.push(url);
         originals.push({
-          postId: "",
+          postId: "",              // createPost 後に埋める
           thumbPath: paths.thumb,
           originalPath: paths.original,
           fileName: p.file.name,
@@ -193,12 +158,11 @@ export function Composer({
         });
       }
 
-      // --- 第2段: タイムラインへの投稿（これが本体）---
       const postRef = await createPost({
         uid: user.uid,
-        displayName: name,
+        displayName: authorNameVal,
         photoURL: user.photoURL,
-        text: finalText,
+        text,
         media,
         visibleToTags: selected,
       });
@@ -219,37 +183,14 @@ export function Composer({
         }
       })();
 
-      // --- 原本はページ側のキューに委ねる ---
+      // --- 第2段: 原本はページ側のキューに委ねる ---
       if (originals.length > 0) {
         onUploadOriginals(originals.map((o) => ({ ...o, postId: postRef.id })));
       }
 
-      // フォームは先に片付ける（投稿は成立しているため）
       picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-      const episodePayload = episodeOn
-        ? { theme, originalText: finalText, photoUrls, visibleToTags: selected }
-        : null;
-
       setText("");
       setPicked([]);
-      setEpisodeOn(false);
-      setTheme("");
-
-      // --- 第3段: エピソードの保存 ---
-      // ★投稿の後に行う★ ここが失敗しても投稿は取り消さない。
-      //   AI のデータが1件落ちるだけで、ゲストの体験は壊さない。
-      if (episodePayload) {
-        try {
-          await postJson("/api/episodes", episodePayload);
-          setNotice("エピソードを受け付けました。新郎新婦の確認後に使われます 🌿");
-        } catch (e) {
-          setNotice(
-            `投稿は完了しました。エピソードの登録だけ失敗しました（${
-              e instanceof Error ? e.message : "不明なエラー"
-            }）`,
-          );
-        }
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "投稿に失敗しました");
     } finally {
@@ -262,9 +203,9 @@ export function Composer({
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
-        rows={episodeOn ? 5 : 3}
+        rows={3}
         maxLength={2000}
-        placeholder={placeholder}
+        placeholder="おふたりへのメッセージや、当日の写真をどうぞ 🌿"
         className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
       />
 
@@ -303,76 +244,6 @@ export function Composer({
         </div>
       )}
 
-      {/* ---- 思い出エピソード ---- */}
-      <div className={`mt-3 rounded-xl border transition ${
-        episodeOn ? "border-rose-200 bg-rose-50/60" : "border-stone-200 bg-stone-50/40"
-      }`}>
-        <label className="flex cursor-pointer items-start gap-2.5 p-3">
-          <input
-            type="checkbox"
-            checked={episodeOn}
-            onChange={(e) => {
-              setEpisodeOn(e.target.checked);
-              if (!e.target.checked) setTheme("");
-            }}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-rose-600"
-          />
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-stone-800">
-              思い出エピソードも投稿する
-            </span>
-            <span className="block text-[11px] leading-relaxed text-stone-500">
-              おふたりが確認したうえで、当日のムービーや
-              おもてなしAIの会話に使わせていただきます。
-            </span>
-          </span>
-        </label>
-
-        {episodeOn && (
-          <div className="border-t border-rose-200/70 p-3">
-            <p className="mb-1.5 text-xs font-medium text-stone-600">
-              お題を選んでください
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {EPISODE_THEMES.map((t) => {
-                const on = theme === t.id;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTheme(t.id)}
-                    aria-pressed={on}
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                      on ? t.className : "bg-white text-stone-400 ring-stone-200 hover:bg-stone-50"
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {theme && (
-              <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
-                {themeDef(theme).prompt}
-                {theme !== "other" && (
-                  <span className="mt-0.5 block text-stone-400">
-                    投稿時に <span className="text-sky-600">#{themeDef(theme).label}</span> が付きます
-                  </span>
-                )}
-              </p>
-            )}
-
-            {needsThemeText && (
-              <p className="mt-2 text-[11px] text-amber-700">
-                エピソードには本文が必要です。写真だけでは登録できません。
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ---- 公開範囲 ---- */}
       <div className="mt-4">
         <p className="mb-1.5 text-xs font-medium text-stone-500">
           公開範囲
@@ -400,19 +271,9 @@ export function Composer({
             );
           })}
         </div>
-        {episodeOn && (
-          <p className="mt-1.5 text-[11px] leading-relaxed text-stone-400">
-            エピソードもこの範囲の方にだけ使われます。
-          </p>
-        )}
       </div>
 
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
-      {notice && (
-        <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
-          {notice}
-        </p>
-      )}
 
       <div className="mt-4 flex items-center justify-between gap-3">
         <div>
