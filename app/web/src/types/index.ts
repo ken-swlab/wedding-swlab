@@ -36,6 +36,15 @@ export type Post = {
   commentCount: number;
   createdAt: Timestamp | null;
   updatedAt?: Timestamp | null;
+
+  /**
+   * 【予約】この写真に写っているゲストの uid。
+   * 将来 AWS Rekognition 等で自動判定してバックエンドから書き込む想定。
+   * エンドロールの「全員が最低1回は映る」選定に使う。
+   * ★Admin SDK は Rules をバイパスするため、書き込み側に Rules の変更は不要★
+   *   ただしクライアントからの編集は validPost の hasOnly で弾かれる。
+   */
+  detectedUserIds?: string[];
 };
 
 export type Comment = {

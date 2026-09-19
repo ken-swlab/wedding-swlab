@@ -25,6 +25,7 @@ export function toPost(snap: QueryDocumentSnapshot<DocumentData>): Post {
     // serverTimestamp() 反映前のローカル書き込みでは null になる
     createdAt: d.createdAt ?? null,
     updatedAt: d.updatedAt ?? null,
+    detectedUserIds: Array.isArray(d.detectedUserIds) ? d.detectedUserIds : undefined,
   };
 }
 
@@ -79,7 +80,7 @@ export async function toggleReaction(postId: string, uid: string, emoji = "❤�
       tx.update(postRef, { reactionCount: increment(-1), updatedAt: serverTimestamp() });
       return false;
     }
-    tx.set(reactionRef, { emoji, createdAt: serverTimestamp() });
+    tx.set(reactionRef, { emoji, uid, createdAt: serverTimestamp() });
     tx.update(postRef, { reactionCount: increment(1), updatedAt: serverTimestamp() });
     return true;
   });

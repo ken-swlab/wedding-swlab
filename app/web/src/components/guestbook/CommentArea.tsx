@@ -54,8 +54,17 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
   );
 }
 
-export function CommentArea({ post, user }: { post: Post; user: User }) {
-  const [open, setOpen] = useState(false);
+export function CommentArea({
+  post,
+  user,
+  defaultOpen = false,
+}: {
+  post: Post;
+  user: User;
+  /** ライトボックスなど、最初から展開したい場面で true */
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   const { comments, loading, error } = useComments(post.id, open);
 
   const [text, setText] = useState("");
