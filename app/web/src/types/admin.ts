@@ -36,7 +36,6 @@ export type GuestPublic = {
   isApproved: boolean;
   isRegistered: boolean;
   kana: string;
-  category: string;
   invitationStatus: string;
   isPreRegistered: boolean;
   mergedInto: string;

@@ -84,6 +84,32 @@ service cloud.firestore {
     }
 
 
+    // =====================================================
+    // /episodes/{episodeId} : ゲストから集めた思い出エピソード
+    //   ミニAI の文脈と、オープニングムービーの素材になる。
+    //
+    //   ★visibleToTags で ABAC をかける★
+    //     targetTags（誰についての話か）とは別のフィールド。
+    //     兼務させると、限定公開のエピソードが
+    //     他のゲストへの AI 回答に混ざる。
+    //   書き込みは Route Handler (Admin SDK) 経由のみ。
+    // =====================================================
+    match /episodes/{episodeId} {
+      allow get: if isAdmin()
+        || (signedIn()
+            && resource != null
+            && resource.data.status == 'approved'
+            && canSee(resource.data));
+
+      allow list: if (isAdmin() && request.query.limit <= 500)
+        || (signedIn()
+            && request.query.limit <= 50
+            && resource.data.status == 'approved'
+            && canSee(resource.data));
+
+      allow write: if false;
+    }
+
     match /{document=**} { allow read, write: if false; }
     // =====================================================
     // collectionGroup("comments") 用のルール

@@ -1,4 +1,5 @@
 "use client";
+import { TAG_DEFS } from "@/config/tags";
 import { postJson } from "@/lib/api-client";
 
 import Link from "next/link";
@@ -7,13 +8,11 @@ import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { compareGuests } from "@/lib/roster";
-import {
-  GUEST_CATEGORIES, INVITATION_STATUSES, categoryDef, invitationDef,
-} from "@/config/roster";
+import { INVITATION_STATUSES, invitationDef } from "@/config/roster";
 import { RosterImportDialog } from "@/components/admin/RosterImportDialog";
 import type { GuestRow } from "@/types/admin";
 
-type Draft = Partial<Pick<GuestRow, "displayName" | "kana" | "category" | "invitationStatus">>;
+type Draft = Partial<Pick<GuestRow, "displayName" | "kana" | "invitationStatus">>;
 
 async function callRoster(payload: Record<string, unknown>) {
   return postJson("/api/admin/roster", payload);
@@ -25,7 +24,7 @@ export default function AdminRosterPage() {
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [category, setCategory] = useState<string>("");
+  const [tagFilter, setTagFilter] = useState<string>("");
   const [registered, setRegistered] = useState<"" | "yes" | "no">("");
   const [q, setQ] = useState("");
   const [importing, setImporting] = useState(false);
@@ -48,7 +47,7 @@ export default function AdminRosterPage() {
   function isDirty(row: GuestRow) {
     const d = drafts[row.uid];
     if (!d) return false;
-    return (["displayName", "kana", "category", "invitationStatus"] as const)
+    return (["displayName", "kana", "invitationStatus"] as const)
       .some((k) => d[k] !== undefined && d[k] !== row[k]);
   }
 
@@ -62,7 +61,6 @@ export default function AdminRosterPage() {
         uid: row.uid,
         displayName: d.displayName ?? row.displayName,
         kana: d.kana ?? row.kana,
-        category: d.category ?? row.category,
         invitationStatus: d.invitationStatus ?? row.invitationStatus,
       });
       setDrafts((p) => { const n = { ...p }; delete n[row.uid]; return n; });
@@ -77,7 +75,7 @@ export default function AdminRosterPage() {
     const by: Record<string, number> = {};
     let reg = 0;
     for (const r of rows) {
-      by[r.category] = (by[r.category] ?? 0) + 1;
+      for (const t of r.tags) by[t] = (by[t] ?? 0) + 1;
       if (r.isRegistered) reg += 1;
     }
     return { by, reg, total: rows.length };
@@ -86,11 +84,11 @@ export default function AdminRosterPage() {
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows
-      .filter((r) => !category || r.category === category)
+      .filter((r) => !tagFilter || r.tags.includes(tagFilter))
       .filter((r) => registered === "" ? true : registered === "yes" ? r.isRegistered : !r.isRegistered)
-      .filter((r) => !needle || `${r.displayName} ${r.kana} ${r.nickname}`.toLowerCase().includes(needle))
+      .filter((r) => !needle || `${r.displayName} ${r.kana} ${r.nickname} ${r.realName}`.toLowerCase().includes(needle))
       .sort(compareGuests);
-  }, [rows, category, registered, q]);
+  }, [rows, tagFilter, registered, q]);
 
   const dirtyRows = visible.filter(isDirty);
   const loggedIn = useMemo(() => rows.filter((r) => !r.isPreRegistered), [rows]);
@@ -118,9 +116,16 @@ export default function AdminRosterPage() {
 
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex flex-wrap gap-1">
-            <button type="button" onClick={() => setCategory("")} className={`rounded-full px-3 py-1.5 text-sm ${!category ? "bg-stone-900 text-white" : "bg-white text-stone-600 hover:bg-stone-100"}`}>すべて</button>
-            {GUEST_CATEGORIES.map((c) => (
-              <button key={c.id} type="button" onClick={() => setCategory(c.id)} className={`rounded-full px-3 py-1.5 text-sm ${category === c.id ? "bg-stone-900 text-white" : "bg-white text-stone-600 hover:bg-stone-100"}`}>{c.label}<span className="ml-1.5 tabular-nums text-xs opacity-60">{stats.by[c.id] ?? 0}</span></button>
+            <button type="button" onClick={() => setTagFilter("")}
+              className={`rounded-full px-3 py-1.5 text-sm ${!tagFilter ? "bg-stone-900 text-white" : "bg-white text-stone-600 hover:bg-stone-100"}`}>
+              すべて
+            </button>
+            {TAG_DEFS.filter((t) => t.community).map((t) => (
+              <button key={t.id} type="button" onClick={() => setTagFilter(t.id)}
+                className={`rounded-full px-3 py-1.5 text-sm ${tagFilter === t.id ? "bg-stone-900 text-white" : "bg-white text-stone-600 hover:bg-stone-100"}`}>
+                {t.label}
+                <span className="ml-1.5 tabular-nums text-xs opacity-60">{stats.by[t.id] ?? 0}</span>
+              </button>
             ))}
           </div>
           <select value={registered} onChange={(e) => setRegistered(e.target.value as "" | "yes" | "no")} className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
@@ -142,7 +147,7 @@ export default function AdminRosterPage() {
           <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
             <table className="w-full min-w-[840px] border-collapse text-sm">
               <thead className="bg-stone-50 text-left text-xs font-semibold text-stone-500">
-                <tr><th className="border-b border-stone-200 px-3 py-2">名前</th><th className="w-44 border-b border-stone-200 px-3 py-2">ふりがな</th><th className="w-32 border-b border-stone-200 px-3 py-2">区分</th><th className="w-28 border-b border-stone-200 px-3 py-2">招待</th><th className="w-28 border-b border-stone-200 px-3 py-2">状態</th><th className="w-32 border-b border-stone-200 px-3 py-2"></th></tr>
+                <tr><th className="border-b border-stone-200 px-3 py-2">名前</th><th className="w-44 border-b border-stone-200 px-3 py-2">ふりがな</th><th className="w-28 border-b border-stone-200 px-3 py-2">招待</th><th className="w-28 border-b border-stone-200 px-3 py-2">状態</th><th className="w-32 border-b border-stone-200 px-3 py-2"></th></tr>
               </thead>
               <tbody>
                 {visible.map((row) => {
@@ -154,11 +159,6 @@ export default function AdminRosterPage() {
                       </td>
                       <td className="border-b border-stone-200 px-2 py-1.5">
                         <input value={field(row, "kana")} onChange={(e) => patch(row.uid, { kana: e.target.value })} maxLength={40} placeholder="まえかわ たろう" className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs text-stone-600 placeholder:text-stone-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none" />
-                      </td>
-                      <td className="border-b border-stone-200 px-2 py-1.5">
-                        <select value={field(row, "category")} onChange={(e) => patch(row.uid, { category: e.target.value })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${categoryDef(field(row, "category")).className}`}>
-                          {GUEST_CATEGORIES.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-                        </select>
                       </td>
                       <td className="border-b border-stone-200 px-2 py-1.5">
                         <select value={field(row, "invitationStatus")} onChange={(e) => patch(row.uid, { invitationStatus: e.target.value })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${invitationDef(field(row, "invitationStatus")).className}`}>

@@ -3,13 +3,12 @@ import { TAG_DEFS } from "@/config/tags";
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
-import { GUEST_CATEGORIES, INVITATION_STATUSES, isPreRegisteredUid } from "@/config/roster";
+import { INVITATION_STATUSES, isPreRegisteredUid } from "@/config/roster";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const CATEGORY_IDS = new Set<string>(GUEST_CATEGORIES.map((c) => c.id));
 const STATUS_IDS = new Set<string>(INVITATION_STATUSES.map((s) => s.id));
 const KNOWN_TAGS = new Set(TAG_DEFS.map((t) => t.id));
 const MAX_BULK = 300;
@@ -23,15 +22,27 @@ function newPreUid(): string {
   return `pre_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 }
 
-type Entry = { displayName?: unknown; kana?: unknown; category?: unknown; invitationStatus?: unknown };
+type Entry = {
+  displayName?: unknown; kana?: unknown; tags?: unknown; invitationStatus?: unknown;
+};
 
-function clean(e: Entry): { displayName: string; kana: string; category: string; invitationStatus: string } | null {
+/** 区分(category)は廃止。コミュニティはすべて tags で表現する */
+function clean(e: Entry): {
+  displayName: string; kana: string; tags: string[]; invitationStatus: string;
+} | null {
   const displayName = typeof e.displayName === "string" ? e.displayName.trim() : "";
   if (!displayName || displayName.length > 40) return null;
   const kana = typeof e.kana === "string" ? e.kana.trim().slice(0, 40) : "";
-  const category = typeof e.category === "string" && CATEGORY_IDS.has(e.category) ? e.category : "other";
-  const invitationStatus = typeof e.invitationStatus === "string" && STATUS_IDS.has(e.invitationStatus) ? e.invitationStatus : "unsent";
-  return { displayName, kana, category, invitationStatus };
+  const tags = Array.isArray(e.tags)
+    ? [...new Set((e.tags as unknown[]).filter(
+        (t): t is string => typeof t === "string" && KNOWN_TAGS.has(t),
+      ))].sort().slice(0, 20)
+    : [];
+  const invitationStatus =
+    typeof e.invitationStatus === "string" && STATUS_IDS.has(e.invitationStatus)
+      ? e.invitationStatus
+      : "unsent";
+  return { displayName, kana, tags, invitationStatus };
 }
 
 export async function POST(req: Request) {
@@ -70,7 +81,7 @@ async function handle(req: Request) {
       for (const e of entries.slice(i, i + CHUNK)) {
         const uid = newPreUid();
         batch.set(db.collection("guests").doc(uid), {
-          uid, ...e, nickname: "", tags: [],
+          uid, ...e, nickname: "",
           isPreRegistered: true, isRegistered: false, isApproved: false,
           createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
@@ -87,12 +98,12 @@ async function handle(req: Request) {
     const uid = typeof body.uid === "string" && body.uid ? body.uid : newPreUid();
     const exists = (await db.collection("guests").doc(uid).get()).exists;
     const patch: Record<string, unknown> = {
-      uid, displayName: entry.displayName, kana: entry.kana, category: entry.category,
+      uid, displayName: entry.displayName, kana: entry.kana,
       invitationStatus: entry.invitationStatus, updatedAt: FieldValue.serverTimestamp(),
     };
     if (!exists) {
       patch.isPreRegistered = true; patch.isRegistered = false; patch.isApproved = false;
-      patch.nickname = ""; patch.tags = []; patch.createdAt = FieldValue.serverTimestamp();
+      patch.nickname = ""; patch.tags = entry.tags; patch.createdAt = FieldValue.serverTimestamp();
     }
     let tags: string[] | undefined;
     if (Array.isArray(body.tags)) {
@@ -153,7 +164,9 @@ async function handle(req: Request) {
 
     const carry: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
     if (!toSnap.get("kana") && fromSnap.get("kana")) carry.kana = fromSnap.get("kana");
-    if (!toSnap.get("category")) carry.category = fromSnap.get("category") ?? "other";
+    if (!toSnap.get("displayName") && fromSnap.get("displayName")) {
+      carry.displayName = fromSnap.get("displayName");
+    }
     carry.invitationStatus = fromSnap.get("invitationStatus") ?? "sent";
     await db.collection("guests").doc(toUid).set(carry, { merge: true });
     await db.collection("guests").doc(fromUid).set({ mergedInto: toUid, isArchived: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });

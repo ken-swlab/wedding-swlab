@@ -70,7 +70,9 @@ async function handle(req: Request) {
     if (body.tags !== undefined) {
       tags = Array.from(new Set(body.tags)).sort();
     } else if (body.isApproved === true) {
-      tags = current.tags.length > 0 ? current.tags : Array.from(new Set(DEFAULT_GUEST_TAGS)).sort();
+      // ★必ず和集合★ 統合済みゲストはタグが空でないため
+      //   「空のときだけ付与」だと all が抜けて画面が真っ白になる。
+      tags = [...new Set([...current.tags, ...DEFAULT_GUEST_TAGS])].sort();
     } else if (body.isApproved === false) {
       tags = current.isAdmin ? current.tags : [];
     }

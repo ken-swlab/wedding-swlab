@@ -42,6 +42,7 @@ Security Rules によって **1ドキュメントずつ評価される**ため�
 | `/guests/{uid}` | サインイン済み全員 | 表示名・ニックネーム・アイコン・タグ・承認状態 |
 | `/guestPrivate/{uid}` | 本人と管理者 | 出欠・アレルギー・送金ステータス |
 | `/guestAdmin/{uid}` | 管理者のみ | LINE User ID・運営メモ・ログイン履歴 |
+| `/episodes/{id}` | 管理者 / 承認済みかつ `visibleToTags` が交差する人 | 思い出エピソード。ミニAI の文脈とムービーの素材 |
 | `/posts/{id}` | `visibleToTags` が交差する人 | 本文・メディア・ハッシュタグ・メンション |
 | `/posts/{id}/comments/{id}` | 同上（親からコピー） | 280文字・ハッシュタグ・メンション |
 | `/posts/{id}/reactions/{uid}` | サインイン済み全員 | 1人1件（docId = uid） |
@@ -67,6 +68,9 @@ Security Rules によって **1ドキュメントずつ評価される**ため�
 - **Phase 7.6** インスタ風ギャラリー UI（タブ切替 / 3列グリッド / ライトボックス / 遡り読み込み）
 
 ---
+
+- **エピソード基盤** `/admin/episodes`（お題つき投稿の承認・整形・ゲスト紐付け）
+  ★`targetTags`（誰についての話か）と `visibleToTags`（誰に見せてよいか）を分離★
 
 ## 次にやること
 

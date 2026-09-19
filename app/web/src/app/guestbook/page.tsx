@@ -42,7 +42,7 @@ export default function GuestbookPage() {
   }, [authLoading, user, router]);
 
   // ライトボックスの前後移動は「写真を持つ投稿」の並びを辿る
-  const viewer = useMemo<Person | null>(() => user && profile ? { uid: user.uid, name: profile.nickname || profile.displayName, kana: "", category: profile.category, tags } : null, [user, profile, tags]);
+  const viewer = useMemo<Person | null>(() => user && profile ? { uid: user.uid, name: profile.nickname || profile.displayName, kana: "", tags } : null, [user, profile, tags]);
   const gallery = useMemo(() => {
     const withMedia = posts.filter((p) => p.media.length > 0);
     if (!personUid) return withMedia;

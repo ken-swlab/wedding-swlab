@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 export type GuestProfile = {
@@ -10,7 +10,6 @@ export type GuestProfile = {
   displayName: string;
   isRegistered: boolean;
   isApproved: boolean;
-  category: string;
   realName: string;
 };
 
@@ -77,12 +76,23 @@ export function useGuestSession(): GuestSession {
       doc(db, "guests", user.uid),
       (snap) => {
         const d = snap.data();
+
+        // LINEプロフィールが更新されていればFirestoreに自動同期する
+        if (d && user && user.displayName) {
+          const authName = user.displayName;
+          const authPhoto = user.photoURL || "";
+          if (d.lineDisplayName !== authName || d.photoURL !== authPhoto) {
+            void updateDoc(doc(db, "guests", user.uid), {
+              lineDisplayName: authName,
+              photoURL: authPhoto
+            }).catch(() => {});
+          }
+        }
         setProfile({
           nickname: d?.nickname ?? "",
           displayName: d?.displayName ?? user.displayName ?? "ゲスト",
           isRegistered: d?.isRegistered === true,
           isApproved: d?.isApproved === true,
-          category: d?.category ?? "other",
           realName: d?.realName ?? "",
         });
         setProfileLoading(false);

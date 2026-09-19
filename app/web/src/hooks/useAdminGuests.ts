@@ -40,7 +40,6 @@ export function useAdminGuests(enabled: boolean) {
           realName: v.realName ?? "",
           lineDisplayName: v.lineDisplayName ?? "",
           kana: v.kana ?? "",
-          category: v.category ?? "other",
           invitationStatus: v.invitationStatus ?? "unsent",
           isPreRegistered: v.isPreRegistered === true || d.id.startsWith("pre_"),
           mergedInto: v.mergedInto ?? "",
