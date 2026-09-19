@@ -1,0 +1,110 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  collection, limit, onSnapshot, query, type FirestoreError,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type {
+  Attendance, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
+} from "@/types/admin";
+
+const PAGE = 500;
+
+/**
+ * guests / guestPrivate / guestAdmin の3つを購読して uid で結合する。
+ * ★orderBy は使わない★ 対象フィールドを持たないドキュメントが
+ * クエリ結果から丸ごと除外されるため、並べ替えは JS 側で行う。
+ */
+export function useAdminGuests(enabled: boolean) {
+  const [pub, setPub] = useState<Record<string, GuestPublic>>({});
+  const [priv, setPriv] = useState<Record<string, GuestPrivate>>({});
+  const [adm, setAdm] = useState<Record<string, GuestAdmin>>({});
+  const [error, setError] = useState<FirestoreError | null>(null);
+  const [ready, setReady] = useState({ pub: false, priv: false, adm: false });
+
+  useEffect(() => {
+    if (!enabled) return;
+    return onSnapshot(query(collection(db, "guests"), limit(PAGE)), (snap) => {
+      const next: Record<string, GuestPublic> = {};
+      for (const d of snap.docs) {
+        const v = d.data();
+        next[d.id] = {
+          uid: d.id,
+          displayName: v.displayName ?? "(不明)",
+          nickname: v.nickname ?? "",
+          photoURL: v.photoURL,
+          tags: Array.isArray(v.tags) ? [...v.tags].sort() : [],
+          isApproved: v.isApproved === true,
+          isRegistered: v.isRegistered === true,
+        };
+      }
+      setPub(next);
+      setReady((s) => ({ ...s, pub: true }));
+    }, setError);
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return onSnapshot(query(collection(db, "guestPrivate"), limit(PAGE)), (snap) => {
+      const next: Record<string, GuestPrivate> = {};
+      for (const d of snap.docs) {
+        const v = d.data();
+        next[d.id] = {
+          uid: d.id,
+          attendance: (v.attendance ?? "unanswered") as Attendance,
+          allergy: v.allergy ?? "",
+          paymentStatus: (v.paymentStatus ?? "none") as PaymentStatus,
+          submittedAt: v.submittedAt ?? null,
+        };
+      }
+      setPriv(next);
+      setReady((s) => ({ ...s, priv: true }));
+    }, setError);
+  }, [enabled]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    return onSnapshot(query(collection(db, "guestAdmin"), limit(PAGE)), (snap) => {
+      const next: Record<string, GuestAdmin> = {};
+      for (const d of snap.docs) {
+        const v = d.data();
+        next[d.id] = {
+          uid: d.id,
+          lineUserId: v.lineUserId ?? "",
+          inviteCode: v.inviteCode ?? "",
+          inviteLabel: v.inviteLabel ?? "",
+          isAnonymous: v.isAnonymous === true,
+          aiMemo: v.aiMemo ?? "",
+          firstLoginAt: v.firstLoginAt ?? null,
+        };
+      }
+      setAdm(next);
+      setReady((s) => ({ ...s, adm: true }));
+    }, setError);
+  }, [enabled]);
+
+  const rows = useMemo<GuestRow[]>(
+    () =>
+      Object.values(pub).map((p) => {
+        const v = priv[p.uid];
+        const a = adm[p.uid];
+        return {
+          ...p,
+          attendance: v?.attendance ?? "unanswered",
+          allergy: v?.allergy ?? "",
+          paymentStatus: v?.paymentStatus ?? "none",
+          submittedAt: v?.submittedAt ?? null,
+          lineUserId: a?.lineUserId ?? "",
+          inviteCode: a?.inviteCode ?? "",
+          inviteLabel: a?.inviteLabel ?? "",
+          isAnonymous: a?.isAnonymous ?? false,
+          aiMemo: a?.aiMemo ?? "",
+          firstLoginAt: a?.firstLoginAt ?? null,
+        };
+      }),
+    [pub, priv, adm],
+  );
+
+  return { rows, loading: enabled && !(ready.pub && ready.priv && ready.adm), error };
+}

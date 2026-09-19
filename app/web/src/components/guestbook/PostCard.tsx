@@ -2,10 +2,13 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import type { User } from "firebase/auth";
 import type { Post } from "@/types";
 import { toggleReaction } from "@/lib/posts";
 import { MediaGrid } from "./MediaGrid";
 import { TagBadge } from "./TagBadge";
+import { RichText } from "./RichText";
+import { CommentArea } from "./CommentArea";
 
 function relativeTime(post: Post): string {
   if (!post.createdAt) return "送信中…";
@@ -17,16 +20,15 @@ function relativeTime(post: Post): string {
   return d.toLocaleDateString("ja-JP", { month: "long", day: "numeric" });
 }
 
-export function PostCard({ post, uid }: { post: Post; uid: string }) {
+export function PostCard({ post, user }: { post: Post; user: User }) {
   const [reacted, setReacted] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // 件数は onSnapshot が即座に返すので楽観更新はしない（ズレの元）
   async function onReact() {
     if (busy) return;
     setBusy(true);
     try {
-      setReacted(await toggleReaction(post.id, uid));
+      setReacted(await toggleReaction(post.id, user.uid));
     } catch (e) {
       console.error(e);
     } finally {
@@ -54,27 +56,30 @@ export function PostCard({ post, uid }: { post: Post; uid: string }) {
       </header>
 
       {post.text && (
-        <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800">
-          {post.text}
-        </p>
+        <RichText
+          text={post.text}
+          className="mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
+        />
       )}
 
       <MediaGrid media={post.media} />
 
-      <footer className="mt-3 flex items-center gap-4 border-t border-stone-100 pt-3">
-        <button
-          type="button"
-          onClick={onReact}
-          disabled={busy}
-          aria-pressed={reacted}
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
-            reacted ? "bg-rose-50 text-rose-600" : "text-stone-500 hover:bg-stone-50"
-          }`}
-        >
-          <span aria-hidden>{reacted ? "❤️" : "🤍"}</span>
-          <span className="tabular-nums">{post.reactionCount}</span>
-        </button>
-        <span className="text-sm text-stone-400">💬 {post.commentCount}</span>
+      <footer className="mt-3 border-t border-stone-100 pt-2">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onReact}
+            disabled={busy}
+            aria-pressed={reacted}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
+              reacted ? "bg-rose-50 text-rose-600" : "text-stone-500 hover:bg-stone-50"
+            }`}
+          >
+            <span aria-hidden>{reacted ? "❤️" : "🤍"}</span>
+            <span className="tabular-nums">{post.reactionCount}</span>
+          </button>
+        </div>
+        <CommentArea post={post} user={user} />
       </footer>
     </article>
   );

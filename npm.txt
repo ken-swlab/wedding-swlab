@@ -1,0 +1,2 @@
+cd /workspaces/wedding-swlab/app/web
+npm run dev

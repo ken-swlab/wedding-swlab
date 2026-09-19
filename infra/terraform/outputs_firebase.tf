@@ -1,11 +1,12 @@
 locals {
   fb = data.google_firebase_web_app_config.web
   firebase_config = {
-    apiKey            = local.fb.api_key
-    authDomain        = local.fb.auth_domain
-    projectId         = var.project_id
-    appId             = google_firebase_web_app.web.app_id
-    storageBucket     = local.fb.storage_bucket == null ? "" : local.fb.storage_bucket
+    apiKey     = local.fb.api_key
+    authDomain = local.fb.auth_domain
+    projectId  = var.project_id
+    appId      = google_firebase_web_app.web.app_id
+    # Phase 7 で Terraform 管理のバケットを作成したのでそちらを使う
+    storageBucket     = google_storage_bucket.media.name
     messagingSenderId = local.fb.messaging_sender_id == null ? "" : local.fb.messaging_sender_id
     measurementId     = local.fb.measurement_id == null ? "" : local.fb.measurement_id
   }

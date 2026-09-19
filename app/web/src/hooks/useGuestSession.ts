@@ -1,15 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+
+export type GuestProfile = {
+  nickname: string;
+  displayName: string;
+  isRegistered: boolean;
+  isApproved: boolean;
+};
 
 export type GuestSession = {
   user: User | null;
   tags: string[];
   isAdmin: boolean;
   loading: boolean;
-  /** CTF でタグが付与された直後に呼ぶ */
+  profile: GuestProfile | null;
+  profileLoading: boolean;
   refreshTags: () => Promise<string[]>;
 };
 
@@ -18,6 +27,9 @@ export function useGuestSession(): GuestSession {
   const [tags, setTags] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<GuestProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
     if (!u) {
@@ -37,19 +49,49 @@ export function useGuestSession(): GuestSession {
       setUser(u);
       await readClaims(u);
       setLoading(false);
+      if (!u) {
+        setProfile(null);
+        setProfileLoading(false);
+      }
     });
   }, [readClaims]);
 
-  /**
-   * ★重要な落とし穴★
-   * Custom Claims はサーバーで書き換えても ID トークンが更新されるまで
-   * （最大1時間）クライアントに反映されない。
-   * 招待コード引き換え・CTF正解の直後は必ずこれを呼んで強制リフレッシュする。
-   */
   const refreshTags = useCallback(
     () => readClaims(auth.currentUser, true),
     [readClaims],
   );
 
-  return { user, tags, isAdmin, loading, refreshTags };
+  /**
+   * 自分の /guests/{uid} を購読する。ここから2つを同時に得ている:
+   *  - 登録/承認ステータス（オンボーディングの分岐に使う）
+   *  - claimsUpdatedAt（管理者がタグを変えた合図。匿名ユーザーには
+   *    revokeRefreshTokens() が使えないため、この方式で取り直す）
+   */
+  useEffect(() => {
+    if (!user) return;
+    setProfileLoading(true);
+
+    return onSnapshot(
+      doc(db, "guests", user.uid),
+      (snap) => {
+        const d = snap.data();
+        setProfile({
+          nickname: d?.nickname ?? "",
+          displayName: d?.displayName ?? user.displayName ?? "ゲスト",
+          isRegistered: d?.isRegistered === true,
+          isApproved: d?.isApproved === true,
+        });
+        setProfileLoading(false);
+
+        const ms: number | undefined = d?.claimsUpdatedAt?.toMillis?.();
+        if (typeof ms === "number" && ms > lastSeen.current) {
+          lastSeen.current = ms;
+          void readClaims(auth.currentUser, true);
+        }
+      },
+      () => setProfileLoading(false),
+    );
+  }, [user, readClaims]);
+
+  return { user, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

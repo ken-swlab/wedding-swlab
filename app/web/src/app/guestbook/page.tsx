@@ -1,31 +1,41 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { signInAnonymously } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { ensureGuestDoc } from "@/lib/guests";
+import { useRouter } from "next/navigation";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { usePosts } from "@/hooks/usePosts";
+import { useUpload } from "@/hooks/useUpload";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
+import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
+import { PendingApproval } from "@/components/guestbook/PendingApproval";
+import { UploadStatusBar } from "@/components/guestbook/UploadStatusBar";
+import { SplashScreen } from "@/components/SplashScreen";
 
 export default function GuestbookPage() {
-  const { user, tags, loading: authLoading } = useGuestSession();
+  const router = useRouter();
+  const { user, tags, loading: authLoading, profile, profileLoading, refreshTags } =
+    useGuestSession();
   const { posts, loading, error } = usePosts(tags);
-  const [signingIn, setSigningIn] = useState(false);
+  // ★Composer の外に置くこと★ 投稿直後に Composer はリセットされるため
+  const upload = useUpload();
+  const [editing, setEditing] = useState(false);
 
+  // 認証は / の LIFF フローに一本化。authLoading の解決を待つこと。
   useEffect(() => {
-    if (user) void ensureGuestDoc(user.uid, user.displayName ?? "ゲスト");
-  }, [user]);
+    if (!authLoading && !user) router.replace("/");
+  }, [authLoading, user, router]);
 
-  async function onSignIn() {
-    setSigningIn(true);
-    try {
-      await signInAnonymously(auth);
-    } finally {
-      setSigningIn(false);
-    }
+  if (authLoading || !user) {
+    return <SplashScreen phase={authLoading ? "booting" : "line-login"} />;
   }
+  if (profileLoading || !profile) {
+    return <SplashScreen phase="booting" />;
+  }
+
+  // 「登録 → 承認 → 解放」の3段階。タグの有無は承認の結果でしかない。
+  const needsOnboarding = editing || !profile.isRegistered;
+  const unlocked = profile.isApproved && tags.length > 0;
 
   return (
     <main className="min-h-screen bg-stone-50">
@@ -35,35 +45,28 @@ export default function GuestbookPage() {
           <p className="mt-1 text-sm text-stone-500">おふたりへのメッセージを残してください</p>
         </header>
 
-        {authLoading ? (
-          <div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" />
-        ) : !user ? (
-          <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center">
-            <p className="text-sm text-stone-600">ゲストブックを開くにはサインインしてください</p>
-            <button
-              type="button"
-              onClick={onSignIn}
-              disabled={signingIn}
-              className="mt-4 rounded-full bg-stone-900 px-6 py-2 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-50"
-            >
-              {signingIn ? "接続中…" : "はじめる"}
-            </button>
-          </div>
-        ) : tags.length === 0 ? (
-          // Custom Claims が空 = まだ招待コードを引き換えていない状態。
-          // ここを空タイムラインにすると原因不明に見えるので明示する。
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center text-sm text-amber-900">
-            <p className="font-medium">招待コードの引き換えが必要です</p>
-            <p className="mt-2 leading-relaxed">
-              アカウントにまだタグが付与されていません。
-              招待コード用の Route Handler（Admin SDK で setCustomUserClaims）を
-              用意したうえで、引き換え後に <code>refreshTags()</code> を呼んでください。
-            </p>
-          </div>
+        {needsOnboarding ? (
+          <OnboardingForm
+            user={user}
+            initialNickname={profile.nickname}
+            onDone={() => setEditing(false)}
+          />
+        ) : !unlocked ? (
+          <PendingApproval
+            nickname={profile.nickname}
+            approvedButStale={profile.isApproved}
+            onEdit={() => setEditing(true)}
+            onRefresh={() => void refreshTags()}
+          />
         ) : (
           <div className="space-y-4">
-            <Composer user={user} tags={tags} />
-            <Timeline posts={posts} loading={loading} error={error} uid={user.uid} />
+            <UploadStatusBar
+              jobs={upload.jobs}
+              onRetry={upload.retryFailed}
+              onDismiss={upload.clearDone}
+            />
+            <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
+            <Timeline posts={posts} loading={loading} error={error} user={user} />
           </div>
         )}
       </div>

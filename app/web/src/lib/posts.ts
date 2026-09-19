@@ -3,6 +3,7 @@ import {
   serverTimestamp, type DocumentData, type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { extractTags } from "@/lib/text";
 import type { MediaItem, Post } from "@/types";
 
 /** snapshot -> Post。欠損フィールドをここで吸収する。 */
@@ -16,6 +17,8 @@ export function toPost(snap: QueryDocumentSnapshot<DocumentData>): Post {
     text: d.text ?? "",
     media: Array.isArray(d.media) ? d.media : [],
     visibleToTags: Array.isArray(d.visibleToTags) ? d.visibleToTags : [],
+    hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],
+    mentions: Array.isArray(d.mentions) ? d.mentions : [],
     status: d.status ?? "visible",
     reactionCount: d.reactionCount ?? 0,
     commentCount: d.commentCount ?? 0,
@@ -41,6 +44,9 @@ export async function createPost(params: {
   if (media.length > 4) throw new Error("メディアは4件までです");
   if (visibleToTags.length === 0) throw new Error("公開範囲を1つ以上選んでください");
 
+  // 本文から #タグ と @メンションを抽出して保存する
+  const { hashtags, mentions } = extractTags(text);
+
   return addDoc(collection(db, "posts"), {
     authorUid: uid,
     authorName: displayName,
@@ -48,6 +54,8 @@ export async function createPost(params: {
     text: text.trim(),
     media,
     visibleToTags,
+    hashtags,
+    mentions,
     status: "visible",
     reactionCount: 0,
     commentCount: 0,

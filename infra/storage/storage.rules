@@ -1,0 +1,50 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+
+    function myTags() {
+      return signedIn() && 'tags' in request.auth.token
+        ? request.auth.token.tags : [];
+    }
+
+    // 承認済み = タグを1つ以上持っている
+    function isApproved() { return myTags().size() > 0; }
+
+    function isAdmin() {
+      return signedIn() && 'admin' in request.auth.token
+        && request.auth.token.admin == true;
+    }
+
+    function isImageOrVideo() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('video/.*');
+    }
+
+    // 軽量版（タイムライン表示用）
+    match /uploads/{uid}/thumb/{fileId} {
+      allow read: if isApproved();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && isImageOrVideo()
+        && request.resource.size < 8 * 1024 * 1024;
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+
+    // 原本（一眼レフ・プロジェクター投影用）
+    match /uploads/{uid}/original/{fileId} {
+      allow read: if isApproved();
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && isImageOrVideo()
+        && request.resource.size < 60 * 1024 * 1024;
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == uid);
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
