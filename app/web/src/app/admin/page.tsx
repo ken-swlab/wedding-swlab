@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import { useMemo } from "react";
 import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
@@ -67,6 +67,14 @@ export default function AdminPage() {
               青い行は承認待ちです。「承認する」を押すと初期タグが付与され、ゲストの画面が自動で開きます。
             </p>
           </div>
+            <div className="flex flex-wrap items-center gap-3 mt-3 sm:mt-0">
+              <Link href="/admin/guests" className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-100">
+                招待予定者リスト →
+              </Link>
+              <Link href="/admin/faces" className="rounded-full border border-stone-200 bg-white px-3 py-1.5 text-xs text-stone-600 hover:bg-stone-100">
+                顔の名寄せ →
+              </Link>
+            </div>
           <div className="flex gap-4 text-sm">
             <div className="text-center">
               <p className="tabular-nums text-lg font-semibold text-sky-700">{stats.pending ?? 0}</p>

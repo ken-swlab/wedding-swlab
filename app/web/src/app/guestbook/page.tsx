@@ -8,11 +8,16 @@ import { useUpload } from "@/hooks/useUpload";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
 import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
+import { PersonFilter } from "@/components/guestbook/PersonFilter";
+import { useGuestDirectory } from "@/hooks/useGuestDirectory";
+import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
 import { ViewTabs, type GuestbookView } from "@/components/guestbook/ViewTabs";
 import { UploadStatusBar } from "@/components/guestbook/UploadStatusBar";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
+import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
+import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
 export default function GuestbookPage() {
@@ -27,6 +32,8 @@ export default function GuestbookPage() {
   const upload = useUpload();
 
   const [view, setView] = useState<GuestbookView>("timeline");
+  const [personUid, setPersonUid] = useState("");
+  const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
 
@@ -35,7 +42,12 @@ export default function GuestbookPage() {
   }, [authLoading, user, router]);
 
   // ライトボックスの前後移動は「写真を持つ投稿」の並びを辿る
-  const gallery = useMemo(() => posts.filter((p) => p.media.length > 0), [posts]);
+  const viewer = useMemo<Person | null>(() => user && profile ? { uid: user.uid, name: profile.nickname || profile.displayName, kana: "", category: profile.category, tags } : null, [user, profile, tags]);
+  const gallery = useMemo(() => {
+    const withMedia = posts.filter((p) => p.media.length > 0);
+    if (!personUid) return withMedia;
+    return withMedia.filter((p) => p.detectedUserIds?.includes(personUid));
+  }, [posts, personUid]);
   const index = openId ? gallery.findIndex((p) => p.id === openId) : -1;
   const current = index >= 0 ? gallery[index] : null;
 
@@ -57,7 +69,10 @@ export default function GuestbookPage() {
   const needsOnboarding = editing || !profile.isRegistered;
   const unlocked = profile.isApproved && tags.length > 0;
 
+  const authorName = publicName(profile);
+
   return (
+    <AuthorNameProvider value={authorName}>
     <main className="min-h-screen bg-stone-50">
       <div className="mx-auto max-w-xl px-4 py-8">
         <header className="mb-6 text-center">
@@ -97,17 +112,22 @@ export default function GuestbookPage() {
                 )}
               </>
             ) : (
-              <GalleryGrid
-                posts={posts}
-                onOpen={setOpenId}
+              <>
+                <PersonFilter viewer={viewer} people={directory.people} value={personUid} onChange={setPersonUid} />
+                {personUid && gallery.length === 0 ? (
+                  <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">その方が写っている写真はまだありません。</p>
+                ) : (
+              <GalleryGrid posts={gallery} onOpen={setOpenId}
                 footer={
-                  hasMore && gallery.length > 0 ? (
+                  hasMore && !personUid && gallery.length > 0 ? (
                     <div className="pt-4">
                       <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
                     </div>
                   ) : null
                 }
               />
+              )}
+              </>
             )}
           </div>
         )}
@@ -125,6 +145,7 @@ export default function GuestbookPage() {
         />
       )}
     </main>
+    </AuthorNameProvider>
   );
 }
 

@@ -6,6 +6,7 @@ import type { User } from "firebase/auth";
 import { useComments } from "@/hooks/useComments";
 import { createComment, deleteComment } from "@/lib/comments";
 import { countChars, MAX_COMMENT_LENGTH } from "@/lib/text";
+import { useAuthorName } from "./AuthorNameProvider";
 import { RichText } from "./RichText";
 import type { Comment, Post } from "@/types";
 
@@ -65,6 +66,7 @@ export function CommentArea({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const authorName = useAuthorName();
   const { comments, loading, error } = useComments(post.id, open);
 
   const [text, setText] = useState("");
@@ -86,7 +88,7 @@ export function CommentArea({
         postId: post.id,
         postVisibleToTags: post.visibleToTags, // ★親と完全一致が必須★
         uid: user.uid,
-        displayName: user.displayName ?? "ゲスト",
+        displayName: authorName,
         photoURL: user.photoURL,
         text,
       });

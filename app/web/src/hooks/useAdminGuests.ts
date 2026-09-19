@@ -37,6 +37,14 @@ export function useAdminGuests(enabled: boolean) {
           tags: Array.isArray(v.tags) ? [...v.tags].sort() : [],
           isApproved: v.isApproved === true,
           isRegistered: v.isRegistered === true,
+          realName: v.realName ?? "",
+          lineDisplayName: v.lineDisplayName ?? "",
+          kana: v.kana ?? "",
+          category: v.category ?? "other",
+          invitationStatus: v.invitationStatus ?? "unsent",
+          isPreRegistered: v.isPreRegistered === true || d.id.startsWith("pre_"),
+          mergedInto: v.mergedInto ?? "",
+          isArchived: v.isArchived === true,
         };
       }
       setPub(next);
@@ -86,7 +94,9 @@ export function useAdminGuests(enabled: boolean) {
 
   const rows = useMemo<GuestRow[]>(
     () =>
-      Object.values(pub).map((p) => {
+      Object.values(pub)
+        .filter((p) => !p.isArchived && !p.mergedInto)
+        .map((p) => {
         const v = priv[p.uid];
         const a = adm[p.uid];
         return {

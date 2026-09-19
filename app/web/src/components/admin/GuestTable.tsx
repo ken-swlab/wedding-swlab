@@ -3,6 +3,8 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { TAG_DEFS, tagDef } from "@/config/tags";
+import { adminName, adminSubName } from "@/lib/names";
+// from "@/config/tags";
 import {
   ATTENDANCE_OPTIONS, ATTENDANCE_LABEL, PAYMENT_OPTIONS, PAYMENT_LABEL,
   type Attendance, type GuestRow, type PaymentStatus,
@@ -109,9 +111,9 @@ export function GuestTable({
   const dirtyRows = visible.filter(isDirty);
 
   function exportCsv() {
-    const head = ["uid", "ニックネーム", "LINE名", "承認", "出欠", "アレルギー", "送金", "タグ", "メモ"];
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "アレルギー", "送金", "タグ", "メモ"];
     const body = visible.map((r) => [
-      r.uid, field(r, "nickname"), r.displayName, r.isApproved ? "済" : "未",
+      r.uid, adminName(r), field(r, "nickname"), r.lineDisplayName, r.isApproved ? "済" : "未",
       ATTENDANCE_LABEL[field(r, "attendance")], field(r, "allergy"),
       PAYMENT_LABEL[field(r, "paymentStatus")], field(r, "tags").join(" "), field(r, "aiMemo"),
     ]);
@@ -208,21 +210,18 @@ export function GuestTable({
                         {row.photoURL && <Image src={row.photoURL} alt="" fill sizes="32px" className="object-cover" />}
                       </div>
                       <div className="min-w-0 flex-1">
+                        <p className="truncate px-1.5 font-medium text-stone-900" title={adminName(row)}>{adminName(row)}</p>
                         <input
                           value={field(row, "nickname")}
                           onChange={(e) => patch(row.uid, { nickname: e.target.value })}
                           maxLength={20}
-                          placeholder={row.displayName}
-                          className="w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 font-medium text-stone-800 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none"
+                          placeholder="ニックネーム"
+                          className="w-full rounded border border-transparent bg-transparent px-1.5 py-0.5 text-xs text-stone-600 placeholder:text-stone-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none"
                         />
-                        <button
-                          type="button"
-                          title={row.uid}
-                          onClick={() => void navigator.clipboard?.writeText(row.uid)}
-                          className="px-1.5 font-mono text-[10px] text-stone-400 hover:text-stone-700"
-                        >
-                          {row.uid.slice(0, 12)}…
-                        </button>
+                        <span className="block truncate px-1.5 text-[10px] text-stone-400" title={adminSubName(row) || row.uid}>
+                          {row.lineDisplayName ? `LINE: ${row.lineDisplayName}` : ""}
+                        </span>
+                        <button type="button" title={row.uid} onClick={() => void navigator.clipboard?.writeText(row.uid)} className="px-1.5 font-mono text-[10px] text-stone-300 hover:text-stone-700">{row.uid.slice(0, 12)}…</button>
                       </div>
                     </div>
                   </td>

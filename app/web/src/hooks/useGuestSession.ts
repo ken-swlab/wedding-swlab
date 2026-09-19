@@ -10,6 +10,8 @@ export type GuestProfile = {
   displayName: string;
   isRegistered: boolean;
   isApproved: boolean;
+  category: string;
+  realName: string;
 };
 
 export type GuestSession = {
@@ -80,6 +82,8 @@ export function useGuestSession(): GuestSession {
           displayName: d?.displayName ?? user.displayName ?? "ゲスト",
           isRegistered: d?.isRegistered === true,
           isApproved: d?.isApproved === true,
+          category: d?.category ?? "other",
+          realName: d?.realName ?? "",
         });
         setProfileLoading(false);
 

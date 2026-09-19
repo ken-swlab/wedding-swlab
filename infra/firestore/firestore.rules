@@ -74,6 +74,15 @@ service cloud.firestore {
       allow list:  if isAdmin() && request.query.limit <= 500;
       allow write: if false;
     }
+    // =====================================================
+    // /faces/{faceId} : Rekognition が検出した顔の座標
+    // =====================================================
+    match /faces/{faceId} {
+      allow get:   if isAdmin();
+      allow list:  if isAdmin() && request.query.limit <= 300;
+      allow write: if false;
+    }
+
 
     match /{document=**} { allow read, write: if false; }
     // =====================================================

@@ -24,15 +24,23 @@ export const PAYMENT_LABEL = Object.fromEntries(
 
 /** /guests/{uid} : 全ゲストが読める公開プロフィール */
 export type GuestPublic = {
+  realName?: string;
+  lineDisplayName?: string;
+
   uid: string;
-  /** LINE 側の表示名（変更不可） */
   displayName: string;
-  /** システム上で表示する名前。本人が登録フォームで決める */
   nickname: string;
   photoURL?: string;
+  referencePhotoUrl?: string;
   tags: string[];
   isApproved: boolean;
   isRegistered: boolean;
+  kana: string;
+  category: string;
+  invitationStatus: string;
+  isPreRegistered: boolean;
+  mergedInto: string;
+  isArchived: boolean;
 };
 
 /** /guestPrivate/{uid} : 本人と管理者だけが読める */
@@ -70,6 +78,8 @@ export type RegisterPayload = {
 
 /** 管理者が送る更新内容。isApproved はここでしか変えられない */
 export type UpdateGuestPayload = {
+  referencePhotoUrl?: string | null;
+  referencePhotoPath?: string | null;
   uid: string;
   nickname?: string;
   tags?: string[];

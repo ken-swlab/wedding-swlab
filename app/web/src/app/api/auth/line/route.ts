@@ -108,9 +108,9 @@ export async function POST(req: Request) {
   batch.set(
     db.collection("guests").doc(uid),
     {
-      displayName,
+      lineDisplayName: displayName,
       ...(photoURL ? { photoURL } : {}),
-      ...(isNew ? { createdAt: FieldValue.serverTimestamp() } : {}),
+      ...(isNew ? { displayName, createdAt: FieldValue.serverTimestamp() } : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },
     { merge: true },

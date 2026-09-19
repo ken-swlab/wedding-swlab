@@ -11,6 +11,7 @@ import {
 } from "@/lib/media";
 import { createPost } from "@/lib/posts";
 import type { EnqueueItem } from "@/hooks/useUpload";
+import { useAuthorName } from "./AuthorNameProvider";
 import type { MediaItem } from "@/types";
 
 type Picked = {
@@ -48,6 +49,7 @@ export function Composer({
     tags.includes("all") ? ["all"] : tags.slice(0, 1),
   );
 
+  const authorNameVal = useAuthorName();
   const storageReady = isStorageConfigured();
 
   // プレビュー用の objectURL を確実に解放する
@@ -158,12 +160,28 @@ export function Composer({
 
       const postRef = await createPost({
         uid: user.uid,
-        displayName: user.displayName ?? "ゲスト",
+        displayName: authorNameVal,
         photoURL: user.photoURL,
         text,
         media,
         visibleToTags: selected,
       });
+
+      // --- 顔検出の発火。★絶対に await しない★ ---
+      void (async () => {
+        try {
+          await fetch("/api/faces/detect", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${await user.getIdToken()}`,
+            },
+            body: JSON.stringify({ postId: postRef.id }),
+          });
+        } catch {
+          /* 失敗しても投稿体験には影響させない */
+        }
+      })();
 
       // --- 第2段: 原本はページ側のキューに委ねる ---
       if (originals.length > 0) {
