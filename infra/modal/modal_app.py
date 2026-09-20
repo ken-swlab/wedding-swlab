@@ -1,0 +1,217 @@
+"""
+Style-Bert-VITS2 を Modal のサーバーレス GPU で動かす TTS API。
+
+--- デプロイ手順 -------------------------------------------------------------
+  pip install -U modal
+  modal setup
+  modal volume create sbv2-models
+  # 学習済みモデル一式（*.safetensors / config.json / style_vectors.npy）を置く
+  modal volume put sbv2-models ./model_assets/<モデル名> /<モデル名>
+  modal secret create sbv2-auth SBV2_TTS_TOKEN=<十分に長いランダム文字列>
+  modal deploy infra/modal/modal_app.py
+  # → 出力された https://...modal.run を MODAL_TTS_URL に設定（末尾に /tts を付ける）
+
+--- Modal のバージョン差異 ---------------------------------------------------
+  デコレータ名が変わっています。エラーが出たら読み替えてください。
+    modal.App          ← 旧 modal.Stub
+    scaledown_window   ← 旧 container_idle_timeout
+    min_containers     ← 旧 keep_warm
+  まず `pip install -U modal` で最新にするのが確実です。
+"""
+
+import io
+import os
+import pathlib
+import wave
+
+import modal
+
+APP_NAME = "sbv2-tts"
+BERT_MODEL = "ku-nlp/deberta-v2-large-japanese-char-wwm"
+MODEL_DIR = "/models"
+MAX_TEXT = 400
+
+volume = modal.Volume.from_name("sbv2-models", create_if_missing=True)
+
+
+def _bake_assets() -> None:
+    """イメージビルド時に BERT と OpenJTalk 辞書を焼き込む。
+    ここで落としておかないと、コンテナ起動のたびに数百MBを取りに行くことになり、
+    コールドスタートが致命的に遅くなる。"""
+    from huggingface_hub import snapshot_download
+
+    snapshot_download(BERT_MODEL)
+    try:
+        import pyopenjtalk
+
+        pyopenjtalk.g2p("テスト")  # open_jtalk 辞書のダウンロードを誘発する
+    except Exception as e:  # noqa: BLE001
+        print(f"[build] pyopenjtalk の事前初期化をスキップ: {e}")
+
+
+image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .apt_install("git", "curl", "build-essential", "cmake")
+    .pip_install(
+        "style-bert-vits2",
+        "torch",
+        "numpy<2",  # pyopenjtalk 系が numpy 2 と噛み合わないことがある。通るなら外してよい
+        "huggingface_hub",
+        "fastapi[standard]",
+        "setuptools",
+    )
+    .run_function(_bake_assets)
+)
+
+app = modal.App(APP_NAME)
+
+
+def _find_model(root: pathlib.Path):
+    """Volume 内から SBV2 のモデル3点セットを探す。
+    ファイル名は学習時の epoch/step で変わるので、決め打ちせず探索する。"""
+    override = os.environ.get("SBV2_MODEL_NAME")
+    if override:
+        dirs = [root / override]
+    else:
+        dirs = sorted(p for p in root.iterdir() if p.is_dir())
+
+    for d in dirs:
+        if not d.is_dir():
+            continue
+        safetensors = sorted(d.glob("*.safetensors"))
+        config = d / "config.json"
+        style = d / "style_vectors.npy"
+        if safetensors and config.exists() and style.exists():
+            return safetensors[-1], config, style
+
+    raise RuntimeError(
+        f"{root} に SBV2 モデルが見つかりません。"
+        " <名前>/*.safetensors, <名前>/config.json, <名前>/style_vectors.npy の3点が必要です。"
+    )
+
+
+def _f(v, default: float, lo: float, hi: float) -> float:
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return default
+    if n != n:  # NaN
+        return default
+    return max(lo, min(hi, n))
+
+
+def _to_wav(sample_rate: int, audio) -> bytes:
+    """numpy 配列を 16bit モノラル WAV にする。soundfile に依存しない。"""
+    import numpy as np
+
+    arr = np.asarray(audio)
+    if arr.ndim > 1:
+        arr = arr.reshape(-1)
+    if arr.dtype != np.int16:
+        arr = np.clip(arr.astype("float32"), -1.0, 1.0)
+        arr = (arr * 32767.0).astype(np.int16)
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(int(sample_rate))
+        w.writeframes(arr.tobytes())
+    return buf.getvalue()
+
+
+@app.cls(
+    image=image,
+    gpu="T4",
+    volumes={MODEL_DIR: volume},
+    secrets=[modal.Secret.from_name("sbv2-auth")],
+    # リクエストが無くなってから停止するまでの猶予。開発中は短く、当日は長く
+    scaledown_window=300,
+    # ★披露宴当日はこのコメントを外してコンテナを常駐させる★
+    # min_containers=1,
+    timeout=120,
+)
+class SBV2:
+    @modal.enter()
+    def load(self):
+        """コンテナ起動時に1回だけ走る。ここでモデルを載せ切る。
+        リクエストごとにロードすると毎回数十秒かかるので、必ず enter で行う。"""
+        import torch
+        from style_bert_vits2.constants import Languages
+        from style_bert_vits2.nlp import bert_models
+        from style_bert_vits2.tts_model import TTSModel
+
+        try:
+            volume.reload()  # デプロイ後にアップロードしたモデルも拾う
+        except Exception as e:  # noqa: BLE001
+            print(f"[sbv2] volume.reload をスキップ: {e}")
+
+        bert_models.load_model(Languages.JP, BERT_MODEL)
+        bert_models.load_tokenizer(Languages.JP, BERT_MODEL)
+
+        model_path, config_path, style_path = _find_model(pathlib.Path(MODEL_DIR))
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"[sbv2] device={self.device} model={model_path.name}")
+
+        self.model = TTSModel(
+            model_path=str(model_path),
+            config_path=str(config_path),
+            style_vec_path=str(style_path),
+            device=self.device,
+        )
+
+        # 初回推論はグラフ構築ぶん遅い。ここで空打ちして温めておく
+        try:
+            self.model.infer(text="テスト")
+            print("[sbv2] ウォームアップ完了")
+        except Exception as e:  # noqa: BLE001
+            print(f"[sbv2] ウォームアップ失敗（初回リクエストが遅くなります）: {e}")
+
+    @modal.asgi_app()
+    def web(self):
+        from fastapi import FastAPI, HTTPException, Request, Response
+
+        api = FastAPI(title="SBV2 TTS")
+        expected = os.environ.get("SBV2_TTS_TOKEN", "")
+
+        @api.get("/health")
+        def health():
+            # 式の直前にこれを叩いてコンテナを温める
+            return {"ok": True, "device": self.device}
+
+        @api.post("/tts")
+        async def tts(request: Request):
+            # 公開 URL なので必ず共有シークレットで守る。
+            # 無防備な GPU エンドポイントは、そのまま課金の穴になる。
+            if expected and request.headers.get("x-tts-token", "") != expected:
+                raise HTTPException(status_code=401, detail="invalid token")
+
+            try:
+                payload = await request.json()
+            except Exception as e:  # noqa: BLE001
+                raise HTTPException(status_code=400, detail="invalid json") from e
+
+            text = str(payload.get("text") or "").strip()
+            if not text:
+                raise HTTPException(status_code=400, detail="text is empty")
+            if len(text) > MAX_TEXT:
+                raise HTTPException(status_code=400, detail="text too long")
+
+            style_name = payload.get("style_name") or "Neutral"
+            try:
+                sr, audio = self.model.infer(
+                    text=text,
+                    sdp_ratio=_f(payload.get("sdp_ratio"), 0.2, 0.0, 1.0),
+                    noise=_f(payload.get("noise"), 0.6, 0.0, 2.0),
+                    noise_w=_f(payload.get("noise_w"), 0.8, 0.0, 2.0),
+                    length=_f(payload.get("length"), 1.0, 0.5, 2.0),
+                    style=style_name,
+                    style_weight=_f(payload.get("style_weight"), 1.0, 0.0, 10.0),
+                )
+            except Exception as e:  # noqa: BLE001
+                print(f"[sbv2] 合成に失敗: {e}")
+                raise HTTPException(status_code=500, detail=f"synthesis failed: {e}") from e
+
+            return Response(content=_to_wav(sr, audio), media_type="audio/wav")
+
+        return api

@@ -29,6 +29,7 @@ provider "google-beta" {
 
 locals {
   services = [
+    "aiplatform.googleapis.com",
     "cloudresourcemanager.googleapis.com",
     "serviceusage.googleapis.com",
     "iam.googleapis.com",

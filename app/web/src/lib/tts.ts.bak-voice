@@ -1,0 +1,54 @@
+/**
+ * Voice AI（ボイスクローン）連携のための接続点。
+ *
+ * 重要な設計判断:
+ * TTS にトークン単位のチャンクをそのまま投げてはいけない。
+ * 1文字ずつ合成するとイントネーションが崩れ、リクエスト数も跳ね上がる。
+ * 句点・感嘆符・改行で「読み上げ単位」にまとめてから送る。
+ */
+export type TtsSink = (sentence: string) => void | Promise<void>;
+
+const BREAK = /[。．！？!?…\n]/;
+
+export function createSentenceBuffer(sink: TtsSink) {
+  let buf = "";
+  return {
+    /** ストリームのチャンクを流し込む。区切りが来た分だけ sink に送られる */
+    push(chunk: string) {
+      buf += chunk;
+      for (;;) {
+        const i = buf.search(BREAK);
+        if (i < 0) break;
+        const piece = buf.slice(0, i + 1).trim();
+        buf = buf.slice(i + 1);
+        if (piece) void sink(piece);
+      }
+    },
+    /** 応答完了時に呼ぶ。区切り文字で終わらなかった残りを吐き出す */
+    flush() {
+      const rest = buf.trim();
+      buf = "";
+      if (rest) void sink(rest);
+    },
+    reset() {
+      buf = "";
+    },
+  };
+}
+
+/**
+ * TODO(Voice AI): ここを ElevenLabs 等の実装に差し替える。
+ *
+ * 想定する流れ:
+ *   1. /api/tts に { text: sentence, voiceId } を POST
+ *   2. 返ってくる音声ストリームを MediaSource か AudioContext のキューに積む
+ *   3. 「いま再生中の文」が終わったら次の文を再生（順序保証はこちら側の責務）
+ *
+ * 注意: 再生キューはこのモジュールの外（React 側の ref）で持つこと。
+ *       ここで再生してしまうと、複数の会話が同時に走ったときに音が重なる。
+ */
+export const ttsSinkPlaceholder: TtsSink = (sentence) => {
+  if (process.env.NODE_ENV !== "production") {
+    console.debug("[tts] would speak:", sentence);
+  }
+};

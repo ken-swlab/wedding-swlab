@@ -70,6 +70,7 @@ export default function AdminPage() {
             <h1 className="font-serif text-xl text-stone-900">ゲスト管理</h1>
             <Link href="/admin/guests" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">招待予定者リスト →</Link>
             <Link href="/admin/episodes" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">エピソード管理 →</Link>
+            <Link href="/admin/ai-test" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">AIシミュレーター →</Link>
             <Link href="/admin/faces" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">顔の名寄せ →</Link>
             <div className="ml-auto flex items-center gap-4 text-sm">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-sky-700">{pending.length}</p><p className="text-[11px] text-stone-400">承認待ち</p></div>

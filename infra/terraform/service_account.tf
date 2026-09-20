@@ -20,6 +20,7 @@ locals {
     "roles/firebaseauth.admin",
     # Firestore の読み書き（Security Rules はバイパスされる）
     "roles/datastore.user",
+    "roles/aiplatform.user",
   ]
 }
 

@@ -1,0 +1,278 @@
+"use client";
+
+/**
+ * Voice AI（ボイスクローン）の読み上げパイプライン。
+ *
+ * 設計の要点は「合成は並列・再生は直列」。
+ *  - 文が届いた瞬間に /api/admin/tts へ投げる（待たない）
+ *  - 再生だけを FIFO で直列に処理し、必ず送信順に鳴らす
+ * これを分けずに「合成 → 再生 → 次の合成」と直列にすると、
+ * 文と文のあいだに毎回 TTS のレイテンシぶんの無音が入る。
+ */
+
+export type TtsSink = (sentence: string) => void | Promise<void>;
+
+export type TtsParams = {
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  use_speaker_boost?: boolean;
+};
+
+/** 発音辞書の1エントリ。例: { from: "大智", to: "さとし" } */
+export type PronunciationEntry = { from: string; to: string };
+
+const BREAK = /[。．！？!?…\n]/;
+
+/**
+ * トークン単位のチャンクを「読み上げ単位」にまとめるバッファ。
+ * TTS は1文字ずつ投げるとイントネーションが崩れ、課金効率も悪い。
+ */
+export function createSentenceBuffer(sink: TtsSink) {
+  let buf = "";
+  return {
+    /** ストリームのチャンクを流し込む。区切りが来た分だけ sink に送られる */
+    push(chunk: string) {
+      buf += chunk;
+      for (;;) {
+        const i = buf.search(BREAK);
+        if (i < 0) break;
+        const piece = buf.slice(0, i + 1).trim();
+        buf = buf.slice(i + 1);
+        if (piece) void sink(piece);
+      }
+    },
+    /** 応答完了時に呼ぶ。区切り文字で終わらなかった残りを吐き出す */
+    flush() {
+      const rest = buf.trim();
+      buf = "";
+      if (rest) void sink(rest);
+    },
+    reset() {
+      buf = "";
+    },
+  };
+}
+
+// ───────────────────────── 認証 ─────────────────────────
+
+let authToken = "";
+
+/** /api/admin/tts は管理者専用。送信のたびに ID トークンを預ける */
+export function setTtsAuth(token: string) {
+  authToken = token;
+}
+
+// ───────────────────────── チューニング設定 ─────────────────────────
+
+let ttsParams: TtsParams = {};
+let dictionary: PronunciationEntry[] = [];
+
+/**
+ * 声質パラメータと発音辞書を設定する。渡したキーだけを上書きする。
+ * 画面のスライダー／辞書UIから変更のたびに呼ばれる想定。
+ */
+export function setTtsOptions(options: {
+  params?: TtsParams;
+  dictionary?: PronunciationEntry[];
+}): void {
+  if (options.params) ttsParams = { ...ttsParams, ...options.params };
+  if (options.dictionary) {
+    // 長い語から先に置換する。"大智" より先に "大" を置換すると壊れるため。
+    dictionary = options.dictionary
+      .filter((e) => e && typeof e.from === "string" && e.from.length > 0)
+      .slice()
+      .sort((a, b) => b.from.length - a.from.length);
+  }
+}
+
+export function getTtsOptions(): {
+  params: TtsParams;
+  dictionary: PronunciationEntry[];
+} {
+  return { params: { ...ttsParams }, dictionary: dictionary.slice() };
+}
+
+/**
+ * 発音辞書を適用する。表示用テキストには一切触れず、
+ * ElevenLabs に送る文字列だけを差し替える。
+ * （吹き出しは「（笑）」のまま、声だけ「ははっ」になる）
+ */
+export function applyDictionary(text: string): string {
+  let out = text;
+  for (const e of dictionary) {
+    if (!e.from) continue; // 空文字だと全文字間に挿入されてしまう
+    // replaceAll は lib 依存があるので split/join で同等の動作にする
+    out = out.split(e.from).join(e.to);
+  }
+  return out;
+}
+
+// ───────────────────────── 合成 ─────────────────────────
+
+const cache = new Map<string, Blob>();
+const CACHE_MAX = 50;
+
+/** パラメータが変われば別キーになる。これが無いと「スライダーが効かない」 */
+function cacheKey(speakText: string): string {
+  const p = ttsParams;
+  return [
+    speakText,
+    p.stability ?? "-",
+    p.similarity_boost ?? "-",
+    p.style ?? "-",
+    p.use_speaker_boost ?? "-",
+  ].join("\u0001");
+}
+
+async function synthesize(text: string): Promise<Blob | null> {
+  const speakText = applyDictionary(text);
+  const key = cacheKey(speakText);
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  try {
+    const res = await fetch("/api/admin/tts", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      },
+      body: JSON.stringify({ text: speakText, ...ttsParams }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => "");
+      console.error("[tts] 合成失敗", res.status, detail.slice(0, 300));
+      return null; // 1文失敗してもキュー全体は止めない
+    }
+    const blob = await res.blob();
+    cache.set(key, blob);
+    if (cache.size > CACHE_MAX) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    return blob;
+  } catch (e) {
+    console.error("[tts] 通信エラー", e);
+    return null;
+  }
+}
+
+// ───────────────────────── 再生キュー ─────────────────────────
+
+type QueueItem = { gen: number; text: string; audio: Promise<Blob | null> };
+
+let queue: QueueItem[] = [];
+let pumping = false;
+let current: HTMLAudioElement | null = null;
+let stopCurrent: (() => void) | null = null;
+/** stopTts() のたびに増える。古い世代のキューと再生はここで捨てる */
+let generation = 0;
+
+function playBlob(blob: Blob): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    let done = false;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      audio.onended = null;
+      audio.onerror = null;
+      URL.revokeObjectURL(url);
+      if (current === audio) {
+        current = null;
+        stopCurrent = null;
+      }
+      resolve();
+    };
+
+    current = audio;
+    // pause() では ended が飛ばないので、中断用の解決口を別に持つ
+    stopCurrent = () => {
+      try {
+        audio.pause();
+      } catch {
+        /* noop */
+      }
+      finish();
+    };
+
+    audio.onended = finish;
+    audio.onerror = finish;
+    void audio.play().catch((e) => {
+      console.warn("[tts] 再生できませんでした（自動再生制限の可能性）", e);
+      finish();
+    });
+  });
+}
+
+function pump() {
+  if (pumping) return;
+  pumping = true;
+  void (async () => {
+    try {
+      for (;;) {
+        const item = queue.shift();
+        if (!item) break;
+        if (item.gen !== generation) continue;
+        const blob = await item.audio;
+        if (item.gen !== generation || !blob) continue;
+        await playBlob(blob);
+      }
+    } finally {
+      pumping = false;
+      // 走っているあいだに積まれた分を取りこぼさない
+      if (queue.length > 0) pump();
+    }
+  })();
+}
+
+/**
+ * 1文を読み上げキューに積む。合成はこの時点で始まり、再生は順番待ちになる。
+ * createSentenceBuffer の sink にそのまま渡せる形。
+ */
+export function speakSentence(sentence: string): void {
+  if (typeof window === "undefined") return;
+  const text = sentence.trim();
+  if (!text) return;
+  queue.push({ gen: generation, text, audio: synthesize(text) });
+  pump();
+}
+
+/** 再生中の音声を止め、待機中のキューを破棄する */
+export function stopTts(): void {
+  generation += 1;
+  queue = [];
+  stopCurrent?.();
+}
+
+/** いま読み上げ中かどうか */
+export function isSpeaking(): boolean {
+  return current !== null || queue.length > 0;
+}
+
+// ───────────────────────── 自動再生制限の解除 ─────────────────────────
+
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA";
+
+/**
+ * ブラウザの自動再生ポリシー対策。
+ * 「ユーザー操作の中で一度 play() を呼ぶ」ことで、以降の自動再生が許可される。
+ */
+export async function unlockAudio(): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const a = new Audio(SILENT_WAV);
+    a.volume = 0;
+    await a.play();
+    a.pause();
+  } catch {
+    /* 解除できなくても、ボタンのクリック自体が操作なので通ることが多い */
+  }
+}
+
+/** @deprecated speakSentence を使ってください */
+export const ttsSinkPlaceholder: TtsSink = speakSentence;

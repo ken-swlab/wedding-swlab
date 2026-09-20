@@ -1,4 +1,4 @@
 cd /workspaces/wedding-swlab
 git add .
-git commit -m "feat: Phase 7.5 プロジェクター投影ビューの実装完了"
+git commit -m "feat: 音声変更前"
 git push
