@@ -15,9 +15,6 @@ const MAX_HISTORY = 20;
 type Props = {
   guestUid: string;
   basePrompt: string;
-  /** 呼び名の解決に使う。API 側で新郎側／新婦側の設定を引き分ける */
-  speaker?: "groom" | "bride";
-  politeness?: "casual" | "polite";
   /** 呼び出し側から ID トークン取得をもらう（このコンポーネントは Firebase に依存しない） */
   getIdToken: () => Promise<string>;
   onDebug?: (debug: unknown) => void;
@@ -28,8 +25,6 @@ type Props = {
 export default function AiTestChat({
   guestUid,
   basePrompt,
-  speaker = "groom",
-  politeness = "casual",
   getIdToken,
   onDebug,
   onUsage,
@@ -87,8 +82,6 @@ export default function AiTestChat({
         guestUid,
         message,
         basePrompt,
-        speaker,
-        politeness,
         history,
         signal: ac.signal,
         onMeta: ({ debug }) => onDebug?.(debug),
@@ -119,12 +112,12 @@ export default function AiTestChat({
       setBusy(false);
       abortRef.current = null;
     }
-  }, [draft, busy, guestUid, turns, basePrompt, speaker, politeness, getIdToken, onDebug, onUsage, ttsOn]);
+  }, [draft, busy, guestUid, turns, basePrompt, getIdToken, onDebug, onUsage, ttsOn]);
 
   return (
     <div className={`flex h-full min-h-0 flex-col rounded-xl border border-gray-200 bg-[#7c9fbe] ${className}`}>
       <div className="flex items-center justify-between gap-2 border-b border-black/10 bg-white/85 px-3 py-2">
-        <span className="text-sm font-semibold text-gray-900">ミニ賢信AI</span>
+        <span className="text-sm font-semibold text-gray-900">ミニ新郎AI</span>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1 text-xs text-gray-700">
             <input

@@ -4,7 +4,6 @@ import { registerCustomTags } from "@/config/tags";
 import { readCustomTags } from "@/lib/tags-server";
 import { tagDef } from "@/config/tags";
 import { themeDef } from "@/config/episodes";
-import { givenName, type Politeness, type Speaker } from "@/config/persona";
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from "@google/genai";
 
 export const runtime = "nodejs";
@@ -83,11 +82,6 @@ async function handle(req: Request) {
 
   const basePrompt = typeof body.basePrompt === "string" ? body.basePrompt.trim().slice(0, MAX_BASE_PROMPT) : "";
 
-  // 新郎役 / 新婦役。呼び名をどちら側の設定から引くかに使う。
-  // 一人称から推測すると「俺」の新婦などで誤るので、画面から明示的に受け取る。
-  const speaker: Speaker = body.speaker === "bride" ? "bride" : "groom";
-  const politeness: Politeness = body.politeness === "polite" ? "polite" : "casual";
-
   const [guestSnap, adminSnap] = await Promise.all([
     db.collection("guests").doc(guestUid).get(),
     db.collection("guestAdmin").doc(guestUid).get(),
@@ -99,33 +93,7 @@ async function handle(req: Request) {
   const displayName = (guestSnap.get("displayName") as string) || "";
   const guestTags = Array.isArray(guestSnap.get("tags")) ? (guestSnap.get("tags") as string[]) : [];
   const aiMemo = (adminSnap.get("aiMemo") as string) || "";
-  /**
-   * ★呼び名の解決★
-   *   フルネームでいきなり呼ばれる不自然さを消す。優先順位は
-   *     ① 管理画面で設定した呼び名（新郎側 / 新婦側）
-   *     ② 本人が設定したニックネーム
-   *     ③ 氏名から取り出した下の名前
-   *   ①が入っていれば敬称は付けない（「たっちゃんさん」を防ぐ）。
-   *   ②③にフォールバックしたときだけ、敬語モードなら「さん」を補う。
-   */
-  const explicitCall = (
-    (speaker === "bride"
-      ? (adminSnap.get("callNameBride") as string)
-      : (adminSnap.get("callNameGroom") as string)) || ""
-  ).trim();
-
-  let callName = explicitCall;
-  let callNameSource = "設定";
-  if (!callName) {
-    const fallback = nickname || givenName(displayName || realName);
-    callNameSource = nickname ? "ニックネーム" : "下の名前";
-    callName = fallback
-      ? politeness === "polite"
-        ? `${fallback}さん`
-        : fallback
-      : "ゲスト";
-    if (!fallback) callNameSource = "既定";
-  }
+  const callName = nickname || displayName || realName || "ゲスト";
 
   let episodes: ContextEpisode[] = [];
   if (guestTags.length > 0) {
@@ -159,13 +127,6 @@ async function handle(req: Request) {
   const systemInstruction = `${basePrompt || "あなたは新郎です。明るくフランクに話します。"}
 
 ━━━━━━━━━━━━━━━━━━━━
-【一番のミッション】
-あなたの一番の役目は、今日わざわざ来てくれたことへの感謝を伝えることです。
-どんな話題であっても、会話のどこかで「来てくれてありがとう」という
-気持ちが自然に伝わるようにしてください。
-ただし毎回まったく同じ言い回しを繰り返さないこと。押しつけがましくしないこと。
-
-━━━━━━━━━━━━━━━━━━━━
 【いま話している相手】
 ・呼び名: ${callName}
 ${realName ? `・本名: ${realName}\n` : ""}・グループ: ${tagLabels}
@@ -194,7 +155,7 @@ ${episodeBlock}
   const model = process.env.VERTEX_MODEL || "gemini-2.0-flash";
 
   const debug = {
-    callName, callNameSource, speaker, tagLabels, aiMemo,
+    callName, tagLabels, aiMemo,
     episodes: episodes.map((e) => ({ id: e.id, title: e.title, period: e.period, theme: e.theme, isPersonal: e.isPersonal, content: e.content })),
     systemInstruction, model
   };

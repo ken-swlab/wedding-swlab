@@ -1,5 +1,5 @@
 cd /workspaces/wedding-swlab
 git add .
-git commit -m "feat: 202609211356"
+git commit -m "feat:AIシミュレーターKenvoice反映版"
 git push
 

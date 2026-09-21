@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { postJson } from "@/lib/api-client";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
@@ -10,12 +10,13 @@ import { compareGuests } from "@/lib/roster";
 import { themeDef } from "@/config/episodes";
 import AiTestChat from "@/components/admin/AiTestChat";
 import VoiceTuner from "@/components/admin/VoiceTuner";
-import PersonaEditor from "@/components/admin/PersonaEditor";
-import {
-  DEFAULT_PERSONA,
-  composePersonaPrompt,
-  type PersonaConfig,
-} from "@/config/persona";
+
+const STORAGE_KEY = "ai-test-base-prompt";
+
+const DEFAULT_PROMPT = `あなたは新郎です。一人称は「俺」。
+明るくフランクに、友達と話すみたいに返してください。
+披露宴の会場で立ち話をしている感覚です。短く軽快に。
+ゲストをいじったり、照れ隠しでふざけたりするのは大歓迎です。`;
 
 type Turn = { role: "user" | "model"; text: string };
 
@@ -25,8 +26,6 @@ type DebugEpisode = {
 };
 type DebugInfo = {
   callName: string;
-  callNameSource?: string;
-  speaker?: "groom" | "bride";
   tagLabels: string;
   aiMemo: string;
   episodes: DebugEpisode[];
@@ -38,11 +37,7 @@ export default function AiTestPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
   const { rows } = useAdminGuests(isAdmin);
 
-  // ★人格はフリーテキストではなく構造化して持つ★
-  //   新郎役か新婦役かは呼び名の解決にも使うため、
-  //   組み立て後の文字列とは別に、値そのものを API へ渡す。
-  const [persona, setPersona] = useState<PersonaConfig>(DEFAULT_PERSONA);
-  const basePrompt = useMemo(() => composePersonaPrompt(persona), [persona]);
+  const [basePrompt, setBasePrompt] = useState(DEFAULT_PROMPT);
   const [guestUid, setGuestUid] = useState("");
   const [history, setHistory] = useState<Turn[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -63,6 +58,17 @@ export default function AiTestPage() {
   }, [user]);
   const [showPrompt, setShowPrompt] = useState(false);
 
+  // チューニング内容がリロードで消えないようにする
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) setBasePrompt(saved);
+    } catch { /* プライベートモード等では諦める */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, basePrompt); } catch { /* 同上 */ }
+  }, [basePrompt]);
+
 
   const guests = useMemo(
     () => rows.filter((r) => r.tags.length > 0).sort(compareGuests),
@@ -74,22 +80,12 @@ export default function AiTestPage() {
   );
 
   /** ゲストを選んだ時点で、Gemini を叩かずに文脈だけ取りに行く */
-  // loadContext を persona に依存させるとゲスト切替以外でも再取得が走るため、
-  // 最新値だけを ref 経由で読む。
-  const personaRef = useRef(persona);
-  personaRef.current = persona;
-
   const loadContext = useCallback(async (uid: string, prompt: string) => {
     if (!uid) { setDebug(null); return; }
     setError(null);
     try {
       const r = await postJson<{ debug: DebugInfo }>("/api/admin/ai-test", {
-        guestUid: uid,
-        preview: true,
-        basePrompt: prompt,
-        speaker: personaRef.current.speaker,
-        politeness: personaRef.current.politeness,
-        message: "",
+        guestUid: uid, preview: true, basePrompt: prompt, message: "",
       });
       setDebug(r.debug ?? null);
     } catch (e) {
@@ -102,9 +98,9 @@ export default function AiTestPage() {
     if (guestUid) void loadContext(guestUid, basePrompt);
     setHistory([]);
     setUsage(null);
-    // 人格の自由記述では読み直さない。ただし話者と口調は呼び名に影響するので取り直す。
+    // basePrompt の変更では読み直さない（文脈の中身は変わらないため）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestUid, persona.speaker, persona.politeness, loadContext]);
+  }, [guestUid, loadContext]);
 
 
   if (authLoading) {
@@ -148,29 +144,36 @@ export default function AiTestPage() {
           </div>
         </header>
 
-        {/* 左から右へ、設定の流れどおりに並べる。
-            チャットは最後（右端）に、スマホ幅を想定して細く置く。 */}
-        <div className="grid gap-4 lg:grid-cols-[300px_340px_minmax(0,1fr)_380px]"
+        <div className="grid gap-4 lg:grid-cols-[300px_340px_1fr]"
              style={{ height: "calc(100dvh - 170px)" }}>
 
-          {/* ============ 1: Voice AI チューニング ============ */}
+          {/* ================= 左: ベース人格 ================= */}
           <section className={panel}>
-            <div className={panelHead}>1. Voice AI チューニング</div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <VoiceTuner getIdToken={getIdToken} className="border-0" />
+            <div className={panelHead}>ベース人格</div>
+            <textarea
+              value={basePrompt}
+              onChange={(e) => setBasePrompt(e.target.value)}
+              maxLength={4000}
+              spellCheck={false}
+              className="min-h-0 flex-1 resize-none bg-transparent p-3 text-xs leading-relaxed text-stone-800 outline-none text-gray-900 placeholder:text-gray-400"
+            />
+            <div className="shrink-0 border-t border-stone-100 p-2">
+              <p className="mb-1.5 px-1 text-[10px] leading-relaxed text-stone-400">
+                「作り話をしない」「範囲外の話をしない」などの制約は
+                ここでは編集できません。サーバー側で固定しています。
+              </p>
+              <button type="button" onClick={() => setBasePrompt(DEFAULT_PROMPT)}
+                className="w-full rounded-lg border border-stone-200 py-1.5 text-xs text-stone-500 hover:bg-stone-50">
+                初期値に戻す
+              </button>
             </div>
+            {/* 3. Voice AI チューニング（声質・発音辞書。localStorage に永続化） */}
+            <VoiceTuner getIdToken={getIdToken} className="mt-3" />
           </section>
 
-          {/* ============ 2: AI の性格 ============ */}
+          {/* ============ 中央: ゲストと文脈 ============ */}
           <section className={panel}>
-            <div className={panelHead}>2. AI の性格（ベース人格）</div>
-            <PersonaEditor value={persona} onChange={setPersona} className="flex-1" />
-          </section>
-
-
-          {/* ============ 3: ゲスト情報 ＆ プロンプトの中身 ============ */}
-          <section className={panel}>
-            <div className={panelHead}>3. ゲスト情報 ＆ プロンプトの中身</div>
+            <div className={panelHead}>テスト対象のゲスト</div>
             <div className="shrink-0 border-b border-stone-100 p-3">
               <select
                 value={guestUid}
@@ -187,13 +190,7 @@ export default function AiTestPage() {
               </select>
               {selected && debug && (
                 <p className="mt-2 text-[11px] text-stone-500">
-                  {persona.speaker === "bride" ? "新婦" : "新郎"}AI は
-                  「<span className="font-medium text-stone-800">{debug.callName}</span>」と呼びます
-                  {debug.callNameSource && (
-                    <span className="ml-1 rounded bg-stone-100 px-1 py-px text-[10px] text-stone-500">
-                      {debug.callNameSource}
-                    </span>
-                  )}
+                  AI は「<span className="font-medium text-stone-800">{debug.callName}</span>」と呼びます
                   <span className="mt-0.5 block text-stone-400">{debug.tagLabels}</span>
                 </p>
               )}
@@ -272,14 +269,12 @@ export default function AiTestPage() {
             </div>
           </section>
 
-          {/* ============ 4: ミニ賢信AI（チャット） ============ */}
+          {/* ============ 右: チャット ============ */}
           {/* チャット列。key にゲスト UID を渡すことで、切り替え時に会話が自動リセットされる */}
           <AiTestChat
             key={guestUid}
             guestUid={guestUid}
             basePrompt={basePrompt}
-            speaker={persona.speaker}
-            politeness={persona.politeness}
             getIdToken={getIdToken}
             onDebug={(d) => setDebug(d as DebugInfo)}
             onUsage={(u) => setUsage(u)}

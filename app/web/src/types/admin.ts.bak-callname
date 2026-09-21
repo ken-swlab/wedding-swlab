@@ -60,14 +60,6 @@ export type GuestAdmin = {
   inviteLabel: string;
   isAnonymous: boolean;
   aiMemo: string;
-  /**
-   * ★呼び名は guestAdmin に置く★
-   *   /guests は全ゲストが読める領域。「新郎から見た呼び名」は
-   *   本人にも他のゲストにも見せる必要がない運営情報なので、
-   *   aiMemo と同じ管理者専用の場所に置く。Rules の変更も不要。
-   */
-  callNameGroom: string;
-  callNameBride: string;
   firstLoginAt: Timestamp | null;
 };
 
@@ -95,6 +87,4 @@ export type UpdateGuestPayload = {
   allergy?: string;
   paymentStatus?: PaymentStatus;
   aiMemo?: string;
-  callNameGroom?: string;
-  callNameBride?: string;
 };

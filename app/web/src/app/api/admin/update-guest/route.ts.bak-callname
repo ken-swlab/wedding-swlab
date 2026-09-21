@@ -56,12 +56,6 @@ async function handle(req: Request) {
   if (body.nickname !== undefined && (typeof body.nickname !== "string" || body.nickname.length > 20)) return fail("ニックネームは20文字までです", 400);
   if (body.allergy !== undefined && (typeof body.allergy !== "string" || body.allergy.length > 500)) return fail("アレルギー情報は500文字までです", 400);
   if (body.aiMemo !== undefined && (typeof body.aiMemo !== "string" || body.aiMemo.length > 2000)) return fail("メモは2000文字までです", 400);
-  for (const k of ["callNameGroom", "callNameBride"] as const) {
-    const v = body[k];
-    if (v !== undefined && (typeof v !== "string" || v.length > 20)) {
-      return fail("呼び名は20文字までです", 400);
-    }
-  }
 
   const hasFaceUrl = body.referencePhotoUrl !== undefined;
   const hasFacePath = body.referencePhotoPath !== undefined;
@@ -110,15 +104,9 @@ async function handle(req: Request) {
     batch.set(db.collection("guestPrivate").doc(uid), privatePatch, { merge: true });
   }
 
-  const hasCallName =
-    body.callNameGroom !== undefined || body.callNameBride !== undefined;
-
-  if (body.aiMemo !== undefined || hasFaceUrl || hasCallName) {
+  if (body.aiMemo !== undefined || hasFaceUrl) {
     const adminPatch: Record<string, unknown> = { uid, updatedAt: FieldValue.serverTimestamp() };
     if (body.aiMemo !== undefined) adminPatch.aiMemo = body.aiMemo;
-    // 呼び名は guestAdmin に置く（/guests は全ゲストが読めるため）
-    if (body.callNameGroom !== undefined) adminPatch.callNameGroom = body.callNameGroom.trim();
-    if (body.callNameBride !== undefined) adminPatch.callNameBride = body.callNameBride.trim();
     if (hasFaceUrl) {
       const clearing = body.referencePhotoUrl === null;
       adminPatch.referencePhotoUrl = clearing ? "" : body.referencePhotoUrl;

@@ -83,9 +83,6 @@ export function useAdminGuests(enabled: boolean) {
           inviteLabel: v.inviteLabel ?? "",
           isAnonymous: v.isAnonymous === true,
           aiMemo: v.aiMemo ?? "",
-          // 呼び名は guestAdmin に置いている（/guests は全ゲストが読めるため）
-          callNameGroom: v.callNameGroom ?? "",
-          callNameBride: v.callNameBride ?? "",
           firstLoginAt: v.firstLoginAt ?? null,
         };
       }
@@ -112,8 +109,6 @@ export function useAdminGuests(enabled: boolean) {
           inviteLabel: a?.inviteLabel ?? "",
           isAnonymous: a?.isAnonymous ?? false,
           aiMemo: a?.aiMemo ?? "",
-          callNameGroom: a?.callNameGroom ?? "",
-          callNameBride: a?.callNameBride ?? "",
           firstLoginAt: a?.firstLoginAt ?? null,
         };
       }),

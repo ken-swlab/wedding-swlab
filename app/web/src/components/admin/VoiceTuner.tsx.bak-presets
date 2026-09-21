@@ -13,8 +13,6 @@ import {
 
 /** ElevenLabs 時代の値が混ざらないよう、保存キーごと分ける */
 const STORAGE_KEY = "ai-test-voice-tuning-sbv2";
-/** お気に入りパターン。現在値とは別に、名前付きで複数持つ */
-const PRESETS_KEY = "ai-test-voice-presets";
 
 type VoiceParams = {
   sdp_ratio: number;
@@ -82,14 +80,6 @@ const SLIDERS: {
   },
 ];
 
-type VoicePreset = {
-  id: string;
-  name: string;
-  params: VoiceParams;
-  styleName: string;
-  createdAt: number;
-};
-
 type Stored = {
   params: Partial<VoiceParams>;
   styleName: string;
@@ -112,10 +102,6 @@ export default function VoiceTuner({
   const [to, setTo] = useState("");
   const [sample, setSample] = useState("はじめまして！今日は来てくれてありがとう。");
   const [note, setNote] = useState("");
-  const [presets, setPresets] = useState<VoicePreset[]>([]);
-  const [presetId, setPresetId] = useState("");
-  const [naming, setNaming] = useState(false);
-  const [presetName, setPresetName] = useState("");
   const firstRun = useRef(true);
 
   // 復元（localStorage は SSR と食い違うので必ず effect の中で読む）
@@ -138,65 +124,6 @@ export default function VoiceTuner({
       /* 壊れていたら既定値のまま続行 */
     }
   }, []);
-
-  // お気に入りパターンの復元
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(PRESETS_KEY);
-      if (!raw) return;
-      const v = JSON.parse(raw) as VoicePreset[];
-      if (Array.isArray(v)) setPresets(v.filter((p) => p && p.id && p.name));
-    } catch {
-      /* 壊れていたら無視 */
-    }
-  }, []);
-
-  const writePresets = useCallback((next: VoicePreset[]) => {
-    setPresets(next);
-    try {
-      localStorage.setItem(PRESETS_KEY, JSON.stringify(next));
-    } catch {
-      /* 容量超過などは無視 */
-    }
-  }, []);
-
-  const savePreset = useCallback(() => {
-    const name = presetName.trim();
-    if (!name) {
-      setNote("パターン名を入力してください");
-      return;
-    }
-    const entry: VoicePreset = {
-      id: crypto.randomUUID(),
-      name,
-      params,
-      styleName,
-      createdAt: Date.now(),
-    };
-    // 同名は上書きする（試行錯誤中に増えすぎないように）
-    writePresets([...presets.filter((p) => p.name !== name), entry]);
-    setPresetId(entry.id);
-    setPresetName("");
-    setNaming(false);
-    setNote("");
-  }, [presetName, params, styleName, presets, writePresets]);
-
-  const applyPreset = useCallback(
-    (id: string) => {
-      setPresetId(id);
-      const p = presets.find((x) => x.id === id);
-      if (!p) return;
-      setParams({ ...DEFAULT_PARAMS, ...p.params });
-      if (p.styleName) setStyleName(p.styleName);
-    },
-    [presets],
-  );
-
-  const deletePreset = useCallback(() => {
-    if (!presetId) return;
-    writePresets(presets.filter((p) => p.id !== presetId));
-    setPresetId("");
-  }, [presetId, presets, writePresets]);
 
   // モデルが持つスタイル一覧を取りに行く
   const loadStyles = useCallback(async () => {
@@ -286,70 +213,6 @@ export default function VoiceTuner({
         >
           既定値に戻す
         </button>
-      </div>
-
-      {/* ---- お気に入りパターン ---- */}
-      <div className="mb-3 rounded-lg bg-stone-50 p-2">
-        <p className="mb-1 text-[11px] font-semibold text-stone-600">お気に入りパターン</p>
-        <div className="flex gap-1">
-          <select
-            value={presetId}
-            onChange={(e) => applyPreset(e.target.value)}
-            className="min-w-0 flex-1 rounded border border-stone-300 bg-white px-2 py-1 text-xs text-gray-900 focus:border-stone-500 focus:outline-none"
-          >
-            <option value="">— 呼び出す —</option>
-            {presets.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => {
-              setNaming((v) => !v);
-              setNote("");
-            }}
-            className="shrink-0 rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 hover:bg-stone-100"
-          >
-            ＋保存
-          </button>
-          {presetId && (
-            <button
-              type="button"
-              onClick={deletePreset}
-              aria-label="このパターンを削除"
-              className="shrink-0 rounded border border-stone-300 bg-white px-2 py-1 text-xs text-stone-400 hover:bg-rose-50 hover:text-rose-600"
-            >
-              ×
-            </button>
-          )}
-        </div>
-        {naming && (
-          <div className="mt-1.5 flex gap-1">
-            <input
-              autoFocus
-              value={presetName}
-              onChange={(e) => setPresetName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  savePreset();
-                }
-              }}
-              maxLength={20}
-              placeholder="例）落ち着いた挨拶用"
-              className={inputCls}
-            />
-            <button
-              type="button"
-              onClick={savePreset}
-              className="shrink-0 rounded bg-stone-900 px-2 py-1 text-xs font-medium text-white hover:bg-stone-700"
-            >
-              保存
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ---- スタイル ---- */}
