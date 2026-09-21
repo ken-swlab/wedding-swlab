@@ -21,7 +21,7 @@ bucket_name = "wedding-media"
 
 [vars]
 PUBLIC_BASE = "https://media.wedding.sw-lab.net"
-WEBHOOK_URL = "https://https://wedding-swlab.vercel.app/api/hooks/original-published"
+WEBHOOK_URL = "https://wedding.sw-lab.net/api/hooks/original-published"
 # 1回の実行で処理する最大件数。
 #   無料枠は1実行あたりのサブリクエストが50件で、1枚につき
 #   get + put + webhook の3件を使う。list のぶんも残して 10 にしてある。

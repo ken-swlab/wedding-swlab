@@ -108,6 +108,7 @@ async function processOne(env: Env, c: Candidate): Promise<Outcome> {
     headers: {
       "Content-Type": "application/json",
       "x-worker-secret": env.WEBHOOK_SECRET,
+      "User-Agent": "Wedding-Worker/1.0",
     },
     body: JSON.stringify({ key: c.key, bytes: result.out.length }),
   });
