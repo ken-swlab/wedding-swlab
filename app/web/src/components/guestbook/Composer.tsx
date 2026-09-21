@@ -8,7 +8,7 @@ import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  mediaPaths, uploadThumb,
+  reserveOriginalKey, uploadThumb,
 } from "@/lib/media";
 import { createPost } from "@/lib/posts";
 import { postJson } from "@/lib/api-client";
@@ -162,31 +162,39 @@ export function Composer({
 
       for (const p of picked) {
         const ext = extOf(p.file);
-        const id = crypto.randomUUID();
-        const paths = mediaPaths(user.uid, id, ext);
 
         if (p.isVideo) {
-          // 動画は圧縮せず1段階で送る
-          const url = await uploadThumb(paths.original, p.file, p.file.type);
-          media.push({ type: "video", url, storagePath: paths.original, alt: p.file.name });
+          // 動画は圧縮せず1段階で公開バケットへ送る（従来どおり）
+          const v = await uploadThumb(
+            p.file,
+            p.file.type || "video/mp4",
+            "thumb",
+            ext,
+          );
+          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name });
           continue;
         }
 
-        const url = await uploadThumb(paths.thumb, p.compressed ?? p.file);
+        // ★キーもバケットもサーバーが決める★ クライアントはパスを指定できない
+        const t = await uploadThumb(p.compressed ?? p.file, "image/jpeg");
+        // 原本は後日、非公開バケットへ送る。ここではキーだけ確保する
+        // （署名は寿命が短いので保存しない）
+        const originalKey = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
+
         media.push({
           type: "image",
-          url,
-          storagePath: paths.thumb,
+          url: t.url,
+          storagePath: t.key,
           width: p.width,
           height: p.height,
           alt: p.file.name,
           originalStatus: "pending",
         });
-        photoUrls.push(url);
+        photoUrls.push(t.url);
         originals.push({
           postId: "",
-          thumbPath: paths.thumb,
-          originalPath: paths.original,
+          thumbPath: t.key,
+          originalPath: originalKey,
           fileName: p.file.name,
           bytes: p.file.size,
           file: p.file,

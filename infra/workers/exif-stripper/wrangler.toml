@@ -1,0 +1,35 @@
+name = "wedding-exif-stripper"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+# ★Queues ではなく Cron★
+#   2分おきに wedding-originals を走査し、未処理の原本を処理する。
+#   即時性は不要（原本は帰宅後に手動アップロードされる前提）で、
+#   無料枠で完結し、Firestore とのレース条件も自然に消える。
+[triggers]
+crons = ["*/2 * * * *"]
+
+# 読み込み元: EXIF 付きの原本（非公開）。マーカーもここに置く
+[[r2_buckets]]
+binding = "ORIGINALS"
+bucket_name = "wedding-originals"
+
+# 書き出し先: 公開バケット（カスタムドメインで配信）
+[[r2_buckets]]
+binding = "PUBLIC"
+bucket_name = "wedding-media"
+
+[vars]
+PUBLIC_BASE = "https://media.wedding.sw-lab.net"
+WEBHOOK_URL = "https://https://wedding-swlab.vercel.app/api/hooks/original-published"
+# 1回の実行で処理する最大件数。
+#   無料枠は1実行あたりのサブリクエストが50件で、1枚につき
+#   get + put + webhook の3件を使う。list のぶんも残して 10 にしてある。
+#   "exceeded CPU limit" が出たら、この値を下げること。
+MAX_PER_RUN = "10"
+# Worker のメモリは 128MB。入力と出力の двух копий で溢れないよう余裕を取る
+MAX_BYTES = "25165824"
+# 紐付かないまま何時間経ったら諦めるか
+UNLINKED_GIVEUP_HOURS = "24"
+
+# WEBHOOK_SECRET は wrangler secret put で設定する（ここには書かない）

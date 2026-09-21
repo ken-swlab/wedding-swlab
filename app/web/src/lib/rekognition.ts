@@ -76,8 +76,39 @@ export function collectionReady(): boolean {
   return ensured;
 }
 
+/**
+ * ★SSRF 対策★
+ *   この関数が受け取る URL は posts.media[].url、つまり
+ *   投稿者がクライアントから書き換えられる値。Firestore Rules の
+ *   author 編集ブランチは media の更新を許しているため、内部アドレスを
+ *   仕込まれるとサーバーがそこへ fetch してしまう。
+ *   取得先は許可したホストだけに限定する。
+ */
+function allowedImageHosts(): Set<string> {
+  const hosts = ["firebasestorage.googleapis.com", "storage.googleapis.com"];
+  if (process.env.R2_PUBLIC_BASE) {
+    try {
+      hosts.push(new URL(process.env.R2_PUBLIC_BASE).hostname);
+    } catch {
+      /* 未設定・不正な値は無視する */
+    }
+  }
+  return new Set(hosts);
+}
+
 export async function fetchImageBytes(url: string): Promise<Buffer> {
-  const res = await fetch(url, { cache: "no-store" });
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error("画像 URL が不正です");
+  }
+  if (parsed.protocol !== "https:") throw new Error("https 以外は取得できません");
+  if (!allowedImageHosts().has(parsed.hostname)) {
+    throw new Error(`許可されていない取得先です: ${parsed.hostname}`);
+  }
+
+  const res = await fetch(url, { cache: "no-store", redirect: "error" });
   if (!res.ok) throw new Error(`画像を取得できません (${res.status})`);
 
   const buf = Buffer.from(await res.arrayBuffer());

@@ -1,0 +1,210 @@
+import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
+import {
+  getDownloadURL, getStorage, ref, uploadBytes, uploadBytesResumable,
+} from "firebase/storage";
+import { db, firebaseApp } from "@/lib/firebase";
+import type { MediaItem } from "@/types";
+
+export const MAX_MEDIA_PER_POST = 4;
+export const MAX_ORIGINAL_BYTES = 60 * 1024 * 1024;
+
+export function isStorageConfigured(): boolean {
+  return Boolean(process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET);
+}
+
+function storage() {
+  return getStorage(firebaseApp);
+}
+
+export function extOf(file: File): string {
+  return (file.name.split(".").pop() ?? "bin").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+/** Storage Rules のパス構造と一致させること */
+export function mediaPaths(uid: string, id: string, ext: string) {
+  return {
+    thumb: `uploads/${uid}/thumb/${id}.jpg`,
+    original: `uploads/${uid}/original/${id}.${ext}`,
+  };
+}
+
+/** 第1段: 軽量版。投稿を即座に成立させるため待って上げる */
+export async function uploadThumb(
+  path: string,
+  blob: Blob,
+  contentType = "image/jpeg",
+): Promise<string> {
+  const snap = await uploadBytes(ref(storage(), path), blob, { contentType });
+  return getDownloadURL(snap.ref);
+}
+
+/**
+ * 第2段: 原本。resumable を使うことで
+ *  - 進捗が取れる
+ *  - 会場 Wi-Fi の瞬断からある程度復帰できる
+ */
+export const ORIGINAL_STALL_MS = 45_000;
+const SIMPLE_TIMEOUT_MS = 180_000;
+
+/** 進捗が止まったことを表す。通常の通信エラーと区別するために型で分ける */
+class StallError extends Error {}
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
+function resumableUpload(
+  path: string,
+  file: Blob,
+  onProgress: (ratio: number) => void,
+  stallMs: number,
+): Promise<{ url: string; path: string; bytes: number }> {
+  return new Promise((resolve, reject) => {
+    const task = uploadBytesResumable(ref(storage(), path), file, {
+      contentType: file.type || "application/octet-stream",
+    });
+
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    // 進捗が来るたびに時限を張り直す。一定時間まったく進まなければ打ち切る。
+    const arm = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try {
+          task.cancel();
+        } catch {
+          /* 既に終わっていても構わない */
+        }
+        reject(new StallError(`${Math.round(stallMs / 1000)}秒間まったく進みませんでした`));
+      }, stallMs);
+    };
+    arm();
+
+    task.on(
+      "state_changed",
+      (s) => {
+        arm();
+        onProgress(s.totalBytes > 0 ? s.bytesTransferred / s.totalBytes : 0);
+      },
+      (err) => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        reject(err);
+      },
+      async () => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        try {
+          resolve({
+            url: await getDownloadURL(task.snapshot.ref),
+            path,
+            bytes: task.snapshot.totalBytes,
+          });
+        } catch (e) {
+          reject(e);
+        }
+      },
+    );
+  });
+}
+
+/**
+ * 第2段: 原本。
+ *
+ * ★まず resumable、止まったら単発 PUT に切り替える★
+ *   iOS ではチャンク転送だけが無言で停止することがあり、
+ *   進捗 0% のまま永久に待ち続ける（エラーも出ない）。
+ *   時限で打ち切って非 resumable に1回だけ切り替えると、抜けられる場合がある。
+ */
+export async function uploadOriginal(
+  path: string,
+  // IndexedDB から復元した Blob をそのまま渡せるよう File ではなく Blob で受ける
+  file: Blob,
+  onProgress: (ratio: number) => void,
+): Promise<{ url: string; path: string; bytes: number }> {
+  try {
+    return await resumableUpload(path, file, onProgress, ORIGINAL_STALL_MS);
+  } catch (e) {
+    if (!(e instanceof StallError)) throw e;
+
+    console.warn("[upload] resumable が停止したため単発アップロードに切り替えます", path);
+    onProgress(0);
+    const url = await withTimeout(
+      uploadBytes(ref(storage(), path), file, {
+        contentType: file.type || "application/octet-stream",
+      }).then((snap) => getDownloadURL(snap.ref)),
+      SIMPLE_TIMEOUT_MS,
+      "アップロードが時間内に完了しませんでした。電波の良い場所で再試行してください",
+    );
+    onProgress(1);
+    return { url, path, bytes: file.size };
+  }
+}
+
+/**
+ * 原本の URL を既存の Post にマージする。
+ * ★トランザクション必須★ 複数枚が同時に完了すると
+ * media 配列の read-modify-write が書き負けるため。
+ */
+export async function attachOriginal(
+  postId: string,
+  thumbPath: string,
+  original: { url: string; path: string; bytes: number },
+) {
+  await patchMediaItem(postId, thumbPath, {
+    originalUrl: original.url,
+    originalPath: original.path,
+    originalBytes: original.bytes,
+    originalStatus: "uploaded",
+  });
+}
+
+export async function markOriginalFailed(postId: string, thumbPath: string) {
+  await patchMediaItem(postId, thumbPath, { originalStatus: "failed" });
+}
+
+/**
+ * 原本を持っている端末が見つからない、と本人が申告したときに立てる。
+ * 元の端末のキューが生きていれば、そちらから送信されて uploaded に戻る。
+ */
+export async function markOriginalUnavailable(postId: string, thumbPath: string) {
+  await patchMediaItem(postId, thumbPath, { originalStatus: "unavailable" });
+}
+
+async function patchMediaItem(
+  postId: string,
+  thumbPath: string,
+  patch: Partial<MediaItem>,
+) {
+  const postRef = doc(db, "posts", postId);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(postRef);
+    if (!snap.exists()) return;
+
+    const media = (snap.data().media ?? []) as MediaItem[];
+    const next = media.map((m) =>
+      m.storagePath === thumbPath ? { ...m, ...patch } : m,
+    );
+
+    // Rules の author 編集ブランチが許すキーだけを触る
+    tx.update(postRef, { media: next, updatedAt: serverTimestamp() });
+  });
+}

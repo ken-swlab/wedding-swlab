@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
+      // ★R2 のカスタムドメイン★ ここを忘れると投稿画像が全部壊れる
+      { protocol: "https", hostname: "media.wedding.sw-lab.net" },
+      // reference_faces は Firebase Storage に残しているので、以下も必要
       { protocol: "https", hostname: "firebasestorage.googleapis.com" },
       { protocol: "https", hostname: "storage.googleapis.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
