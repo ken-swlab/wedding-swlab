@@ -13,10 +13,7 @@ import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
 import { ViewTabs, type GuestbookView } from "@/components/guestbook/ViewTabs";
-import {
-  UploadStatusBar,
-  type PendingOriginal,
-} from "@/components/guestbook/UploadStatusBar";
+import { UploadStatusBar } from "@/components/guestbook/UploadStatusBar";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
@@ -51,17 +48,17 @@ export default function GuestbookPage() {
     if (!personUid) return withMedia;
     return withMedia.filter((p) => p.detectedUserIds?.includes(personUid));
   }, [posts, personUid]);
-  // ★取り残し検出用★
-  //   自分の投稿で原本が pending のメディアを「どれか」まで特定して渡す。
-  //   件数の引き算だと誤検知するので、thumbPath で突き合わせる。
-  const serverPending = useMemo<PendingOriginal[]>(
+  // ★別ブラウザ取り残しの検出用★
+  //   自分の投稿で原本が未送信のメディア数を数える。
+  //   この端末のキュー件数より多ければ、別のブラウザに残っている。
+  const serverPending = useMemo(
     () =>
       posts
         .filter((p) => p.authorUid === user?.uid)
-        .flatMap((p) =>
-          p.media
-            .filter((m) => m.type === "image" && m.originalStatus === "pending")
-            .map((m) => ({ postId: p.id, thumbPath: m.storagePath })),
+        .reduce(
+          (n, p) =>
+            n + p.media.filter((m) => m.type === "image" && m.originalStatus === "pending").length,
+          0,
         ),
     [posts, user?.uid],
   );

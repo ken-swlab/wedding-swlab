@@ -1,11 +1,6 @@
 import type { Timestamp } from "firebase/firestore";
 
-/**
- * unavailable = 原本を保持していた端末が特定できない／消えた。
- *   ゲスト本人が「この端末にはありません」と申告したときに入る。
- *   pending のまま放置すると、回収不能なものを永久に待ち続けてしまう。
- */
-export type OriginalStatus = "pending" | "uploaded" | "failed" | "unavailable";
+export type OriginalStatus = "pending" | "uploaded" | "failed";
 
 export type MediaItem = {
   type: "image" | "video";

@@ -12,20 +12,11 @@
 
 export type TtsSink = (sentence: string) => void | Promise<void>;
 
-/** Style-Bert-VITS2 のネイティブパラメータ */
 export type TtsParams = {
-  /** 抑揚の揺らぎ。0=一定、1=大きく揺れる（既定 0.2） */
-  sdp_ratio?: number;
-  /** 声のゆらぎ（既定 0.6） */
-  noise?: number;
-  /** 音素長のゆらぎ。テンポの不均一さ（既定 0.8） */
-  noise_w?: number;
-  /** ★話速。大きいほど遅い＝「間」が長い★（既定 1.0） */
-  length?: number;
-  /** モデルが持つスタイル名 */
-  style_name?: string;
-  /** スタイルの効き（既定 1.0） */
-  style_weight?: number;
+  stability?: number;
+  similarity_boost?: number;
+  style?: number;
+  use_speaker_boost?: boolean;
 };
 
 /** 発音辞書の1エントリ。例: { from: "大智", to: "さとし" } */
@@ -127,12 +118,10 @@ function cacheKey(speakText: string): string {
   const p = ttsParams;
   return [
     speakText,
-    p.sdp_ratio ?? "-",
-    p.noise ?? "-",
-    p.noise_w ?? "-",
-    p.length ?? "-",
-    p.style_name ?? "-",
-    p.style_weight ?? "-",
+    p.stability ?? "-",
+    p.similarity_boost ?? "-",
+    p.style ?? "-",
+    p.use_speaker_boost ?? "-",
   ].join("\u0001");
 }
 

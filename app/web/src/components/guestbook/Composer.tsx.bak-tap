@@ -294,17 +294,13 @@ export function Composer({
                 </div>
               )}
 
-              {/* 24px だと指で外しやすく「反応しない」と感じられるため、
-                  見た目は据え置きで当たり判定だけ広げる */}
               <button
                 type="button"
                 onClick={() => remove(p.id)}
                 aria-label="削除"
-                className="absolute right-0 top-0 flex h-9 w-9 touch-manipulation items-center justify-center text-white"
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-xs text-white"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs transition active:bg-black/80">
-                  ×
-                </span>
+                ×
               </button>
             </div>
           ))}

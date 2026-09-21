@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { TagPicker } from "@/components/admin/TagPicker";
+import { TAG_DEFS, tagDef } from "@/config/tags";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
@@ -61,6 +61,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
           <tbody>
             {rows.map((row) => {
               const dirty = isDirty(row); const state = states[row.uid] ?? "idle"; const tags = field(row, "tags");
+              const addable = TAG_DEFS.filter((t) => !tags.includes(t.id));
               const bg = dirty ? "bg-amber-50" : mode === "pending" ? "bg-sky-50/60" : "bg-white";
               return (
                 <tr key={row.uid} className={`align-top ${dirty ? "bg-amber-50/60" : mode === "pending" ? "bg-sky-50/40" : "hover:bg-stone-50/60"}`}>
@@ -96,7 +97,10 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     <select value={field(row, "paymentStatus")} onChange={(e) => patch(row.uid, { paymentStatus: e.target.value as PaymentStatus })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${PAYMENT_STYLE[field(row, "paymentStatus")]}`}>{PAYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
-                    <TagPicker value={tags} onChange={(next) => patch(row.uid, { tags: next })} />
+                    <div className="flex flex-wrap items-center gap-1">
+                      {tags.map((t) => <span key={t} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${tagDef(t).className}`}>{tagDef(t).label}<button type="button" onClick={() => patch(row.uid, { tags: tags.filter((x) => x !== t) })} className="opacity-50 hover:opacity-100">×</button></span>)}
+                      {addable.length > 0 && (<select value="" onChange={(e) => { if (e.target.value) patch(row.uid, { tags: [...tags, e.target.value] }); }} className="rounded-full border border-dashed border-stone-300 bg-white px-1.5 py-0.5 text-[11px] text-stone-400"><option value="">＋</option>{addable.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select>)}
+                    </div>
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     <textarea value={field(row, "aiMemo")} onChange={(e) => patch(row.uid, { aiMemo: e.target.value })} rows={2} maxLength={2000} placeholder="席次の希望など" className="w-full resize-y rounded border border-transparent bg-transparent px-1.5 py-1 text-xs leading-relaxed text-stone-700 placeholder:text-stone-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none" />

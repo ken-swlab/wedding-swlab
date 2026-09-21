@@ -13,10 +13,7 @@ import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
 import { ViewTabs, type GuestbookView } from "@/components/guestbook/ViewTabs";
-import {
-  UploadStatusBar,
-  type PendingOriginal,
-} from "@/components/guestbook/UploadStatusBar";
+import { UploadStatusBar } from "@/components/guestbook/UploadStatusBar";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
@@ -32,7 +29,7 @@ export default function GuestbookPage() {
   //   タイムラインとギャラリーは同じ配列を見るので、
   //   タブを切り替えても Firestore への再取得は発生しない。
   const { posts, loading, loadingMore, hasMore, loadMore, error } = usePosts(tags);
-  const upload = useUpload(user?.uid);
+  const upload = useUpload();
 
   const [view, setView] = useState<GuestbookView>("timeline");
   const [personUid, setPersonUid] = useState("");
@@ -51,21 +48,6 @@ export default function GuestbookPage() {
     if (!personUid) return withMedia;
     return withMedia.filter((p) => p.detectedUserIds?.includes(personUid));
   }, [posts, personUid]);
-  // ★取り残し検出用★
-  //   自分の投稿で原本が pending のメディアを「どれか」まで特定して渡す。
-  //   件数の引き算だと誤検知するので、thumbPath で突き合わせる。
-  const serverPending = useMemo<PendingOriginal[]>(
-    () =>
-      posts
-        .filter((p) => p.authorUid === user?.uid)
-        .flatMap((p) =>
-          p.media
-            .filter((m) => m.type === "image" && m.originalStatus === "pending")
-            .map((m) => ({ postId: p.id, thumbPath: m.storagePath })),
-        ),
-    [posts, user?.uid],
-  );
-
   const index = openId ? gallery.findIndex((p) => p.id === openId) : -1;
   const current = index >= 0 ? gallery[index] : null;
 
@@ -113,7 +95,11 @@ export default function GuestbookPage() {
           />
         ) : (
           <div className="space-y-4">
-            <UploadStatusBar upload={upload} serverPending={serverPending} />
+            <UploadStatusBar
+              jobs={upload.jobs}
+              onRetry={upload.retryFailed}
+              onDismiss={upload.clearDone}
+            />
 
             <ViewTabs value={view} onChange={setView} />
 

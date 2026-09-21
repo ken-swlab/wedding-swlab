@@ -28,23 +28,6 @@ export type EnqueueItem = {
 };
 
 /**
- * 送る直前に、その1枚ぶんだけ実体を取り出して Blob に組み立てる。
- *
- * ★関数に切り出す理由★
- *   呼び出し側で null 許容の変数を持ち回すと、try/catch/finally が
- *   入り組んで構文を壊しやすい。ここで投げれば、呼び出し側は
- *   ひとつの try/catch で「読めない」も「送れない」も同じ扱いにできる。
- */
-async function loadBlob(job: QueuedJob): Promise<Blob> {
-  const buffer = await readPayload(job.id);
-  if (!buffer) throw new Error("端末に写真の実体が残っていません");
-  if (buffer.byteLength !== job.bytes) {
-    throw new Error(`写真が壊れています（${buffer.byteLength} / ${job.bytes} バイト）`);
-  }
-  return new Blob([buffer], { type: job.mimeType });
-}
-
-/**
  * 原本の送信キュー。
  *
  * ★自動では絶対に送らない★
@@ -120,7 +103,7 @@ export function useUpload(uid?: string) {
         try {
           void requestPersist();
 
-          // ★直列で読む★ Promise.all だと複数枚ぶんのバイト列を同時に確保することになり、
+          // ★直列で読む★ Promise.all だと4枚ぶんのバイト列を同時に確保することになり、
           //   iOS のメモリ上限に近づく。1枚ずつ取り込む。
           const payload: NewJob[] = [];
           for (const i of items) {
@@ -175,11 +158,30 @@ export function useUpload(uid?: string) {
           progressRef.current[next.id] = 0;
           await refresh();
 
+          // ★送る直前に、その1枚ぶんだけ実体を取り出す★
+          //   一覧（listJobs）はメタデータしか持たないので、
+          //   メモリに載るバイト列は常に1枚ぶんで済む。
+          let blob: Blob | null = null;
           try {
-            // blob はこのブロック内だけのローカル。
-            // 1件終わればスコープを抜けて解放される。
-            const blob = await loadBlob(next);
+            const buffer = await readPayload(next.id);
+            if (!buffer) throw new Error("端末に写真の実体が残っていません");
+            if (buffer.byteLength !== next.bytes) {
+              throw new Error(
+                `写真が壊れています（${buffer.byteLength} / ${next.bytes} バイト）`,
+              );
+            }
+            blob = new Blob([buffer], { type: next.mimeType });
+          } catch (e) {
+            await updateJob(next.id, {
+              status: "failed",
+              error: e instanceof Error ? e.message : "写真を読み出せませんでした",
+            });
+            await markOriginalFailed(next.postId, next.thumbPath).catch(() => {});
+            await refresh();
+            continue;
+          }
 
+          try {
             const result = await uploadOriginal(next.originalPath, blob, (r) => {
               progressRef.current[next.id] = r;
               setJobs((prev) =>
@@ -199,8 +201,10 @@ export function useUpload(uid?: string) {
             });
             // 記録自体が失敗しても握りつぶす（キューの消化は続ける）
             await markOriginalFailed(next.postId, next.thumbPath).catch(() => {});
+          } finally {
+            // 次の1枚に進む前に参照を手放す
+            blob = null;
           }
-
           await refresh();
         }
       } catch (e) {

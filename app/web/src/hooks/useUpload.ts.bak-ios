@@ -7,7 +7,6 @@ import {
   deleteJob,
   isQuotaError,
   listJobs,
-  readPayload,
   requestPersist,
   resetStuckJobs,
   updateJob,
@@ -26,23 +25,6 @@ export type EnqueueItem = {
   bytes: number;
   file: File;
 };
-
-/**
- * 送る直前に、その1枚ぶんだけ実体を取り出して Blob に組み立てる。
- *
- * ★関数に切り出す理由★
- *   呼び出し側で null 許容の変数を持ち回すと、try/catch/finally が
- *   入り組んで構文を壊しやすい。ここで投げれば、呼び出し側は
- *   ひとつの try/catch で「読めない」も「送れない」も同じ扱いにできる。
- */
-async function loadBlob(job: QueuedJob): Promise<Blob> {
-  const buffer = await readPayload(job.id);
-  if (!buffer) throw new Error("端末に写真の実体が残っていません");
-  if (buffer.byteLength !== job.bytes) {
-    throw new Error(`写真が壊れています（${buffer.byteLength} / ${job.bytes} バイト）`);
-  }
-  return new Blob([buffer], { type: job.mimeType });
-}
 
 /**
  * 原本の送信キュー。
@@ -120,11 +102,8 @@ export function useUpload(uid?: string) {
         try {
           void requestPersist();
 
-          // ★直列で読む★ Promise.all だと複数枚ぶんのバイト列を同時に確保することになり、
-          //   iOS のメモリ上限に近づく。1枚ずつ取り込む。
-          const payload: NewJob[] = [];
-          for (const i of items) {
-            payload.push({
+          const payload: NewJob[] = await Promise.all(
+            items.map(async (i) => ({
               uid: u,
               postId: i.postId,
               thumbPath: i.thumbPath,
@@ -132,12 +111,14 @@ export function useUpload(uid?: string) {
               fileName: i.fileName,
               mimeType: i.file.type || "application/octet-stream",
               bytes: i.bytes,
-              // Blob のまま入れず、純粋なバイト列で保存する。
-              // WebKit では IndexedDB 内の Blob の実体参照が
-              // 再読み込み後に失効することがあるため。
-              buffer: await i.file.arrayBuffer(),
-            });
-          }
+              // File をそのまま入れず Blob 化する。
+              // File のまま保存すると、再読み込み後に実体を失う
+              // ブラウザが存在するため。
+              blob: new Blob([await i.file.arrayBuffer()], {
+                type: i.file.type || "application/octet-stream",
+              }),
+            })),
+          );
 
           await addJobs(payload);
           // ★ここで送信は始めない★ 発火点は start() だけ
@@ -176,11 +157,7 @@ export function useUpload(uid?: string) {
           await refresh();
 
           try {
-            // blob はこのブロック内だけのローカル。
-            // 1件終わればスコープを抜けて解放される。
-            const blob = await loadBlob(next);
-
-            const result = await uploadOriginal(next.originalPath, blob, (r) => {
+            const result = await uploadOriginal(next.originalPath, next.blob, (r) => {
               progressRef.current[next.id] = r;
               setJobs((prev) =>
                 prev.map((j) => (j.id === next.id ? { ...j, progress: r } : j)),
@@ -200,7 +177,6 @@ export function useUpload(uid?: string) {
             // 記録自体が失敗しても握りつぶす（キューの消化は続ける）
             await markOriginalFailed(next.postId, next.thumbPath).catch(() => {});
           }
-
           await refresh();
         }
       } catch (e) {

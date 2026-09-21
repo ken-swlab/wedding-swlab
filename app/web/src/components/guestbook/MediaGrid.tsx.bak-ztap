@@ -51,15 +51,9 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
               />
             )}
 
-            {/* 自動送信をやめたので「送信中」ではなく「未送信」が正しい */}
             {m.originalStatus === "pending" && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-amber-500/80 px-2 py-0.5 text-[10px] text-white">
-                高画質版 未送信
-              </span>
-            )}
-            {(m.originalStatus === "failed" || m.originalStatus === "unavailable") && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
-                軽量版のみ
+              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white">
+                高画質版 送信中
               </span>
             )}
             {m.originalStatus === "uploaded" && (

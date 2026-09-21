@@ -42,25 +42,21 @@ volume = modal.Volume.from_name("sbv2-models", create_if_missing=True)
 
 
 def _bake_assets() -> None:
-    """イメージビルド時に依存と辞書を焼き込み、環境を記録する。
+    """イメージビルド時に依存と辞書を焼き込む。
 
     ★ここで try/except を使わない★
-      握りつぶすと「ビルドは成功、実行時に毎回失敗」という最悪の形になる。
+      前回は pyopenjtalk の初期化を握りつぶしていたため、
+      「ビルドは成功、実行時に毎回失敗」という最悪の形になっていた。
       壊れているならビルドを失敗させて、その場で気づけるようにする。
     """
-    import subprocess
     import sys
 
     print(f"[build] python = {sys.version}")
 
     # pkg_resources は setuptools の一部。pyopenjtalk が辞書パスの解決に使う。
-    # ★setuptools は新しいほど良いわけではない★
-    #   最近の版では pkg_resources が同梱されなくなったため、
-    #   上限なしの指定（>=68 など）は「使えない版」を確実に引く。
     import pkg_resources
 
-    ver = pkg_resources.get_distribution("setuptools").version
-    print(f"[build] setuptools = {ver}")
+    print(f"[build] setuptools = {pkg_resources.get_distribution('setuptools').version}")
 
     from huggingface_hub import snapshot_download
 
@@ -70,50 +66,25 @@ def _bake_assets() -> None:
     import pyopenjtalk
 
     print("[build] pyopenjtalk g2p =", pyopenjtalk.g2p("テスト"))
-
-    # 将来ズレたときに突き合わせられるよう、全依存をビルドログに残す
-    print("[build] --- pip freeze ---")
-    print(
-        subprocess.run(
-            [sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True
-        ).stdout
-    )
     print("[build] すべて OK")
 
 
-# 検証済みの環境を再現するためのロックファイル。
-# 存在すればこちらが優先される（作り方は下の local_entrypoint を参照）。
-LOCK_FILE = pathlib.Path(__file__).parent / "requirements.lock.txt"
-
-
-def _build_image() -> modal.Image:
-    base = modal.Image.debian_slim(python_version="3.10").apt_install(
-        "git", "curl", "build-essential", "cmake", "pkg-config"
+image = (
+    modal.Image.debian_slim(python_version="3.10")
+    .apt_install("git", "curl", "build-essential", "cmake", "pkg-config")
+    # ★最初に基礎を固める★
+    #   setuptools / wheel を入れてからでないと、pyopenjtalk のビルドと
+    #   実行時の pkg_resources 参照がどちらも失敗する。
+    .run_commands(
+        "python -m pip install --upgrade pip",
+        "python -m pip install --no-cache-dir 'setuptools<70' wheel packaging",
     )
-
-    try:
-        locked = LOCK_FILE.exists()
-    except Exception:  # noqa: BLE001
-        locked = False
-
-    if locked:
-        # ★本番はこちら★ テストした環境をそのまま再現する
-        base = base.pip_install_from_requirements(str(LOCK_FILE))
-    else:
-        base = (
-            base.pip_install("numpy<2")
-            .pip_install("torch")
-            .pip_install("style-bert-vits2", "huggingface_hub", "fastapi[standard]")
-        )
-
-    # ★setuptools は必ず最後★
-    #   レイヤーが後続から見えないのではない。逆で、後続の pip_install が
-    #   依存解決の過程で setuptools を最新版に巻き戻してしまう。
-    #   pkg_resources を残すには、誰にも上書きされない位置に置くしかない。
-    return base.pip_install("setuptools==69.5.1", "wheel").run_function(_bake_assets)
-
-
-image = _build_image()
+    # numpy 2 系は pyopenjtalk 周辺と噛み合わないことがあるので先に固定する
+    .pip_install("numpy<2")
+    .pip_install("torch")
+    .pip_install("style-bert-vits2", "huggingface_hub", "fastapi[standard]")
+    .run_function(_bake_assets)
+)
 
 app = modal.App(APP_NAME)
 
@@ -170,53 +141,6 @@ def _to_wav(sample_rate: int, audio) -> bytes:
     return buf.getvalue()
 
 
-def _dtypes_of(module) -> set:
-    try:
-        return {p.dtype for p in module.parameters()}
-    except Exception:  # noqa: BLE001
-        return set()
-
-
-def _force_float32(module, label: str) -> None:
-    """半精度で載ってしまったモジュールを float32 に揃える。
-
-    ★なぜ必要か★
-      SBV2 の TextEncoder は BERT の特徴量を bert_proj(nn.Conv1d) に直接流す。
-      BERT だけが FP16 で載ると、そこで
-      「Input type (c10::Half) and bias type (float)」が出て止まる。
-      新しい transformers はチェックポイント側の torch_dtype を尊重するため、
-      以前 float32 で載っていたものが半精度になることがある。
-
-      SBV2 は小さいので、T4 上で float32 のままでも実用速度が出る。
-      速度のために精度を混ぜる意味はない。
-    """
-    import torch
-
-    if module is None or not hasattr(module, "parameters"):
-        return
-    dt = _dtypes_of(module)
-    print(f"[sbv2] {label}: dtype = {dt or '(パラメータなし)'}")
-    if dt and any(d != torch.float32 for d in dt):
-        try:
-            module.float()
-            print(f"[sbv2] {label}: float32 に統一 → {_dtypes_of(module)}")
-        except Exception as e:  # noqa: BLE001
-            print(f"[sbv2] {label}: float32 化に失敗: {e}")
-
-
-def _cached_bert_models(mod) -> list:
-    """bert_models の内部キャッシュは版によって名前が違うので、
-    モジュール内の dict を総当たりで探し、torch のモジュールを拾う。"""
-    found = []
-    for name, val in vars(mod).items():
-        if not isinstance(val, dict):
-            continue
-        for key, v in val.items():
-            if hasattr(v, "parameters") and hasattr(v, "float"):
-                found.append((f"{name}[{key}]", v))
-    return found
-
-
 @app.cls(
     image=image,
     gpu="T4",
@@ -242,27 +166,19 @@ class SBV2:
             print(f"[sbv2] ❌ pkg_resources が使えません: {e}")
 
         import torch
-        import transformers
         from style_bert_vits2.constants import Languages
         from style_bert_vits2.nlp import bert_models
         from style_bert_vits2.tts_model import TTSModel
 
         print(f"[sbv2] torch = {torch.__version__} / cuda = {torch.cuda.is_available()}")
-        print(f"[sbv2] transformers = {transformers.__version__}")
 
         try:
             volume.reload()  # デプロイ後にアップロードしたモデルも拾う
         except Exception as e:  # noqa: BLE001
             print(f"[sbv2] volume.reload をスキップ: {e}")
 
-        returned = bert_models.load_model(Languages.JP, BERT_MODEL)
+        bert_models.load_model(Languages.JP, BERT_MODEL)
         bert_models.load_tokenizer(Languages.JP, BERT_MODEL)
-
-        # ★BERT の精度を合成器に合わせる★
-        #   戻り値が無い版もあるので、内部キャッシュ側も総当たりで揃える。
-        _force_float32(returned, "BERT(戻り値)")
-        for label, mod in _cached_bert_models(bert_models):
-            _force_float32(mod, f"BERT({label})")
 
         model_path, config_path, style_path = _find_model(pathlib.Path(MODEL_DIR))
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -274,29 +190,6 @@ class SBV2:
             style_vec_path=str(style_path),
             device=self.device,
         )
-
-        # net_g は遅延ロードされる版があるため、先に読み込んでから型を確認する
-        if hasattr(self.model, "load"):
-            try:
-                self.model.load()
-            except Exception as e:  # noqa: BLE001
-                print(f"[sbv2] TTSModel.load() をスキップ: {e}")
-
-        for attr in ("net_g", "model"):
-            _force_float32(getattr(self.model, attr, None), f"TTSModel.{attr}")
-
-        # スタイルベクトルが float16 で保存されていると、ここも Half になる。
-        # Colab で学習・抽出した .npy は半精度のことがある。
-        sv = getattr(self.model, "style_vectors", None)
-        sv_dtype = str(getattr(sv, "dtype", ""))
-        if sv is not None and sv_dtype and sv_dtype != "float32":
-            try:
-                self.model.style_vectors = sv.astype("float32")
-                print(f"[sbv2] style_vectors: {sv_dtype} → float32")
-            except Exception as e:  # noqa: BLE001
-                print(f"[sbv2] style_vectors の変換に失敗: {e}")
-        else:
-            print(f"[sbv2] style_vectors: dtype = {sv_dtype or '(不明)'}")
 
         # ★握りつぶさない★ 失敗したらスタックトレースを必ず出す
         try:
@@ -391,31 +284,9 @@ class SBV2:
         return api
 
 
-@app.function(image=image)
-def freeze_env() -> str:
-    """コンテナ内の pip freeze をそのまま返す"""
-    import subprocess
-    import sys
-
-    return subprocess.run(
-        [sys.executable, "-m", "pip", "freeze"], capture_output=True, text=True
-    ).stdout
-
-
 @app.local_entrypoint()
-def main(text: str = "今日は来てくれて、本当にありがとう！", lock: bool = False):
-    """API を介さず合成だけ試す。ログと例外が手元のターミナルに出る。
-
-    --lock を付けると、いま動いている環境を requirements.lock.txt に固定する。
-    """
-    if lock:
-        body = freeze_env.remote()
-        LOCK_FILE.write_text(body, encoding="utf-8")
-        print(f"✅ {LOCK_FILE} に固定しました（{len(body.splitlines())} 行）")
-        print("   次回以降のビルドはこのファイルから再現されます。")
-        print("   もし固定版でビルドが通らなくなったら、このファイルを消せば元に戻ります。")
-        return
-
+def main(text: str = "今日は来てくれて、本当にありがとう！"):
+    """API を介さず合成だけ試す。ログと例外が手元のターミナルに出る。"""
     wav = SBV2().synth.remote(text, {})
     out = pathlib.Path("sbv2_test.wav")
     out.write_bytes(wav)

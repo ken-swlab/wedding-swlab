@@ -110,19 +110,6 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    // =====================================================
-    // /tags/{tagId} : 管理者が作ったカスタムタグの辞書
-    //   ★ここにあるのは表示用の語彙（ラベルと色）だけ★
-    //     権限そのものは Custom Claims の tags が持っているので、
-    //     このコレクションが空でも組み込みタグは通常どおり動く。
-    //   書き込みは Route Handler (Admin SDK) 経由のみ。
-    // =====================================================
-    match /tags/{tagId} {
-      allow get:   if signedIn();
-      allow list:  if signedIn() && request.query.limit <= 200;
-      allow write: if false;
-    }
-
     match /{document=**} { allow read, write: if false; }
     // =====================================================
     // collectionGroup("comments") 用のルール

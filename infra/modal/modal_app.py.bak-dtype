@@ -170,53 +170,6 @@ def _to_wav(sample_rate: int, audio) -> bytes:
     return buf.getvalue()
 
 
-def _dtypes_of(module) -> set:
-    try:
-        return {p.dtype for p in module.parameters()}
-    except Exception:  # noqa: BLE001
-        return set()
-
-
-def _force_float32(module, label: str) -> None:
-    """半精度で載ってしまったモジュールを float32 に揃える。
-
-    ★なぜ必要か★
-      SBV2 の TextEncoder は BERT の特徴量を bert_proj(nn.Conv1d) に直接流す。
-      BERT だけが FP16 で載ると、そこで
-      「Input type (c10::Half) and bias type (float)」が出て止まる。
-      新しい transformers はチェックポイント側の torch_dtype を尊重するため、
-      以前 float32 で載っていたものが半精度になることがある。
-
-      SBV2 は小さいので、T4 上で float32 のままでも実用速度が出る。
-      速度のために精度を混ぜる意味はない。
-    """
-    import torch
-
-    if module is None or not hasattr(module, "parameters"):
-        return
-    dt = _dtypes_of(module)
-    print(f"[sbv2] {label}: dtype = {dt or '(パラメータなし)'}")
-    if dt and any(d != torch.float32 for d in dt):
-        try:
-            module.float()
-            print(f"[sbv2] {label}: float32 に統一 → {_dtypes_of(module)}")
-        except Exception as e:  # noqa: BLE001
-            print(f"[sbv2] {label}: float32 化に失敗: {e}")
-
-
-def _cached_bert_models(mod) -> list:
-    """bert_models の内部キャッシュは版によって名前が違うので、
-    モジュール内の dict を総当たりで探し、torch のモジュールを拾う。"""
-    found = []
-    for name, val in vars(mod).items():
-        if not isinstance(val, dict):
-            continue
-        for key, v in val.items():
-            if hasattr(v, "parameters") and hasattr(v, "float"):
-                found.append((f"{name}[{key}]", v))
-    return found
-
-
 @app.cls(
     image=image,
     gpu="T4",
@@ -242,27 +195,19 @@ class SBV2:
             print(f"[sbv2] ❌ pkg_resources が使えません: {e}")
 
         import torch
-        import transformers
         from style_bert_vits2.constants import Languages
         from style_bert_vits2.nlp import bert_models
         from style_bert_vits2.tts_model import TTSModel
 
         print(f"[sbv2] torch = {torch.__version__} / cuda = {torch.cuda.is_available()}")
-        print(f"[sbv2] transformers = {transformers.__version__}")
 
         try:
             volume.reload()  # デプロイ後にアップロードしたモデルも拾う
         except Exception as e:  # noqa: BLE001
             print(f"[sbv2] volume.reload をスキップ: {e}")
 
-        returned = bert_models.load_model(Languages.JP, BERT_MODEL)
+        bert_models.load_model(Languages.JP, BERT_MODEL)
         bert_models.load_tokenizer(Languages.JP, BERT_MODEL)
-
-        # ★BERT の精度を合成器に合わせる★
-        #   戻り値が無い版もあるので、内部キャッシュ側も総当たりで揃える。
-        _force_float32(returned, "BERT(戻り値)")
-        for label, mod in _cached_bert_models(bert_models):
-            _force_float32(mod, f"BERT({label})")
 
         model_path, config_path, style_path = _find_model(pathlib.Path(MODEL_DIR))
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -274,29 +219,6 @@ class SBV2:
             style_vec_path=str(style_path),
             device=self.device,
         )
-
-        # net_g は遅延ロードされる版があるため、先に読み込んでから型を確認する
-        if hasattr(self.model, "load"):
-            try:
-                self.model.load()
-            except Exception as e:  # noqa: BLE001
-                print(f"[sbv2] TTSModel.load() をスキップ: {e}")
-
-        for attr in ("net_g", "model"):
-            _force_float32(getattr(self.model, attr, None), f"TTSModel.{attr}")
-
-        # スタイルベクトルが float16 で保存されていると、ここも Half になる。
-        # Colab で学習・抽出した .npy は半精度のことがある。
-        sv = getattr(self.model, "style_vectors", None)
-        sv_dtype = str(getattr(sv, "dtype", ""))
-        if sv is not None and sv_dtype and sv_dtype != "float32":
-            try:
-                self.model.style_vectors = sv.astype("float32")
-                print(f"[sbv2] style_vectors: {sv_dtype} → float32")
-            except Exception as e:  # noqa: BLE001
-                print(f"[sbv2] style_vectors の変換に失敗: {e}")
-        else:
-            print(f"[sbv2] style_vectors: dtype = {sv_dtype or '(不明)'}")
 
         # ★握りつぶさない★ 失敗したらスタックトレースを必ず出す
         try:

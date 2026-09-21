@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { applyGuestTags, readGuestClaims } from "@/lib/guests-server";
-import { DEFAULT_GUEST_TAGS } from "@/config/tags";
-import { knownTagIds } from "@/lib/tags-server";
+import { DEFAULT_GUEST_TAGS, TAG_DEFS } from "@/config/tags";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type UpdateGuestPayload } from "@/types/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const KNOWN_TAGS = new Set(TAG_DEFS.map((t) => t.id));
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const PAYMENT_VALUES = new Set<string>(PAYMENT_OPTIONS.map((o) => o.value));
 const FACE_PATH_RE = /^reference_faces\/[A-Za-z0-9:_.-]{1,128}\/[A-Za-z0-9-]{1,64}\.jpg$/;
@@ -45,10 +45,7 @@ async function handle(req: Request) {
 
   if (body.tags !== undefined) {
     if (!Array.isArray(body.tags) || body.tags.length > 20) return fail("タグは20個までです", 400);
-    // 組み込み ∪ Firestore のカスタムタグ。archived も許可する
-    // （そのタグを持つゲストの別項目を保存できなくなるため）
-    const known = await knownTagIds(db);
-    const unknown = body.tags.filter((t) => !known.has(t));
+    const unknown = body.tags.filter((t) => !KNOWN_TAGS.has(t));
     if (unknown.length > 0) return fail(`未定義のタグです: ${unknown.join(", ")}`, 400);
   }
   if (body.attendance !== undefined && !ATTENDANCE_VALUES.has(body.attendance)) return fail("出欠の値が不正です", 400);

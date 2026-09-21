@@ -180,14 +180,6 @@ export async function markOriginalFailed(postId: string, thumbPath: string) {
   await patchMediaItem(postId, thumbPath, { originalStatus: "failed" });
 }
 
-/**
- * 原本を持っている端末が見つからない、と本人が申告したときに立てる。
- * 元の端末のキューが生きていれば、そちらから送信されて uploaded に戻る。
- */
-export async function markOriginalUnavailable(postId: string, thumbPath: string) {
-  await patchMediaItem(postId, thumbPath, { originalStatus: "unavailable" });
-}
-
 async function patchMediaItem(
   postId: string,
   thumbPath: string,

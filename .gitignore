@@ -1,0 +1,10 @@
+*.wav
+*.safetensors
+*.npy
+Ken/
+*.safetensors
+*.wav
+**/*.safetensors
+**/*.npy
+**/*.wav
+Ken/

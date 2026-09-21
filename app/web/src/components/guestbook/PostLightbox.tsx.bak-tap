@@ -94,27 +94,13 @@ export function PostLightbox({
   const { reacted, setReacted, loaded } = useMyReaction(post.id, user.uid, true);
   const [busy, setBusy] = useState(false);
 
-  /**
-   * click と touchend の両方を受けるため、1回だけ閉じるようにガードする。
-   * iOS では状況によって click が飛ばないことがあるので、両方に繋ぐ。
-   */
-  const closedRef = useRef(false);
-  useEffect(() => {
-    closedRef.current = false;
-  }, [post.id]);
-  const close = useCallback(() => {
-    if (closedRef.current) return;
-    closedRef.current = true;
-    onClose();
-  }, [onClose]);
-
   const onKey = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") close();
+      if (e.key === "Escape") onClose();
       if (e.key === "ArrowLeft" && hasPrev) onPrev();
       if (e.key === "ArrowRight" && hasNext) onNext();
     },
-    [hasPrev, hasNext, onPrev, onNext, close],
+    [hasPrev, hasNext, onPrev, onNext, onClose],
   );
 
   useEffect(() => {
@@ -142,12 +128,7 @@ export function PostLightbox({
   return (
     <div className="fixed inset-0 z-50 bg-black/95">
       <div className="mx-auto flex h-[100dvh] max-w-2xl flex-col">
-        {/* LINE 内ブラウザやノッチの下にヘッダーが潜り込むと、
-            ボタンが見えていてもタップがブラウザ側に吸われる */}
-        <header
-          className="flex shrink-0 items-center gap-3 px-4 pb-3"
-          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
-        >
+        <header className="flex shrink-0 items-center gap-3 px-4 py-3">
           <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-stone-700">
             {post.authorPhotoURL && (
               <Image src={post.authorPhotoURL} alt="" fill sizes="32px" className="object-cover" />
@@ -159,10 +140,9 @@ export function PostLightbox({
           </div>
           <button
             type="button"
-            onClick={close}
-            onTouchEnd={close}
+            onClick={onClose}
             aria-label="閉じる"
-            className="relative z-20 flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-white/15 text-2xl leading-none text-white transition active:bg-white/35"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-lg text-white"
           >
             ×
           </button>

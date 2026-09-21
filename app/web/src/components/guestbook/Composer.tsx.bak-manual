@@ -221,11 +221,7 @@ export function Composer({
 
       // --- 原本はページ側のキューに委ねる ---
       if (originals.length > 0) {
-        // ★端末に保存するだけ★ 送信の発火はゲストのボタン操作に委ねる
         onUploadOriginals(originals.map((o) => ({ ...o, postId: postRef.id })));
-        setNotice(
-          `高画質版 ${originals.length} 枚をこの端末に保存しました。Wi-Fi に繋がったら、上の「本アップロードを開始」から送信をお願いします 📶`,
-        );
       }
 
       // フォームは先に片付ける（投稿は成立しているため）
@@ -294,17 +290,13 @@ export function Composer({
                 </div>
               )}
 
-              {/* 24px だと指で外しやすく「反応しない」と感じられるため、
-                  見た目は据え置きで当たり判定だけ広げる */}
               <button
                 type="button"
                 onClick={() => remove(p.id)}
                 aria-label="削除"
-                className="absolute right-0 top-0 flex h-9 w-9 touch-manipulation items-center justify-center text-white"
+                className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/50 text-xs text-white"
               >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs transition active:bg-black/80">
-                  ×
-                </span>
+                ×
               </button>
             </div>
           ))}

@@ -1,14 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { markOriginalUnavailable } from "@/lib/media";
 import type { UploadApi } from "@/hooks/useUpload";
-
-/** サーバー側で原本を待っているメディア1件 */
-export type PendingOriginal = { postId: string; thumbPath: string };
-
-/** 投稿直後の一瞬の食い違いを警告に出さないための待ち時間 */
-const SETTLE_MS = 6000;
 
 function mb(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
@@ -16,61 +8,23 @@ function mb(bytes: number) {
 
 export function UploadStatusBar({
   upload,
-  serverPending = [],
+  serverPending = 0,
 }: {
   upload: UploadApi;
-  /** 自分の投稿のうち、原本が pending のメディア一覧 */
-  serverPending?: PendingOriginal[];
+  /** 自分の投稿のうち、原本が未送信のメディア数（サーバー側の真実） */
+  serverPending?: number;
 }) {
-  const { jobs, failed, current, remaining, remainingBytes, running, sentCount, error, hydrated } =
+  const { failed, current, remaining, remainingBytes, running, sentCount, error, hydrated } =
     upload;
-  const [giving, setGiving] = useState(false);
-  const [gaveUp, setGaveUp] = useState(false);
 
-  /**
-   * ★件数の引き算ではなく thumbPath で突き合わせる★
-   *   件数比較だと、手元にある枚数とサーバーの枚数がたまたま一致しない
-   *   だけで誤検知する。どの写真が手元に無いのかを直接特定する。
-   */
-  const missing = useMemo(() => {
-    const local = new Set(jobs.map((j) => j.thumbPath));
-    return serverPending.filter((it) => !local.has(it.thumbPath));
-  }, [jobs, serverPending]);
-
-  const missingKey = useMemo(
-    () => missing.map((m) => m.thumbPath).sort().join("|"),
-    [missing],
-  );
-
-  // 同じ食い違いが SETTLE_MS 続いたときだけ本物とみなす
-  const [settledKey, setSettledKey] = useState("");
-  useEffect(() => {
-    if (!missingKey) {
-      setSettledKey("");
-      return;
-    }
-    const t = setTimeout(() => setSettledKey(missingKey), SETTLE_MS);
-    return () => clearTimeout(t);
-  }, [missingKey]);
-
-  const showMissing =
-    hydrated && !running && !gaveUp && missingKey !== "" && settledKey === missingKey;
-
-  async function giveUp() {
-    if (giving) return;
-    setGiving(true);
-    try {
-      for (const it of missing) {
-        await markOriginalUnavailable(it.postId, it.thumbPath).catch(() => {});
-      }
-      setGaveUp(true);
-    } finally {
-      setGiving(false);
-    }
-  }
+  // ★別ブラウザ取り残しの検出★
+  //   LINE のアプリ内ブラウザで投稿し、帰宅後に Safari で開くと
+  //   IndexedDB は別領域なのでキューが空に見える。
+  //   サーバー側の未送信数のほうが多ければ、それが起きている。
+  const elsewhere = hydrated ? Math.max(0, serverPending - remaining) : 0;
 
   if (!hydrated) return null;
-  if (remaining === 0 && sentCount === 0 && !showMissing && !error) return null;
+  if (remaining === 0 && sentCount === 0 && elsewhere === 0 && !error) return null;
 
   return (
     <div className="space-y-2">
@@ -120,7 +74,7 @@ export function UploadStatusBar({
               <summary className="cursor-pointer text-[11px] font-medium text-rose-800">
                 うち {failed.length} 枚が失敗しています（詳細）
               </summary>
-              {/* スマホではコンソールが見られないので、理由は必ず画面に出す */}
+              {/* iPhone ではコンソールが見られないので、理由は必ず画面に出す */}
               <ul className="mt-1.5 space-y-1">
                 {failed.map((j) => (
                   <li key={j.id} className="text-[10px] leading-tight text-rose-700">
@@ -135,7 +89,7 @@ export function UploadStatusBar({
           <button
             type="button"
             onClick={failed.length > 0 ? upload.retryFailed : upload.start}
-            className="mt-3 w-full touch-manipulation rounded-full bg-amber-700 py-3 text-sm font-medium text-white transition active:bg-amber-900"
+            className="mt-3 w-full rounded-full bg-amber-700 py-2.5 text-sm font-medium text-white transition hover:bg-amber-800"
           >
             本アップロードを開始
           </button>
@@ -158,31 +112,17 @@ export function UploadStatusBar({
         </div>
       )}
 
-      {/* ---- この端末に実体が見つからない ---- */}
-      {showMissing && (
+      {/* ---- 別ブラウザに取り残されている ---- */}
+      {elsewhere > 0 && (
         <div className="rounded-2xl border border-stone-300 bg-white p-3">
           <p className="text-xs font-medium text-stone-800">
-            高画質版がこの端末に見つからない写真が {missing.length} 枚あります
+            別の画面で投稿した写真が {elsewhere} 枚あります
           </p>
           <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
-            考えられる理由は2つです。
-            <span className="mt-1 block">
-              ① <span className="font-medium">別の画面から投稿した</span> — 高画質版は投稿したときの
-              ブラウザにしか残りません。LINE のトークに届いたリンクから開き直すと送信できます。
-            </span>
-            <span className="mt-1 block">
-              ② <span className="font-medium">端末から削除された</span> — 時間が経つと、
-              ブラウザが自動的に消すことがあります。この場合は回収できません。
-            </span>
+            高画質版は投稿したときと同じブラウザにしか残りません。
+            <span className="font-medium">LINE のトークに届いたリンクから開き直す</span>
+            と、続きを送信できます。
           </p>
-          <button
-            type="button"
-            onClick={() => void giveUp()}
-            disabled={giving}
-            className="mt-2.5 w-full touch-manipulation rounded-full border border-stone-300 py-2.5 text-xs text-stone-600 transition active:bg-stone-100 disabled:opacity-50"
-          >
-            {giving ? "処理中…" : "この端末にはありません（この案内を消す）"}
-          </button>
         </div>
       )}
 
