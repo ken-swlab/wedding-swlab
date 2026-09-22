@@ -4,7 +4,7 @@ import { postJson } from "@/lib/api-client";
 import type { MediaItem } from "@/types";
 
 export const MAX_MEDIA_PER_POST = 4;
-export const MAX_ORIGINAL_BYTES = 60 * 1024 * 1024;
+export { MAX_ORIGINAL_BYTES } from "@/config/limits";
 /** iOS では転送が無言で止まることがある。進捗が来ない時間の上限 */
 export const ORIGINAL_STALL_MS = 45_000;
 

@@ -1,11 +1,27 @@
 import type { Timestamp } from "firebase/firestore";
 
 /**
- * unavailable = 原本を保持していた端末が特定できない／消えた。
- *   ゲスト本人が「この端末にはありません」と申告したときに入る。
- *   pending のまま放置すると、回収不能なものを永久に待ち続けてしまう。
+ * 原本の状態。
+ *
+ *   pending     まだ端末から送信されていない
+ *   uploaded    R2 の非公開バケットには届いた。ここから Worker の処理待ち
+ *   published   EXIF を除去して公開バケットへ複製済み。originalUrl が使える
+ *   skipped     Worker が処理できなかった（形式・サイズ・破損・期限切れ）
+ *   failed      端末からの送信自体に失敗した
+ *   unavailable 原本を持っていた端末が特定できない／消えた
+ *
+ * ★uploaded と published を分けている理由★
+ *   以前は両方 "uploaded" だったため、R2 に届いただけの写真にも
+ *   「HQ」バッジが出て、実際には軽量版が表示されていた。
+ *   originalUrl が使えるのは published だけ。
  */
-export type OriginalStatus = "pending" | "uploaded" | "failed" | "unavailable";
+export type OriginalStatus =
+  | "pending"
+  | "uploaded"
+  | "published"
+  | "skipped"
+  | "failed"
+  | "unavailable";
 
 export type MediaItem = {
   type: "image" | "video";
@@ -22,6 +38,8 @@ export type MediaItem = {
   originalPath?: string;
   originalBytes?: number;
   originalStatus?: OriginalStatus;
+  /** skipped のときだけ入る。UI に理由を出すために使う */
+  originalSkipReason?: string;
 };
 
 export type Post = {

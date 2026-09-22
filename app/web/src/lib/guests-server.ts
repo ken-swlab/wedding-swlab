@@ -28,6 +28,21 @@ export async function applyGuestTags(uid: string, tags: string[]): Promise<{ tag
     const next = { ...prev, tags: sorted };
     if (Buffer.byteLength(JSON.stringify(next), "utf8") > CLAIMS_BYTE_LIMIT) throw new Error("Custom Claims が上限に達しました");
     await auth.setCustomUserClaims(uid, next);
+
+    /**
+     * ★クレーム変更を即座に効かせる★
+     *   setCustomUserClaims はリフレッシュトークンを失効させない。
+     *   verifyIdToken(token, true) の checkRevoked が見るのは
+     *   tokensValidAfterTime と disabled だけで、クレームの鮮度は見ない。
+     *   これが無いと、タグや admin を剥奪しても手持ちの ID トークンが
+     *   切れるまで（最大1時間）旧権限で操作を続けられる。
+     *   披露宴当日に「荒らしを即座に止める」運用が成立しなくなる。
+     */
+    try {
+      await auth.revokeRefreshTokens(uid);
+    } catch (e) {
+      console.error(`[guests] revokeRefreshTokens 失敗 uid=${uid}`, e);
+    }
     return { tags: sorted, claimsUpdated: true };
   } catch (e) {
     if (!isNotFound(e)) throw e;

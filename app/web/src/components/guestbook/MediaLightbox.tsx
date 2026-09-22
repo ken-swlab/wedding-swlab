@@ -4,9 +4,15 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef } from "react";
 import type { MediaItem } from "@/types";
 
-/** 手動アップロード方式になったので「送信中」ではなく状態をそのまま伝える */
-const ORIGINAL_NOTE: Partial<Record<NonNullable<MediaItem["originalStatus"]>, string>> = {
+/**
+ * 原本の状態を伝える注記。
+ * ★Partial を外してある★ 状態を足したときにコンパイルエラーにするため。
+ */
+const ORIGINAL_NOTE: Record<NonNullable<MediaItem["originalStatus"]>, string | null> = {
   pending: "高画質版はまだ送信されていません",
+  uploaded: "高画質版を準備中です（数分かかります）",
+  published: null,
+  skipped: "この写真の高画質版は保存できませんでした",
   failed: "高画質版の送信に失敗しています",
   unavailable: "高画質版は取得できませんでした",
 };
@@ -63,7 +69,7 @@ export function MediaLightbox({
 
   if (!item) return null;
   const src = item.originalUrl ?? item.url;
-  const note = item.originalStatus ? ORIGINAL_NOTE[item.originalStatus] : undefined;
+  const note = item.originalStatus ? ORIGINAL_NOTE[item.originalStatus] : null;
 
   // ★閉じる操作は×ボタンだけに一本化する★
   //   披露宴では片手・ほろ酔いでの操作になる。背景や写真のタップで閉じると、

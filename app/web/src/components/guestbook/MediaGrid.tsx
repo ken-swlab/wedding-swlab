@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
-import type { MediaItem } from "@/types";
+import type { MediaItem, OriginalStatus } from "@/types";
 import { MediaLightbox } from "./MediaLightbox";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
@@ -12,6 +12,26 @@ function cellClass(count: number, i: number) {
   if (count === 3) return i === 0 ? "row-span-2 h-full" : "aspect-square";
   return "aspect-square";
 }
+
+type Badge = { label: string; className: string } | null;
+
+/**
+ * 原本の状態バッジ。
+ *
+ * ★Record を全キー必須にしてある★
+ *   Partial だと OriginalStatus に値を足したときに、
+ *   何も表示されないまま型チェックも通ってしまう。
+ *   ここをコンパイルエラーにするのが目的。
+ */
+const BADGE: Record<OriginalStatus, Badge> = {
+  pending: { label: "高画質版 未送信", className: "bg-amber-500/80 text-white" },
+  // R2 には届いたが EXIF 除去がまだ。originalUrl は無いので HQ と言ってはいけない
+  uploaded: { label: "高画質版 処理中", className: "bg-sky-600/75 text-white" },
+  published: { label: "HQ", className: "bg-black/45 text-white/90" },
+  skipped: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
+  failed: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
+  unavailable: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
+};
 
 export function MediaGrid({ media }: { media: MediaItem[] }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -51,20 +71,13 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
               />
             )}
 
-            {/* 自動送信をやめたので「送信中」ではなく「未送信」が正しい */}
-            {m.originalStatus === "pending" && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-amber-500/80 px-2 py-0.5 text-[10px] text-white">
-                高画質版 未送信
-              </span>
-            )}
-            {(m.originalStatus === "failed" || m.originalStatus === "unavailable") && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/55 px-2 py-0.5 text-[10px] text-white/80">
-                軽量版のみ
-              </span>
-            )}
-            {m.originalStatus === "uploaded" && (
-              <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/45 px-1.5 py-0.5 text-[10px] text-white/90">
-                HQ
+            {m.originalStatus && BADGE[m.originalStatus] && (
+              <span
+                className={`absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5 text-[10px] ${
+                  BADGE[m.originalStatus]!.className
+                }`}
+              >
+                {BADGE[m.originalStatus]!.label}
               </span>
             )}
           </button>

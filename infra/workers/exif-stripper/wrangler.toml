@@ -5,7 +5,7 @@ compatibility_date = "2025-09-01"
 # ★Queues ではなく Cron★
 #   2分おきに wedding-originals を走査し、未処理の原本を処理する。
 #   即時性は不要（原本は帰宅後に手動アップロードされる前提）で、
-#   無料枠で完結し、Firestore とのレース条件も自然に消える。
+#   Firestore とのレース条件も自然に消える。
 [triggers]
 crons = ["*/2 * * * *"]
 
@@ -22,14 +22,35 @@ bucket_name = "wedding-media"
 [vars]
 PUBLIC_BASE = "https://media.wedding.sw-lab.net"
 WEBHOOK_URL = "https://wedding.sw-lab.net/api/hooks/original-published"
+
 # 1回の実行で処理する最大件数。
-#   無料枠は1実行あたりのサブリクエストが50件で、1枚につき
-#   get + put + webhook の3件を使う。list のぶんも残して 10 にしてある。
-#   "exceeded CPU limit" が出たら、この値を下げること。
+#   1枚あたり get + put + webhook + _linked の PUT で 4 サブリクエスト。
+#   list のページぶんを足して 10 件なら 41。無料枠の 50 に収まる。
+#   Workers Paid なら上限は 10,000 なので 50〜80 まで上げられる。
 MAX_PER_RUN = "10"
-# Worker のメモリは 128MB。入力と出力の двух копий で溢れないよう余裕を取る
+
+# ★app/web/src/config/limits.ts の MAX_ORIGINAL_BYTES と必ず一致させること★
+#   ここが小さいと「アップロードは成功するが必ず隔離される」無言の失敗になる。
+#   Worker のメモリは 128MB。入力と出力の2コピーを持つので 24MB が安全側。
 MAX_BYTES = "25165824"
-# 紐付かないまま何時間経ったら諦めるか
+
+# 公開済みだが Firestore に紐付かないまま何時間経ったら諦めるか
 UNLINKED_GIVEUP_HOURS = "24"
+
+# ★無限ループを塞ぐ最後の砦★
+#   カウンタが何らかの理由で進まなくても、この時間を過ぎたら無条件で隔離する。
+HARD_GIVEUP_HOURS = "72"
+
+# webhook が連続して失敗したら隔離するまでの回数
+MAX_WEBHOOK_FAILURES = "3"
+
+# 隔離を UI へ通知する再試行の上限
+MAX_NOTIFY_ATTEMPTS = "5"
+
+# webhook のタイムアウト。Vercel のコールドスタートを見込んで長めに取る
+WEBHOOK_TIMEOUT_MS = "20000"
+
+# 1 run で使ってよいサブリクエスト数。無料枠 50 に対する安全マージン
+SUBREQUEST_BUDGET = "45"
 
 # WEBHOOK_SECRET は wrangler secret put で設定する（ここには書かない）
