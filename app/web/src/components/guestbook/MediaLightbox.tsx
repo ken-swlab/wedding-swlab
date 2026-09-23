@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useRef } from "react";
 import type { MediaItem } from "@/types";
+import { displayStatus } from "@/lib/original-status";
 
 /**
  * 原本の状態を伝える注記。
@@ -69,7 +70,8 @@ export function MediaLightbox({
 
   if (!item) return null;
   const src = item.originalUrl ?? item.url;
-  const note = item.originalStatus ? ORIGINAL_NOTE[item.originalStatus] : null;
+  const ds = displayStatus(item);
+  const note = ds ? ORIGINAL_NOTE[ds] : null;
 
   // ★閉じる操作は×ボタンだけに一本化する★
   //   披露宴では片手・ほろ酔いでの操作になる。背景や写真のタップで閉じると、

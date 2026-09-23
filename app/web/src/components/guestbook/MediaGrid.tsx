@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import type { MediaItem, OriginalStatus } from "@/types";
 import { MediaLightbox } from "./MediaLightbox";
+import { displayStatus } from "@/lib/original-status";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
 function cellClass(count: number, i: number) {
@@ -71,13 +72,13 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
               />
             )}
 
-            {m.originalStatus && BADGE[m.originalStatus] && (
+            {displayStatus(m) && BADGE[displayStatus(m)!] && (
               <span
                 className={`absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5 text-[10px] ${
-                  BADGE[m.originalStatus]!.className
+                  BADGE[displayStatus(m)!]!.className
                 }`}
               >
-                {BADGE[m.originalStatus]!.label}
+                {BADGE[displayStatus(m)!]!.label}
               </span>
             )}
           </button>
