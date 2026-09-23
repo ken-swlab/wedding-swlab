@@ -207,12 +207,21 @@ export async function attachOriginal(
   thumbPath: string,
   original: UploadedObject,
 ) {
-  await patchMediaItem(postId, thumbPath, {
+  await patchMediaItem(postId, thumbPath, (cur) => ({
     ...(original.url ? { originalUrl: original.url } : {}),
     originalPath: original.path,
     originalBytes: original.bytes,
-    originalStatus: "uploaded",
-  });
+    /**
+     * ★Worker の成果を巻き戻さない★
+     *   通常は attachOriginal が先、Worker が後（originalPath が無いと
+     *   Worker はそもそもマッチできない）。ただし別端末からの再送などで
+     *   この関数が後から走ると、published / skipped を uploaded に
+     *   戻してしまう。すでに決着している状態は触らない。
+     */
+    ...(cur.originalStatus === "published" || cur.originalStatus === "skipped"
+      ? {}
+      : { originalStatus: "uploaded" as const }),
+  }));
 }
 
 export async function markOriginalFailed(postId: string, thumbPath: string) {
@@ -230,7 +239,8 @@ export async function markOriginalUnavailable(postId: string, thumbPath: string)
 async function patchMediaItem(
   postId: string,
   thumbPath: string,
-  patch: Partial<MediaItem>,
+  /** 現在の値を見て差分を決めたいときは関数を渡す */
+  patch: Partial<MediaItem> | ((cur: MediaItem) => Partial<MediaItem>),
 ) {
   const postRef = doc(db, "posts", postId);
 
@@ -240,7 +250,9 @@ async function patchMediaItem(
 
     const media = (snap.data().media ?? []) as MediaItem[];
     const next = media.map((m) =>
-      m.storagePath === thumbPath ? { ...m, ...patch } : m,
+      m.storagePath === thumbPath
+        ? { ...m, ...(typeof patch === "function" ? patch(m) : patch) }
+        : m,
     );
 
     // Rules の author 編集ブランチが許すキーだけを触る
