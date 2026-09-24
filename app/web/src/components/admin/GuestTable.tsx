@@ -7,7 +7,7 @@ import { compareGuests } from "@/lib/roster";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "nickname" | "tags" | "attendance" | "allergy" | "paymentStatus" | "aiMemo">>;
-export type GuestPatch = Draft & { isApproved?: boolean };
+export type GuestPatch = Draft & { isApproved?: boolean; isActive?: boolean };
 type SaveState = "idle" | "saving" | "done" | "error";
 
 const ATTENDANCE_STYLE: Record<Attendance, string> = { unanswered: "bg-stone-100 text-stone-600", attending: "bg-emerald-50 text-emerald-700", declined: "bg-rose-50 text-rose-700" };
@@ -84,7 +84,14 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                         <select value={linkTo[row.uid] ?? ""} onChange={(e) => setLinkTo((p) => ({ ...p, [row.uid]: e.target.value }))} className="w-full rounded-md border border-stone-200 bg-white px-2 py-1 text-xs"><option value="">紐付けない（新規ゲスト）</option>{sortedPre.map((g) => <option key={g.uid} value={g.uid}>{adminName(g)}{g.kana ? `（${g.kana}）` : ""}</option>)}</select>
                         <button type="button" disabled={state === "saving" || !onApprove} onClick={() => onApprove && void run(row, onApprove(row, linkTo[row.uid] ?? ""))} className="w-full rounded-md bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-700 disabled:opacity-50">{state === "saving" ? "処理中…" : "承認する"}</button>
                       </div>
-                    ) : (<button type="button" onClick={() => void run(row, onSave(row.uid, { isApproved: false }))} className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100">✓ 承認済</button>)}
+                    ) : (
+                      <div className="space-y-1">
+                        <button type="button" onClick={() => void run(row, onSave(row.uid, { isApproved: false }))} className="w-full rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100">✓ 承認済</button>
+                        {/* ★停止はタグを空にし、リフレッシュトークンも失効させる★
+                            承認解除と違い、承認待ちキューにも戻らない */}
+                        <button type="button" onClick={() => { if (confirm(`${adminName(row)} のアクセスを停止します。よろしいですか？`)) void run(row, onSave(row.uid, { isActive: false })); }} className="w-full rounded-full border border-rose-200 px-2.5 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50">アクセス停止</button>
+                      </div>
+                    )}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     <select value={field(row, "attendance")} onChange={(e) => patch(row.uid, { attendance: e.target.value as Attendance })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${ATTENDANCE_STYLE[field(row, "attendance")]}`}>{ATTENDANCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>

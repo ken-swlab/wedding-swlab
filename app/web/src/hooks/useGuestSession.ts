@@ -15,6 +15,12 @@ export type GuestProfile = {
 
 export type GuestSession = {
   user: User | null;
+  /**
+   * 管理者によるアクセス停止。未設定・読めない場合は true（有効）。
+   * guestPrivate/{uid} は本人と管理者だけが読めるので、
+   * 他のゲストの停止状態は見えない。
+   */
+  isActive: boolean;
   tags: string[];
   isAdmin: boolean;
   loading: boolean;
@@ -30,6 +36,7 @@ export function useGuestSession(): GuestSession {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<GuestProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [isActive, setIsActive] = useState(true);
   const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
@@ -107,5 +114,23 @@ export function useGuestSession(): GuestSession {
     );
   }, [user, readClaims]);
 
-  return { user, tags, isAdmin, loading, profile, profileLoading, refreshTags };
+  /**
+   * 自分の /guestPrivate/{uid} を購読してアクセス停止を検知する。
+   * 実際の締め出しは tags が空になることで既に成立しているが、
+   * 「承認待ち」と「停止」では出すべき画面が違うので区別する。
+   */
+  useEffect(() => {
+    if (!user) {
+      setIsActive(true);
+      return;
+    }
+    return onSnapshot(
+      doc(db, "guestPrivate", user.uid),
+      (snap) => setIsActive(snap.data()?.isActive !== false),
+      // 読めないときは停止と決めつけない（Rules の一時的な失敗で閉め出さない）
+      () => setIsActive(true),
+    );
+  }, [user]);
+
+  return { user, isActive, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

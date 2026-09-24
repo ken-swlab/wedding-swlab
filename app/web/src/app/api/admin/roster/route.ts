@@ -1,4 +1,4 @@
-import { applyGuestTags } from "@/lib/guests-server";
+import { applyGuestTags, readGuestClaims } from "@/lib/guests-server";
 import { TAG_DEFS } from "@/config/tags";
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
@@ -168,6 +168,28 @@ async function handle(req: Request) {
       carry.displayName = fromSnap.get("displayName");
     }
     carry.invitationStatus = fromSnap.get("invitationStatus") ?? "sent";
+
+    /**
+     * ★仮登録時に付けたタグを Custom Claims へ引き継ぐ★
+     *   pre_xxxx には Auth ユーザーが無いため、名簿作成時の applyGuestTags は
+     *   auth/user-not-found で空振りし、タグは Firestore にだけ残っていた。
+     *   ここで実ユーザーの Claims へ移さないと、承認時に付くのは
+     *   DEFAULT_GUEST_TAGS だけになり、「親族」「新郎友人」などの
+     *   コミュニティタグが永久に反映されない。
+     *
+     *   和集合にするのは、統合先が既に持っているタグを消さないため。
+     */
+    const fromTags = (fromSnap.get("tags") ?? []) as string[];
+    if (Array.isArray(fromTags) && fromTags.length > 0) {
+      const cur = await readGuestClaims(toUid);
+      const merged = [...new Set([...cur.tags, ...fromTags])].sort();
+      const applied = await applyGuestTags(toUid, merged);
+      carry.tags = applied.tags;
+      if (applied.claimsUpdated) {
+        carry.claimsUpdatedAt = FieldValue.serverTimestamp();
+      }
+    }
+
     await db.collection("guests").doc(toUid).set(carry, { merge: true });
     await db.collection("guests").doc(fromUid).set({ mergedInto: toUid, isArchived: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 

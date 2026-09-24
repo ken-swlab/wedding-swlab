@@ -51,6 +51,8 @@ async function handle(req: Request) {
     const unknown = body.tags.filter((t) => !known.has(t));
     if (unknown.length > 0) return fail(`未定義のタグです: ${unknown.join(", ")}`, 400);
   }
+  if (body.isActive !== undefined && typeof body.isActive !== "boolean") return fail("isActive は真偽値で指定してください", 400);
+  if (body.bannedReason !== undefined && (typeof body.bannedReason !== "string" || body.bannedReason.length > 200)) return fail("停止理由は200文字までです", 400);
   if (body.attendance !== undefined && !ATTENDANCE_VALUES.has(body.attendance)) return fail("出欠の値が不正です", 400);
   if (body.paymentStatus !== undefined && !PAYMENT_VALUES.has(body.paymentStatus)) return fail("送金ステータスの値が不正です", 400);
   if (body.nickname !== undefined && (typeof body.nickname !== "string" || body.nickname.length > 20)) return fail("ニックネームは20文字までです", 400);
@@ -74,9 +76,21 @@ async function handle(req: Request) {
   let tags: string[] | undefined;
   let claimsUpdated = false;
 
-  if (body.tags !== undefined || body.isApproved !== undefined) {
+  /**
+   * ★アクセス停止は他のどの指定よりも強い★
+   *   tags を空にすると firestore.rules の canSee が常に false になり、
+   *   投稿もコメントもエピソードも一切見えなくなる。さらに
+   *   applyGuestTags が revokeRefreshTokens を呼ぶため、手持ちの
+   *   ID トークンもその場で無効になり、全 Route Handler が 401 を返す。
+   *   フラグではなくこの2つが実際の締め出しを行う。
+   */
+  const banning = body.isActive === false;
+
+  if (body.tags !== undefined || body.isApproved !== undefined || banning) {
     const current = await readGuestClaims(uid);
-    if (body.tags !== undefined) {
+    if (banning) {
+      tags = current.isAdmin ? current.tags : [];
+    } else if (body.tags !== undefined) {
       tags = Array.from(new Set(body.tags)).sort();
     } else if (body.isApproved === true) {
       // ★必ず和集合★ 統合済みゲストはタグが空でないため
@@ -102,11 +116,17 @@ async function handle(req: Request) {
   }
   batch.set(db.collection("guests").doc(uid), publicPatch, { merge: true });
 
-  if (body.attendance !== undefined || body.allergy !== undefined || body.paymentStatus !== undefined) {
+  if (body.attendance !== undefined || body.allergy !== undefined || body.paymentStatus !== undefined || body.isActive !== undefined) {
     const privatePatch: Record<string, unknown> = { uid, updatedAt: FieldValue.serverTimestamp() };
     if (body.attendance !== undefined) privatePatch.attendance = body.attendance;
     if (body.allergy !== undefined) privatePatch.allergy = body.allergy;
     if (body.paymentStatus !== undefined) privatePatch.paymentStatus = body.paymentStatus;
+    if (body.isActive !== undefined) {
+      privatePatch.isActive = body.isActive;
+      privatePatch.bannedAt = body.isActive === false ? FieldValue.serverTimestamp() : null;
+      privatePatch.bannedReason =
+        body.isActive === false ? (body.bannedReason ?? "").slice(0, 200) : "";
+    }
     batch.set(db.collection("guestPrivate").doc(uid), privatePatch, { merge: true });
   }
 

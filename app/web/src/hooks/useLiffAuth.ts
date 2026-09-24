@@ -26,7 +26,13 @@ function session(op: "get" | "set" | "clear"): string | null {
   return null;
 }
 
-export function useLiffAuth() {
+/**
+ * @param auto  true なら未ログイン時に自動で LINE へ飛ばす（従来の挙動）。
+ *              false なら飛ばさず、返り値の login() が呼ばれたときだけ開始する。
+ *              公開LP（/invitation）は false で使う。開いた瞬間に
+ *              LINE へリダイレクトされると「招待状を読む」ができなくなる。
+ */
+export function useLiffAuth(auto = true) {
   const [phase, setPhase] = useState<LiffPhase>("booting");
   const [user, setUser] = useState<User | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -108,10 +114,22 @@ export function useLiffAuth() {
         setPhase("ready");
         return;
       }
+      if (!auto) {
+        setPhase("ready");   // 未ログインのまま操作可能な状態
+        return;
+      }
       if (started.current) return;
       started.current = true;
       void runLiffFlow();
     });
+  }, [runLiffFlow, auto]);
+
+  /** 明示的にログインを開始する。ボタンの onClick から呼ぶ */
+  const login = useCallback(() => {
+    if (started.current) return;
+    started.current = true;
+    setMessage(null);
+    void runLiffFlow();
   }, [runLiffFlow]);
 
   const retry = useCallback(() => {
@@ -120,5 +138,5 @@ export function useLiffAuth() {
     void runLiffFlow();
   }, [runLiffFlow]);
 
-  return { phase, user, message, retry };
+  return { phase, user, message, retry, login };
 }

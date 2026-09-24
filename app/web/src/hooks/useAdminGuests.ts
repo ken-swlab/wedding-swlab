@@ -63,6 +63,9 @@ export function useAdminGuests(enabled: boolean) {
           allergy: v.allergy ?? "",
           paymentStatus: (v.paymentStatus ?? "none") as PaymentStatus,
           submittedAt: v.submittedAt ?? null,
+          // 未設定は有効。明示的に false のときだけ停止扱い
+          isActive: v.isActive !== false,
+          bannedReason: v.bannedReason ?? "",
         };
       }
       setPriv(next);

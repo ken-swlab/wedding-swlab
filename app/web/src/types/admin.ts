@@ -50,6 +50,17 @@ export type GuestPrivate = {
   allergy: string;
   paymentStatus: PaymentStatus;
   submittedAt: Timestamp | null;
+  /**
+   * ★アクセス停止（Ban）★ 未設定＝有効。
+   *   guests ではなくここに置くのは、guests がサインイン済み全員に
+   *   get を許しているため（firestore.rules)。「誰が停止されたか」を
+   *   他のゲストに見せない。
+   *   実際の締め出しはこのフラグではなく、tags を空にすることと
+   *   revokeRefreshTokens が行う。このフラグは運用上の記録と、
+   *   承認待ちキューから外すための目印。
+   */
+  isActive: boolean;
+  bannedReason: string;
 };
 
 /** /guestAdmin/{uid} : 管理者だけが読める運営メモ */
@@ -97,4 +108,7 @@ export type UpdateGuestPayload = {
   aiMemo?: string;
   callNameGroom?: string;
   callNameBride?: string;
+  /** false でアクセス停止。tags を空にし、リフレッシュトークンも失効させる */
+  isActive?: boolean;
+  bannedReason?: string;
 };

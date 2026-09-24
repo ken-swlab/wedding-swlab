@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { usePosts } from "@/hooks/usePosts";
 import { useUpload } from "@/hooks/useUpload";
@@ -17,16 +16,13 @@ import {
   UploadStatusBar,
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
-import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
-import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
+import { GuestShell } from "@/components/guestbook/GuestShell";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
 export default function GuestbookPage() {
-  const router = useRouter();
-  const { user, tags, loading: authLoading, profile, profileLoading, refreshTags } =
-    useGuestSession();
+  const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSession();
 
   // ★posts は1本しか購読しない★
   //   タイムラインとギャラリーは同じ配列を見るので、
@@ -38,11 +34,10 @@ export default function GuestbookPage() {
   const [personUid, setPersonUid] = useState("");
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !user) router.replace("/");
-  }, [authLoading, user, router]);
+  // ★振り分けは (guest)/layout.tsx が行う★
+  //   未登録・未承認・停止の判定はすべて layout 側に集約したので、
+  //   このページは「承認済みで開ける状態」だけを描く。
 
   // ライトボックスの前後移動は「写真を持つ投稿」の並びを辿る
   const viewer = useMemo<Person | null>(() => user && profile ? { uid: user.uid, name: profile.nickname || profile.displayName, kana: "", tags } : null, [user, profile, tags]);
@@ -84,34 +79,11 @@ export default function GuestbookPage() {
     return <SplashScreen phase="booting" />;
   }
 
-  const needsOnboarding = editing || !profile.isRegistered;
-  const unlocked = profile.isApproved && tags.length > 0;
-
   const authorName = publicName(profile);
 
   return (
     <AuthorNameProvider value={authorName}>
-    <main className="min-h-screen bg-stone-50">
-      <div className="mx-auto max-w-xl px-4 py-8">
-        <header className="mb-6 text-center">
-          <h1 className="font-serif text-2xl tracking-wide text-stone-900">Guest Book</h1>
-          <p className="mt-1 text-sm text-stone-500">おふたりへのメッセージを残してください</p>
-        </header>
-
-        {needsOnboarding ? (
-          <OnboardingForm
-            user={user}
-            initialNickname={profile.nickname}
-            onDone={() => setEditing(false)}
-          />
-        ) : !unlocked ? (
-          <PendingApproval
-            nickname={profile.nickname}
-            approvedButStale={profile.isApproved}
-            onEdit={() => setEditing(true)}
-            onRefresh={() => void refreshTags()}
-          />
-        ) : (
+      <GuestShell>
           <div className="space-y-4">
             <UploadStatusBar upload={upload} serverPending={serverPending} />
 
@@ -144,8 +116,6 @@ export default function GuestbookPage() {
               </>
             )}
           </div>
-        )}
-      </div>
 
       {current && (
         <PostLightbox
@@ -158,7 +128,7 @@ export default function GuestbookPage() {
           onClose={() => setOpenId(null)}
         />
       )}
-    </main>
+      </GuestShell>
     </AuthorNameProvider>
   );
 }

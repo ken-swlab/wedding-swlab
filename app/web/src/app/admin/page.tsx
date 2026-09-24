@@ -26,6 +26,11 @@ export default function AdminPage() {
     await postJson("/api/admin/update-guest", { uid, ...patch });
   }, []);
 
+  const onUnban = useCallback(async (row: GuestRow) => {
+    await postJson("/api/admin/update-guest", { uid: row.uid, isActive: true });
+    setToast(`${adminName(row)} の停止を解除しました（タグの付け直しが必要です）`);
+  }, []);
+
   const onApprove = useCallback(async (row: GuestRow, preUid: string) => {
     if (preUid) await postJson("/api/admin/roster", { action: "merge", fromUid: preUid, toUid: row.uid });
     await postJson("/api/admin/update-guest", { uid: row.uid, isApproved: true });
@@ -39,12 +44,15 @@ export default function AdminPage() {
   }, [rows, q]);
 
   const preGuests = useMemo(() => rows.filter((r) => r.isPreRegistered && !r.isRegistered), [rows]);
-  const pending = useMemo(() => filtered.filter((r) => r.isRegistered && !r.isApproved).sort(compareGuests), [filtered]);
-  const approved = useMemo(() => filtered.filter((r) => r.isRegistered && r.isApproved).sort(compareGuests), [filtered]);
+  // ★停止中のゲストは承認待ちにも承認済みにも出さない★
+  //   キューに残っていると、誤って再承認してしまう
+  const pending = useMemo(() => filtered.filter((r) => r.isRegistered && !r.isApproved && r.isActive).sort(compareGuests), [filtered]);
+  const approved = useMemo(() => filtered.filter((r) => r.isRegistered && r.isApproved && r.isActive).sort(compareGuests), [filtered]);
+  const banned = useMemo(() => filtered.filter((r) => !r.isActive).sort(compareGuests), [filtered]);
 
   const stats = useMemo(() => {
     const by: Record<string, number> = {};
-    for (const r of rows) if (r.isRegistered && r.isApproved) by[r.attendance] = (by[r.attendance] ?? 0) + 1;
+    for (const r of rows) if (r.isRegistered && r.isApproved && r.isActive) by[r.attendance] = (by[r.attendance] ?? 0) + 1;
     return by;
   }, [rows]);
 
@@ -95,6 +103,24 @@ export default function AdminPage() {
               <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
               <GuestTable mode="approved" rows={approved} onSave={onSave} />
             </section>
+
+            {banned.length > 0 && (
+              <section>
+                <div className="mb-2 flex items-baseline gap-2">
+                  <h2 className="text-sm font-semibold text-rose-800">アクセス停止中</h2>
+                  <p className="text-xs text-stone-400">タグが空になり、手持ちのログインも失効しています。解除後はタグの付け直しが必要です。</p>
+                </div>
+                <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  {banned.map((r) => (
+                    <li key={r.uid} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className="min-w-0 flex-1 truncate text-sm text-stone-700">{adminName(r)}</span>
+                      <span className="truncate text-xs text-stone-400">{r.bannedReason || "理由の記録なし"}</span>
+                      <button type="button" onClick={() => void onUnban(r)} className="shrink-0 rounded-full border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">停止を解除</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </div>
         )}
       </div>
