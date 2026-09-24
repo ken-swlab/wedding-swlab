@@ -10,6 +10,7 @@ import {
   type UploadKind,
 } from "@/lib/r2-server";
 import { mb } from "@/config/limits";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     const { auth, db } = admin();
 
@@ -125,3 +126,7 @@ export async function POST(req: Request) {
     return fail("サーバー内部エラー", 500);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "uploads.presign", auth: "user", rateLimit: { key: "uid", limit: 120, windowSec: 60 } }, _POST);

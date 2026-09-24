@@ -6,6 +6,7 @@ import { tagDef } from "@/config/tags";
 import { themeDef } from "@/config/episodes";
 import { givenName, type Politeness, type Speaker } from "@/config/persona";
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from "@google/genai";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,7 @@ function vertexAuthOptions() {
   }
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     return await handle(req);
   } catch (e) {
@@ -322,3 +323,7 @@ ${episodeBlock}
     },
   });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.ai", auth: "admin", rateLimit: { key: "uid", limit: 30, windowSec: 60 }, audit: { action: "ai.query", target: (b) => b.guestUid } }, _POST);

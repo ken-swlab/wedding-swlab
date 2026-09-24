@@ -5,6 +5,7 @@ import { applyGuestTags, readGuestClaims } from "@/lib/guests-server";
 import { DEFAULT_GUEST_TAGS } from "@/config/tags";
 import { knownTagIds } from "@/lib/tags-server";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type UpdateGuestPayload } from "@/types/admin";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ function isOurStorageUrl(url: string): boolean {
   return url.startsWith(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/`);
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try { return await handle(req); } catch (e) {
     console.error("[update-guest] 未捕捉の例外", e);
     return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
@@ -152,3 +153,7 @@ async function handle(req: Request) {
 
   return NextResponse.json({ ok: true, uid, tags, claimsUpdated });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.guest.update", auth: "admin", rateLimit: { key: "uid", limit: 120, windowSec: 60 }, audit: { action: "guest.update", target: (b) => b.uid } }, _POST);

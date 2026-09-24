@@ -6,6 +6,7 @@ import {
   cropFace, deleteIndexedFace, fetchImageBytes, indexFace, normalizeImage,
 } from "@/lib/rekognition";
 import { IGNORED, type BoundingBox } from "@/types/faces";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,7 +63,7 @@ async function learn(params: {
   }
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   const { auth, db } = admin();
 
   const header = req.headers.get("authorization") ?? "";
@@ -156,3 +157,7 @@ export async function POST(req: Request) {
     return fail(e instanceof Error ? e.message : "更新に失敗しました", 409);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.faces.match", auth: "admin", rateLimit: { key: "uid", limit: 120, windowSec: 60 }, audit: { action: "face.match", target: (b) => b.faceId } }, _POST);

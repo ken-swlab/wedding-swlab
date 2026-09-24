@@ -4,6 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT, MAX_EPISODE_PERIOD, MAX_EPISODE_TARGETS, MAX_EPISODE_TITLE } from "@/config/episodes";
 import type { Episode, EpisodeStatus } from "@/types/episode";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,7 +83,7 @@ async function cleanUids(v: unknown): Promise<string[] | null> {
 // =====================================================================
 // GET : 一覧
 // =====================================================================
-export async function GET(req: Request) {
+async function _GET(req: Request) {
   try {
     const guard = await requireAdmin(req);
     if (guard instanceof NextResponse) return guard;
@@ -114,7 +115,7 @@ export async function GET(req: Request) {
 // =====================================================================
 // POST : 新規作成（テスト投稿 / 新郎新婦が自分で書く用）
 // =====================================================================
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     const guard = await requireAdmin(req);
     if (guard instanceof NextResponse) return guard;
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
 // =====================================================================
 // PUT : 承認・編集
 // =====================================================================
-export async function PUT(req: Request) {
+async function _PUT(req: Request) {
   try {
     const guard = await requireAdmin(req);
     if (guard instanceof NextResponse) return guard;
@@ -250,3 +251,9 @@ export async function PUT(req: Request) {
     return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _GET/_POST/_PUT の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const GET = withGuard({ name: "admin.episodes.list", auth: "admin", rateLimit: { key: "uid", limit: 120, windowSec: 60 } }, _GET);
+export const POST = withGuard({ name: "admin.episodes.create", auth: "admin", rateLimit: { key: "uid", limit: 60, windowSec: 60 }, audit: { action: "episode.create", target: (b) => b.authorUid } }, _POST);
+export const PUT = withGuard({ name: "admin.episodes.review", auth: "admin", rateLimit: { key: "uid", limit: 120, windowSec: 60 }, audit: { action: "episode.review", target: (b) => b.id } }, _PUT);

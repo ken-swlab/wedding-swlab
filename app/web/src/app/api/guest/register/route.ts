@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { ATTENDANCE_OPTIONS } from "@/types/admin";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ function passcodeMatches(given: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     return await handle(req);
   } catch (e) {
@@ -192,3 +193,7 @@ async function handle(req: Request) {
 
   return NextResponse.json({ ok: true, nickname });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "guest.register", auth: "user", rateLimit: { key: "uid", limit: 20, windowSec: 60 }, audit: { action: "guest.register", target: (_b, uid) => uid } }, _POST);

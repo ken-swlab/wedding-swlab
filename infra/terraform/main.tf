@@ -44,6 +44,8 @@ locals {
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",
     "secretmanager.googleapis.com",
+    # 監査ログの定期エクスポート（audit.tf）
+    "cloudscheduler.googleapis.com",
   ]
 }
 

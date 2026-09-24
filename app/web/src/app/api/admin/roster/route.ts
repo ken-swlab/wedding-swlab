@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { INVITATION_STATUSES, isPreRegisteredUid } from "@/config/roster";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +46,7 @@ function clean(e: Entry): {
   return { displayName, kana, tags, invitationStatus };
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     return await handle(req);
   } catch (e) {
@@ -223,3 +224,7 @@ async function handle(req: Request) {
   }
   return fail("action が不正です", 400);
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.roster", auth: "admin", maxBodyBytes: 1024 * 1024, rateLimit: { key: "uid", limit: 60, windowSec: 60 }, audit: { action: (b) => `roster.${String(b.action ?? "unknown")}`, target: (b) => b.uid ?? b.fromUid } }, _POST);

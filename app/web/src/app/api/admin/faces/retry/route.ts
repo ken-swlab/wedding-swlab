@@ -4,6 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { rebuildDetectedUserIds, resolveGuestUid } from "@/lib/faces-server";
 import { cropFace, ensureCollection, fetchImageBytes, normalizeImage, searchFace, type NormalizedImage } from "@/lib/rekognition";
 import type { BoundingBox } from "@/types/faces";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,7 @@ const BATCH = 12;
 
 function fail(message: string, status: number) { return NextResponse.json({ ok: false, message }, { status }); }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try { return await handle(req); } catch (e) {
     console.error("[faces/retry] 未捕捉の例外", e);
     return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
@@ -79,3 +80,7 @@ async function handle(req: Request) {
   for (const postId of touchedPosts) { await rebuildDetectedUserIds(postId).catch(() => {}); }
   return NextResponse.json({ ok: true, scanned: docs.length, matched, remaining, posts: touchedPosts.size });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.faces.retry", auth: "admin", rateLimit: { key: "uid", limit: 10, windowSec: 60 }, audit: { action: "face.retry" } }, _POST);

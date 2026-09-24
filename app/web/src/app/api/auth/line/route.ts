@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +40,7 @@ function lineChannelId(): string | null {
   return /^\d+$/.test(head) ? head : null;
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   const clientId = lineChannelId();
   if (!clientId) {
     return fail("NEXT_PUBLIC_LIFF_ID が未設定か形式が不正です", 500);
@@ -155,3 +156,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({ ok: true, customToken, isNew, displayName });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の認証（Worker の共有シークレット／LINE の検証）はそのまま残している。
+export const POST = withGuard({ name: "auth.line", auth: "none", maintenanceExempt: true, rateLimit: { key: "ip", limit: 300, windowSec: 60 } }, _POST);

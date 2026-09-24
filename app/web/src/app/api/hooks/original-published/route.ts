@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import type { MediaItem } from "@/types";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +39,7 @@ function secretMatches(given: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     /**
      * ★認証を何よりも先に通す★
@@ -163,3 +164,7 @@ export async function POST(req: Request) {
     return fail("サーバー内部エラー", 500);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の認証（Worker の共有シークレット／LINE の検証）はそのまま残している。
+export const POST = withGuard({ name: "hooks.original", auth: "none", maintenanceExempt: true }, _POST);

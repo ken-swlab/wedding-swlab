@@ -4,6 +4,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { readCustomTags } from "@/lib/tags-server";
 import { MAX_TAG_LABEL, PALETTE_KEYS, TAG_DEFS, isCustomTagId } from "@/config/tags";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ async function guard(req: Request): Promise<Guard> {
   }
 }
 
-export async function GET(req: Request) {
+async function _GET(req: Request) {
   try {
     const g = await guard(req);
     if (!g.ok) return g.res;
@@ -46,7 +47,7 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     const g = await guard(req);
     if (!g.ok) return g.res;
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
   }
 }
 
-export async function PATCH(req: Request) {
+async function _PATCH(req: Request) {
   try {
     const g = await guard(req);
     if (!g.ok) return g.res;
@@ -158,3 +159,9 @@ export async function PATCH(req: Request) {
     return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _GET/_POST/_PATCH の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const GET = withGuard({ name: "admin.tags.list", auth: "admin", rateLimit: { key: "uid", limit: 120, windowSec: 60 } }, _GET);
+export const POST = withGuard({ name: "admin.tags.create", auth: "admin", rateLimit: { key: "uid", limit: 30, windowSec: 60 }, audit: { action: "tag.create" } }, _POST);
+export const PATCH = withGuard({ name: "admin.tags.update", auth: "admin", rateLimit: { key: "uid", limit: 60, windowSec: 60 }, audit: { action: "tag.update", target: (b) => b.id } }, _PATCH);

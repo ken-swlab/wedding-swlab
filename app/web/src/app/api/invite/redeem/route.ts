@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { lookupInvite } from "@/config/invites";
+import { withGuard } from "@/lib/route-guard";
 
 // ★firebase-admin は Edge Runtime では動作しない★
 export const runtime = "nodejs";
@@ -16,7 +17,7 @@ function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   // ★Phase 5.5 で「登録 → 管理者承認」フローに移行したため既定で無効★
   //   有効なままだと、ゲストが承認を飛ばして自分でタグを取得できてしまう。
   //   合言葉方式に戻したい場合のみ ENABLE_INVITE_CODES=true を設定する。
@@ -138,3 +139,7 @@ export async function POST(req: Request) {
     features: invite.features ?? {},
   });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "invite.redeem", auth: "user", rateLimit: { key: "uid", limit: 10, windowSec: 60 }, audit: { action: "invite.redeem", target: (_b, uid) => uid } }, _POST);

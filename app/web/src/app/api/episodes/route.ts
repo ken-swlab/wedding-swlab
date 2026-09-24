@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
 import { TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT } from "@/config/episodes";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ function isOurStorageUrl(url: string): boolean {
   return false;
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   // 想定外の例外でも必ず JSON を返す
   try {
     return await handle(req);
@@ -171,3 +172,7 @@ async function handle(req: Request) {
 
   return NextResponse.json({ ok: true, id: ref.id });
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "episodes.create", auth: "user", rateLimit: { key: "uid", limit: 10, windowSec: 60 } }, _POST);

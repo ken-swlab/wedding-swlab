@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
+import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ function buildParams(body: Body): Record<string, number | string> {
   };
 }
 
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   try {
     const endpoint = process.env.MODAL_TTS_URL ?? "";
     if (!endpoint) {
@@ -169,3 +170,7 @@ export async function POST(req: Request) {
     return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
   }
 }
+
+// ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
+//   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
+export const POST = withGuard({ name: "admin.tts", auth: "admin", rateLimit: { key: "uid", limit: 30, windowSec: 60 } }, _POST);
