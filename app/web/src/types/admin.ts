@@ -22,20 +22,22 @@ export const PAYMENT_LABEL = Object.fromEntries(
   PAYMENT_OPTIONS.map((o) => [o.value, o.label]),
 ) as Record<PaymentStatus, string>;
 
-/** /guests/{uid} : 全ゲストが読める公開プロフィール */
+/**
+ * /guests/{uid} : サインイン済みのゲストなら読める公開プロフィール。
+ *
+ * ★氏名系のフィールドをここに置いてはいけない★
+ *   Rules は get / list をゲストに開いている（@メンションの候補を
+ *   引くため）。realName・kana・displayName・lineDisplayName は
+ *   いずれも本名そのものか、本名に直結する。全部 guestPrivate に置く。
+ *   ここに残してよいのは「他のゲストに見せてよい情報」だけ。
+ */
 export type GuestPublic = {
-  realName?: string;
-  lineDisplayName?: string;
-
   uid: string;
-  displayName: string;
   nickname: string;
   photoURL?: string;
-  referencePhotoUrl?: string;
   tags: string[];
   isApproved: boolean;
   isRegistered: boolean;
-  kana: string;
   invitationStatus: string;
   isPreRegistered: boolean;
   mergedInto: string;
@@ -61,6 +63,21 @@ export type GuestPrivate = {
    */
   isActive: boolean;
   bannedReason: string;
+
+  /**
+   * ★氏名系は全部ここ★
+   *   displayName      名簿（CSV取込・管理画面）で管理者が入れる氏名
+   *   realName         ゲスト本人が登録フォームで入力した本名
+   *   kana             ふりがな（本名の読みなので本名と同じ扱い）
+   *   lineDisplayName  LINE の表示名。本名を設定している人が多い
+   *
+   *   いずれも guests に置くと、LINE ログインを通しただけの
+   *   未承認ユーザーが全ゲストぶんを list できてしまう。
+   */
+  displayName: string;
+  realName: string;
+  kana: string;
+  lineDisplayName: string;
 };
 
 /** /guestAdmin/{uid} : 管理者だけが読める運営メモ */
@@ -80,6 +97,9 @@ export type GuestAdmin = {
   callNameGroom: string;
   callNameBride: string;
   firstLoginAt: Timestamp | null;
+  /** 参照顔写真。実際の保存先はここ（guestAdmin）で、guests ではない */
+  referencePhotoUrl: string;
+  referencePhotoPath: string;
 };
 
 /** ダッシュボードの1行（3つを uid で結合したもの） */

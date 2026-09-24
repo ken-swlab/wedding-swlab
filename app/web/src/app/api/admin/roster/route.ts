@@ -80,11 +80,17 @@ async function handle(req: Request) {
       const batch = db.batch();
       for (const e of entries.slice(i, i + CHUNK)) {
         const uid = newPreUid();
+        // ★氏名（displayName / kana）は guestPrivate に振り分ける★
+        //   名簿の氏名欄は本名。guests はゲストが list できる領域なので置かない。
         batch.set(db.collection("guests").doc(uid), {
-          uid, ...e, nickname: "",
+          uid, nickname: "", tags: e.tags, invitationStatus: e.invitationStatus,
           isPreRegistered: true, isRegistered: false, isApproved: false,
           createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
+        batch.set(db.collection("guestPrivate").doc(uid), {
+          uid, displayName: e.displayName, kana: e.kana,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
         created += 1;
       }
       await batch.commit();
@@ -98,8 +104,12 @@ async function handle(req: Request) {
     const uid = typeof body.uid === "string" && body.uid ? body.uid : newPreUid();
     const exists = (await db.collection("guests").doc(uid).get()).exists;
     const patch: Record<string, unknown> = {
+      uid, invitationStatus: entry.invitationStatus, updatedAt: FieldValue.serverTimestamp(),
+    };
+    // ★氏名は guestPrivate へ★
+    const privatePatch: Record<string, unknown> = {
       uid, displayName: entry.displayName, kana: entry.kana,
-      invitationStatus: entry.invitationStatus, updatedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
     if (!exists) {
       patch.isPreRegistered = true; patch.isRegistered = false; patch.isApproved = false;
@@ -117,7 +127,10 @@ async function handle(req: Request) {
       patch.tags = applied.tags;
       if (applied.claimsUpdated) patch.claimsUpdatedAt = FieldValue.serverTimestamp();
     }
-    await db.collection("guests").doc(uid).set(patch, { merge: true });
+    const wb = db.batch();
+    wb.set(db.collection("guests").doc(uid), patch, { merge: true });
+    wb.set(db.collection("guestPrivate").doc(uid), privatePatch, { merge: true });
+    await wb.commit();
     return NextResponse.json({ ok: true, uid, created: !exists, tags });
   }
 
@@ -127,7 +140,11 @@ async function handle(req: Request) {
     if (!isPreRegisteredUid(uid)) return fail("ログイン済みのゲストは削除できません", 400);
     const linked = await db.collection("faces").where("matchedGuestId", "==", uid).limit(1).get();
     if (!linked.empty) return fail("顔が紐付いています。先に統合または紐付け解除してください", 409);
-    await db.collection("guests").doc(uid).delete();
+    // guestPrivate に氏名を持たせたので、同時に消さないと孤児が残る
+    const db2 = db.batch();
+    db2.delete(db.collection("guests").doc(uid));
+    db2.delete(db.collection("guestPrivate").doc(uid));
+    await db2.commit();
     return NextResponse.json({ ok: true, uid });
   }
 
@@ -136,7 +153,12 @@ async function handle(req: Request) {
     const toUid = typeof body.toUid === "string" ? body.toUid : "";
     if (!fromUid || !toUid || fromUid === toUid) return fail("統合元と統合先が不正です", 400);
     if (!isPreRegisteredUid(fromUid)) return fail("統合元は仮ゲストのみ指定できます", 400);
-    const [fromSnap, toSnap] = await Promise.all([ db.collection("guests").doc(fromUid).get(), db.collection("guests").doc(toUid).get() ]);
+    const [fromSnap, toSnap, fromPriv, toPriv] = await Promise.all([
+      db.collection("guests").doc(fromUid).get(),
+      db.collection("guests").doc(toUid).get(),
+      db.collection("guestPrivate").doc(fromUid).get(),
+      db.collection("guestPrivate").doc(toUid).get(),
+    ]);
     if (!fromSnap.exists) return fail("統合元が見つかりません", 404);
     if (!toSnap.exists) return fail("統合先が見つかりません", 404);
 
@@ -163,11 +185,14 @@ async function handle(req: Request) {
     }
 
     const carry: Record<string, unknown> = { updatedAt: FieldValue.serverTimestamp() };
-    if (!toSnap.get("kana") && fromSnap.get("kana")) carry.kana = fromSnap.get("kana");
-    if (!toSnap.get("displayName") && fromSnap.get("displayName")) {
-      carry.displayName = fromSnap.get("displayName");
-    }
     carry.invitationStatus = fromSnap.get("invitationStatus") ?? "sent";
+
+    // ★氏名の引き継ぎは guestPrivate 同士で行う★
+    const carryPriv: Record<string, unknown> = { uid: toUid, updatedAt: FieldValue.serverTimestamp() };
+    if (!toPriv.get("kana") && fromPriv.get("kana")) carryPriv.kana = fromPriv.get("kana");
+    if (!toPriv.get("displayName") && fromPriv.get("displayName")) {
+      carryPriv.displayName = fromPriv.get("displayName");
+    }
 
     /**
      * ★仮登録時に付けたタグを Custom Claims へ引き継ぐ★
@@ -191,6 +216,7 @@ async function handle(req: Request) {
     }
 
     await db.collection("guests").doc(toUid).set(carry, { merge: true });
+    await db.collection("guestPrivate").doc(toUid).set(carryPriv, { merge: true });
     await db.collection("guests").doc(fromUid).set({ mergedInto: toUid, isArchived: true, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
 
     return NextResponse.json({ ok: true, fromUid, toUid, faces: faces.size, posts: posts.size });

@@ -7,10 +7,16 @@ import { auth, db } from "@/lib/firebase";
 
 export type GuestProfile = {
   nickname: string;
+  /**
+   * ニックネーム未設定時のフォールバック。
+   * ★Firestore ではなく Firebase Auth の値を使う★
+   *   LINE の表示名は guests から guestPrivate へ移したが、
+   *   同じ値は Auth のユーザーレコードに入っていて、
+   *   追加の読み取りなしに取れる。
+   */
   displayName: string;
   isRegistered: boolean;
   isApproved: boolean;
-  realName: string;
 };
 
 export type GuestSession = {
@@ -84,23 +90,26 @@ export function useGuestSession(): GuestSession {
       (snap) => {
         const d = snap.data();
 
-        // LINEプロフィールが更新されていればFirestoreに自動同期する
-        if (d && user && user.displayName) {
-          const authName = user.displayName;
-          const authPhoto = user.photoURL || "";
-          if (d.lineDisplayName !== authName || d.photoURL !== authPhoto) {
-            void updateDoc(doc(db, "guests", user.uid), {
-              lineDisplayName: authName,
-              photoURL: authPhoto
-            }).catch(() => {});
-          }
+        /**
+         * アイコンだけ Firestore に同期する。
+         *
+         * ★氏名は同期しない★
+         *   以前は lineDisplayName も書こうとしていたが、Rules の
+         *   update は displayName / photoURL / bio しか許しておらず、
+         *   この書き込みは毎回失敗していた（catch で握り潰されていた）。
+         *   氏名は guestPrivate に移したので、更新は
+         *   /api/auth/line が Admin SDK で行う。
+         */
+        if (d && user && user.photoURL && d.photoURL !== user.photoURL) {
+          void updateDoc(doc(db, "guests", user.uid), {
+            photoURL: user.photoURL,
+          }).catch(() => {});
         }
         setProfile({
           nickname: d?.nickname ?? "",
-          displayName: d?.displayName ?? user.displayName ?? "ゲスト",
+          displayName: user.displayName ?? "ゲスト",
           isRegistered: d?.isRegistered === true,
           isApproved: d?.isApproved === true,
-          realName: d?.realName ?? "",
         });
         setProfileLoading(false);
 

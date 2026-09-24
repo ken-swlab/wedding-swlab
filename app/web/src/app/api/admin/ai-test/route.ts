@@ -88,15 +88,18 @@ async function handle(req: Request) {
   const speaker: Speaker = body.speaker === "bride" ? "bride" : "groom";
   const politeness: Politeness = body.politeness === "polite" ? "polite" : "casual";
 
-  const [guestSnap, adminSnap] = await Promise.all([
+  const [guestSnap, privSnap, adminSnap] = await Promise.all([
     db.collection("guests").doc(guestUid).get(),
+    db.collection("guestPrivate").doc(guestUid).get(),
     db.collection("guestAdmin").doc(guestUid).get(),
   ]);
   if (!guestSnap.exists) return fail("ゲストが見つかりません", 404);
 
   const nickname = (guestSnap.get("nickname") as string) || "";
-  const realName = (guestSnap.get("realName") as string) || "";
-  const displayName = (guestSnap.get("displayName") as string) || "";
+  // ★氏名は guestPrivate から★ guests には置いていない
+  const realName = (privSnap.get("realName") as string) || "";
+  const displayName = (privSnap.get("displayName") as string)
+    || (privSnap.get("lineDisplayName") as string) || "";
   const guestTags = Array.isArray(guestSnap.get("tags")) ? (guestSnap.get("tags") as string[]) : [];
   const aiMemo = (adminSnap.get("aiMemo") as string) || "";
   /**

@@ -105,14 +105,29 @@ export async function POST(req: Request) {
   // ---- 3. プロフィールを Firestore に反映 ------------------
   const batch = db.batch();
 
+  /**
+   * ★guests には表示名を書かない★
+   *   LINE の表示名は本名を設定している人が多い。guests は
+   *   サインイン済みゲストが list できるので、氏名は guestPrivate へ。
+   *   アイコン（photoURL）は投稿者アバターとして他のゲストに
+   *   見せる前提のものなので guests に残す。
+   */
   batch.set(
     db.collection("guests").doc(uid),
     {
-      lineDisplayName: displayName,
+      uid,
       ...(photoURL ? { photoURL } : {}),
-      ...(isNew ? { displayName, createdAt: FieldValue.serverTimestamp() } : {}),
+      ...(isNew
+        ? { nickname: "", isRegistered: false, isApproved: false, createdAt: FieldValue.serverTimestamp() }
+        : {}),
       updatedAt: FieldValue.serverTimestamp(),
     },
+    { merge: true },
+  );
+
+  batch.set(
+    db.collection("guestPrivate").doc(uid),
+    { uid, lineDisplayName: displayName, updatedAt: FieldValue.serverTimestamp() },
     { merge: true },
   );
 

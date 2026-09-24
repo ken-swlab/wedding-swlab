@@ -151,7 +151,8 @@ export async function POST(req: Request) {
     const ref = await db.collection("episodes").add({
       status,
       authorUid,
-      authorName: guest.get("nickname") || guest.get("displayName") || "ゲスト",
+      // ★公開名だけ★ authorName は他のゲストに見える。本名を入れない
+      authorName: guest.get("nickname") || "ゲスト",
       theme,
       originalText,
       photoUrls,

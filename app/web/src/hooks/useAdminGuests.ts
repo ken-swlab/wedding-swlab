@@ -15,6 +15,11 @@ const PAGE = 500;
  * guests / guestPrivate / guestAdmin の3つを購読して uid で結合する。
  * ★orderBy は使わない★ 対象フィールドを持たないドキュメントが
  * クエリ結果から丸ごと除外されるため、並べ替えは JS 側で行う。
+ *
+ * ★氏名は guestPrivate から来る★
+ *   guests は全ゲストが読めるので、displayName / realName / kana /
+ *   lineDisplayName は guestPrivate へ移した。GuestRow の形は
+ *   変わっていないので、画面側のコードはそのまま動く。
  */
 export function useAdminGuests(enabled: boolean) {
   const [pub, setPub] = useState<Record<string, GuestPublic>>({});
@@ -31,15 +36,11 @@ export function useAdminGuests(enabled: boolean) {
         const v = d.data();
         next[d.id] = {
           uid: d.id,
-          displayName: v.displayName ?? "(不明)",
           nickname: v.nickname ?? "",
           photoURL: v.photoURL,
           tags: Array.isArray(v.tags) ? [...v.tags].sort() : [],
           isApproved: v.isApproved === true,
           isRegistered: v.isRegistered === true,
-          realName: v.realName ?? "",
-          lineDisplayName: v.lineDisplayName ?? "",
-          kana: v.kana ?? "",
           invitationStatus: v.invitationStatus ?? "unsent",
           isPreRegistered: v.isPreRegistered === true || d.id.startsWith("pre_"),
           mergedInto: v.mergedInto ?? "",
@@ -66,6 +67,10 @@ export function useAdminGuests(enabled: boolean) {
           // 未設定は有効。明示的に false のときだけ停止扱い
           isActive: v.isActive !== false,
           bannedReason: v.bannedReason ?? "",
+          displayName: v.displayName ?? "",
+          realName: v.realName ?? "",
+          kana: v.kana ?? "",
+          lineDisplayName: v.lineDisplayName ?? "",
         };
       }
       setPriv(next);
@@ -90,6 +95,8 @@ export function useAdminGuests(enabled: boolean) {
           callNameGroom: v.callNameGroom ?? "",
           callNameBride: v.callNameBride ?? "",
           firstLoginAt: v.firstLoginAt ?? null,
+          referencePhotoUrl: v.referencePhotoUrl ?? "",
+          referencePhotoPath: v.referencePhotoPath ?? "",
         };
       }
       setAdm(next);
@@ -102,34 +109,41 @@ export function useAdminGuests(enabled: boolean) {
       Object.values(pub)
         .filter((p) => !p.isArchived && !p.mergedInto)
         .map((p) => {
-        const v = priv[p.uid];
-        const a = adm[p.uid];
-        return {
-          ...p,
-          attendance: v?.attendance ?? "unanswered",
-          allergy: v?.allergy ?? "",
-          paymentStatus: v?.paymentStatus ?? "none",
-          submittedAt: v?.submittedAt ?? null,
-          /**
-           * ★既定は「有効」★
-           *   guestPrivate を持たないゲスト（仮登録 pre_xxx、および
-           *   ログインしただけで未登録のユーザー）は v が undefined になる。
-           *   ここで ?? false や素の v?.isActive にすると undefined が
-           *   falsy 判定され、全員がアクセス停止扱いになる。
-           *   明示的に false のときだけ停止とする。
-           */
-          isActive: v?.isActive !== false,
-          bannedReason: v?.bannedReason ?? "",
-          lineUserId: a?.lineUserId ?? "",
-          inviteCode: a?.inviteCode ?? "",
-          inviteLabel: a?.inviteLabel ?? "",
-          isAnonymous: a?.isAnonymous ?? false,
-          aiMemo: a?.aiMemo ?? "",
-          callNameGroom: a?.callNameGroom ?? "",
-          callNameBride: a?.callNameBride ?? "",
-          firstLoginAt: a?.firstLoginAt ?? null,
-        };
-      }),
+          const v = priv[p.uid];
+          const a = adm[p.uid];
+          return {
+            ...p,
+            attendance: v?.attendance ?? "unanswered",
+            allergy: v?.allergy ?? "",
+            paymentStatus: v?.paymentStatus ?? "none",
+            submittedAt: v?.submittedAt ?? null,
+            /**
+             * ★既定は「有効」★
+             *   guestPrivate を持たないゲスト（仮登録 pre_xxx、および
+             *   ログインしただけで未登録のユーザー）は v が undefined になる。
+             *   ここで ?? false や素の v?.isActive にすると undefined が
+             *   falsy 判定され、全員がアクセス停止扱いになる。
+             *   明示的に false のときだけ停止とする。
+             */
+            isActive: v?.isActive !== false,
+            bannedReason: v?.bannedReason ?? "",
+            // ★氏名は guestPrivate 側にしか無い★
+            displayName: v?.displayName ?? "",
+            realName: v?.realName ?? "",
+            kana: v?.kana ?? "",
+            lineDisplayName: v?.lineDisplayName ?? "",
+            lineUserId: a?.lineUserId ?? "",
+            inviteCode: a?.inviteCode ?? "",
+            inviteLabel: a?.inviteLabel ?? "",
+            isAnonymous: a?.isAnonymous ?? false,
+            aiMemo: a?.aiMemo ?? "",
+            callNameGroom: a?.callNameGroom ?? "",
+            callNameBride: a?.callNameBride ?? "",
+            firstLoginAt: a?.firstLoginAt ?? null,
+            referencePhotoUrl: a?.referencePhotoUrl ?? "",
+            referencePhotoPath: a?.referencePhotoPath ?? "",
+          };
+        }),
     [pub, priv, adm],
   );
 

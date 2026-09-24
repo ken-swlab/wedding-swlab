@@ -42,3 +42,5 @@ __pycache__/
 *.bak*
 .attic/
 .DS_Store
+.vercel
+.env*

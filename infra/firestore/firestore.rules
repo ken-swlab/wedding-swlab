@@ -14,12 +14,39 @@ service cloud.firestore {
       );
     }
 
+    // =====================================================
+    // /guests/{uid} : 他のゲストにも見せてよい公開プロフィール
+    //
+    //   ★氏名系のフィールドはここに存在しない★
+    //     displayName / realName / kana / lineDisplayName は
+    //     guestPrivate へ移設済み。ここに残っているのは
+    //     nickname / photoURL / tags / 各種フラグだけ。
+    //
+    //   ★承認前のユーザーには名簿を見せない★
+    //     LINE ログインを通しただけ（tags が空）の相手に
+    //     ゲスト一覧を list させない。@メンションの候補は
+    //     承認済みゲストだけが必要とする機能なので、
+    //     tags を1つ以上持っていることを条件にする。
+    //     自分自身のドキュメントだけは常に読める
+    //     （オンボーディングの分岐判定に必要）。
+    // =====================================================
     match /guests/{uid} {
-      allow get:  if signedIn();
-      // ★修正箇所: adminは500件までリスト取得可能
-      allow list: if (signedIn() && request.query.limit <= 200) || (isAdmin() && request.query.limit <= 500);
-      allow create: if signedIn() && uid == myUid() && request.resource.data.keys().hasOnly(['displayName','photoURL','bio','createdAt','updatedAt']) && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 40;
-      allow update: if isAdmin() || (signedIn() && uid == myUid() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoURL','bio','updatedAt']));
+      allow get:  if signedIn() && (uid == myUid() || isAdmin() || myTags().size() > 0);
+      allow list: if (isAdmin() && request.query.limit <= 500)
+        || (signedIn() && myTags().size() > 0 && request.query.limit <= 200);
+
+      // ★作成はサーバー専用★
+      //   以前はクライアントの ensureGuestDoc() 用に開けていたが、
+      //   その関数は呼び出し元が無く削除した。現在ドキュメントを
+      //   作るのは /api/auth/line（Admin SDK）だけで、Admin SDK は
+      //   Rules を経由しない。開けておく理由が無いので閉じる。
+      allow create: if false;
+
+      // 本人が変えてよいのはアイコンと自己紹介だけ。
+      // 表示名は guestPrivate に移したのでここからは外す。
+      allow update: if isAdmin()
+        || (signedIn() && uid == myUid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoURL','bio','updatedAt']));
       allow delete: if isAdmin();
     }
 
@@ -58,6 +85,7 @@ service cloud.firestore {
     // ★追加箇所: 管理者専用の裏データアクセス許可
     // =====================================================
     // /guestPrivate/{uid} : 本人と管理者だけが読める領域
+    //   氏名（displayName / realName / kana / lineDisplayName）・
     //   出欠・アレルギー（健康情報）・送金ステータスを置く。
     //   運営メモ (aiMemo) とは別の場所にすることで、
     //   本人が自分の回答だけを読み返せるようにしている。

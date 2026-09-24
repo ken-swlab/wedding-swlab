@@ -159,15 +159,21 @@ async function handle(req: Request) {
     }
   }
 
+  /**
+   * ★guests に氏名を書かない★
+   *   guests はサインイン済みのゲストなら list できる領域。
+   *   本名とふりがなは guestPrivate（本人と管理者だけ）に置く。
+   */
   const publicPatch: Record<string, unknown> = {
-    realName, nickname, isRegistered: true, updatedAt: FieldValue.serverTimestamp(),
+    nickname, isRegistered: true, updatedAt: FieldValue.serverTimestamp(),
   };
-  if (kana) publicPatch.kana = kana;
   if (publicSnap.get("isApproved") === undefined) publicPatch.isApproved = false;
 
   const privatePatch: Record<string, unknown> = {
-    uid, attendance: body.attendance, allergy, submittedAt: FieldValue.serverTimestamp(),
+    uid, realName, attendance: body.attendance, allergy,
+    submittedAt: FieldValue.serverTimestamp(),
   };
+  if (kana) privatePatch.kana = kana;
   if (privateSnap.get("paymentStatus") === undefined) privatePatch.paymentStatus = "none";
   if (privateSnap.get("isActive") === undefined) privatePatch.isActive = true;
 
