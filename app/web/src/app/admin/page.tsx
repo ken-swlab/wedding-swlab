@@ -48,7 +48,8 @@ export default function AdminPage() {
   //   キューに残っていると、誤って再承認してしまう
   const pending = useMemo(() => filtered.filter((r) => r.isRegistered && !r.isApproved && r.isActive).sort(compareGuests), [filtered]);
   const approved = useMemo(() => filtered.filter((r) => r.isRegistered && r.isApproved && r.isActive).sort(compareGuests), [filtered]);
-  const banned = useMemo(() => filtered.filter((r) => !r.isActive).sort(compareGuests), [filtered]);
+  // 仮登録（まだ本人がログインしていない名簿行）は停止の対象になりえないので除く
+  const banned = useMemo(() => filtered.filter((r) => r.isRegistered && !r.isActive).sort(compareGuests), [filtered]);
 
   const stats = useMemo(() => {
     const by: Record<string, number> = {};

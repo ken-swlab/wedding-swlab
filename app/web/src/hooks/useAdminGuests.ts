@@ -110,6 +110,16 @@ export function useAdminGuests(enabled: boolean) {
           allergy: v?.allergy ?? "",
           paymentStatus: v?.paymentStatus ?? "none",
           submittedAt: v?.submittedAt ?? null,
+          /**
+           * ★既定は「有効」★
+           *   guestPrivate を持たないゲスト（仮登録 pre_xxx、および
+           *   ログインしただけで未登録のユーザー）は v が undefined になる。
+           *   ここで ?? false や素の v?.isActive にすると undefined が
+           *   falsy 判定され、全員がアクセス停止扱いになる。
+           *   明示的に false のときだけ停止とする。
+           */
+          isActive: v?.isActive !== false,
+          bannedReason: v?.bannedReason ?? "",
           lineUserId: a?.lineUserId ?? "",
           inviteCode: a?.inviteCode ?? "",
           inviteLabel: a?.inviteLabel ?? "",
