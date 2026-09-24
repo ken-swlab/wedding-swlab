@@ -8,3 +8,37 @@ Ken/
 **/*.npy
 **/*.wav
 Ken/
+
+# ---- 依存・ビルド成果物 ----
+node_modules/
+.next/
+out/
+build/
+.vercel/
+.wrangler/
+
+# ---- Python ----
+.venv/
+__pycache__/
+*.pyc
+
+# ---- 秘密 ----
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*-service-account*.json
+*credentials*.json
+
+# ---- Terraform ----
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# ---- 作業の残骸 ----
+*.bak*
+.attic/
+.DS_Store
