@@ -9,7 +9,7 @@ VERCEL_CWD="${VERCEL_CWD:-$ROOT/app/web}"
 
 APEX="${APEX:-sw-lab.net}"
 APP_HOST="${APP_HOST:-wedding.sw-lab.net}"
-MEDIA_HOST="${MEDIA_HOST:-media.wedding.sw-lab.net}"
+MEDIA_HOST="${MEDIA_HOST:-wedding-media.sw-lab.net}"
 HOOK_PATH="${HOOK_PATH:-/api/hooks/original-published}"
 
 REQUIRED_ENV=(

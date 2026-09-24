@@ -20,7 +20,7 @@ binding = "PUBLIC"
 bucket_name = "wedding-media"
 
 [vars]
-PUBLIC_BASE = "https://media.wedding.sw-lab.net"
+PUBLIC_BASE = "https://wedding-media.sw-lab.net"
 WEBHOOK_URL = "https://wedding.sw-lab.net/api/hooks/original-published"
 
 # 1回の実行で処理する最大件数。

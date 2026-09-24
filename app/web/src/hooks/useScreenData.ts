@@ -12,6 +12,7 @@ import {
   POST_WINDOW, SCREEN_TAGS,
 } from "@/config/screen";
 import type { Post } from "@/types";
+import { bestSrc } from "@/lib/media-url";
 
 export type ScreenPhoto = {
   id: string;
@@ -37,7 +38,7 @@ function photosOf(post: Post): ScreenPhoto[] {
       id: `${post.id}:${i}`,
       postId: post.id,
       // ★原本があればそちらを投影する★ 二段階アップロードの狙いがここ
-      src: m.originalUrl ?? m.url,
+      src: bestSrc(m),
       authorName: post.authorName,
       slot: -1,
     }));

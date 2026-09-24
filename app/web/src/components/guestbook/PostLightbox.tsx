@@ -9,6 +9,7 @@ import { RichText } from "./RichText";
 import { TagBadge } from "./TagBadge";
 import { CommentArea } from "./CommentArea";
 import type { Post } from "@/types";
+import { bestSrc } from "@/lib/media-url";
 
 function fullDate(post: Post) {
   if (!post.createdAt) return "";
@@ -42,12 +43,12 @@ function MediaCarousel({ post }: { post: Post }) {
             className="relative h-[52vh] w-full shrink-0 snap-center"
           >
             {m.type === "video" ? (
-              <video src={m.originalUrl ?? m.url} controls playsInline
+              <video src={bestSrc(m)} controls playsInline
                 className="h-full w-full object-contain" />
             ) : (
               <Image
                 // 原本があれば原本。比率はそのまま object-contain で見せる
-                src={m.originalUrl ?? m.url}
+                src={bestSrc(m)}
                 alt={m.alt ?? ""}
                 fill
                 sizes="(max-width: 768px) 100vw, 768px"

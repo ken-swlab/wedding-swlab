@@ -86,9 +86,21 @@ export function collectionReady(): boolean {
  */
 function allowedImageHosts(): Set<string> {
   const hosts = ["firebasestorage.googleapis.com", "storage.googleapis.com"];
-  if (process.env.R2_PUBLIC_BASE) {
+  /**
+   * ★移行期間は新旧ドメインを両方許可する★
+   *   posts.media[].url と faces.imageUrl には旧ドメインの絶対URLが残っている。
+   *   ここを新ドメイン1本にすると、過去の投稿の顔検出・再照合が
+   *   「許可されていない取得先です」で全部落ちる。
+   *   旧ドメインを畳んだあと R2_PUBLIC_BASE_LEGACY を消せばよい。
+   */
+  for (const v of [
+    process.env.NEXT_PUBLIC_MEDIA_BASE,
+    process.env.R2_PUBLIC_BASE,
+    process.env.R2_PUBLIC_BASE_LEGACY,
+  ]) {
+    if (!v) continue;
     try {
-      hosts.push(new URL(process.env.R2_PUBLIC_BASE).hostname);
+      hosts.push(new URL(v).hostname);
     } catch {
       /* 未設定・不正な値は無視する */
     }

@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useRef } from "react";
 import type { MediaItem } from "@/types";
 import { displayStatus } from "@/lib/original-status";
+import { bestSrc } from "@/lib/media-url";
 
 /**
  * 原本の状態を伝える注記。
@@ -69,7 +70,8 @@ export function MediaLightbox({
   }, [handleKey]);
 
   if (!item) return null;
-  const src = item.originalUrl ?? item.url;
+  // ★originalUrl を直接見ない★ 公開前の originalPath を掴んで 404 になるのを防ぐ
+  const src = bestSrc(item);
   const ds = displayStatus(item);
   const note = ds ? ORIGINAL_NOTE[ds] : null;
 

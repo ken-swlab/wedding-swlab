@@ -4,6 +4,7 @@ import { FaceThumbnail } from "@/components/admin/FaceThumbnail";
 import { compareGuests } from "@/lib/roster";
 import { IGNORED, type FaceDoc } from "@/types/faces";
 import type { GuestRow } from "@/types/admin";
+import { rehost } from "@/lib/media-url";
 
 type Group = { key: string; label: string; sub: string; faces: FaceDoc[]; autoCount: number; isIgnored: boolean; };
 
@@ -66,7 +67,7 @@ export function MatchedFacesPanel({ faces, guests, loading, onUnmatch }: { faces
               <div className="flex flex-wrap gap-2.5">
                 {g.faces.map((f) => (
                   <div key={f.id} className="group relative">
-                    <FaceThumbnail src={f.imageUrl} box={f.boundingBox} size={72} className={f.autoMatched ? "ring-2 ring-indigo-300" : ""} />
+                    <FaceThumbnail src={rehost(f.imageUrl)} box={f.boundingBox} size={72} className={f.autoMatched ? "ring-2 ring-indigo-300" : ""} />
                     {f.autoMatched && <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 rounded-full bg-indigo-600 px-1.5 py-px text-[9px] tabular-nums text-white">{Math.round(f.similarity)}%</span>}
                     <button type="button" onClick={() => void unmatch(f)} disabled={busy[f.id]} className="absolute -right-1 -top-1 flex h-6 w-6 items-center justify-center rounded-full bg-stone-900/80 text-xs text-white opacity-0 transition group-hover:opacity-100 focus:opacity-100 disabled:opacity-50">{busy[f.id] ? "…" : "×"}</button>
                   </div>

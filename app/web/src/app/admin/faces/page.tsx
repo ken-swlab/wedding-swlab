@@ -16,6 +16,7 @@ import { adminName, adminSubName } from "@/lib/names";
 // from "@/lib/roster";
 import { IGNORED, type FaceDoc } from "@/types/faces";
 import type { GuestRow } from "@/types/admin";
+import { rehost } from "@/lib/media-url";
 
 async function post(path: string, body: unknown) {
   return postJson(path, body);
@@ -189,7 +190,7 @@ export default function AdminFacesPage() {
                 className="group flex flex-col items-center gap-1.5"
               >
                 <FaceThumbnail
-                  src={f.imageUrl}
+                  src={rehost(f.imageUrl)}
                   box={f.boundingBox}
                   size={84}
                   className="ring-2 ring-transparent transition group-hover:ring-stone-900"
@@ -208,7 +209,7 @@ export default function AdminFacesPage() {
           <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white md:flex-row">
             <div className="flex shrink-0 flex-col gap-3 bg-stone-900 p-4 md:w-1/2">
               <div className="flex items-center gap-3">
-                <FaceThumbnail src={picking.imageUrl} box={picking.boundingBox} size={64} />
+                <FaceThumbnail src={rehost(picking.imageUrl)} box={picking.boundingBox} size={64} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-white">
                     {picking.authorName} の投稿
@@ -218,7 +219,7 @@ export default function AdminFacesPage() {
                   </p>
                 </div>
               </div>
-              <FaceContext src={picking.imageUrl} box={picking.boundingBox} />
+              <FaceContext src={rehost(picking.imageUrl)} box={picking.boundingBox} />
               {picking.postText && (
                 <p className="text-xs leading-relaxed text-white/60">{picking.postText}</p>
               )}

@@ -18,11 +18,40 @@ function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
-/** 自分のバケットの URL だけを受け付ける */
+/**
+ * 自分の配信元の URL だけを受け付ける。
+ *
+ * ★R2 移行時に取り残されていた★
+ *   Composer は R2 の URL を送っているのに、ここが Firebase Storage の
+ *   URL しか通さなかったため photoUrls は常に空になっていた。
+ *   しかも filter で黙って捨てるので、エラーにもならなかった。
+ */
 function isOurStorageUrl(url: string): boolean {
   const bucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  if (!bucket) return false;
-  return url.startsWith(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/`);
+  if (bucket && url.startsWith(`https://firebasestorage.googleapis.com/v0/b/${bucket}/o/`)) {
+    return true;
+  }
+  let host: string;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") return false;
+    host = u.hostname;
+  } catch {
+    return false;
+  }
+  for (const v of [
+    process.env.NEXT_PUBLIC_MEDIA_BASE,
+    process.env.R2_PUBLIC_BASE,
+    process.env.R2_PUBLIC_BASE_LEGACY,
+  ]) {
+    if (!v) continue;
+    try {
+      if (new URL(v).hostname === host) return true;
+    } catch {
+      /* 無視 */
+    }
+  }
+  return false;
 }
 
 export async function POST(req: Request) {

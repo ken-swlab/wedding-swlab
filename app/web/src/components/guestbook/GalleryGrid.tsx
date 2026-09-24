@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useMemo } from "react";
 import type { Post } from "@/types";
+import { thumbSrc } from "@/lib/media-url";
 
 export type GalleryEntry = {
   post: Post;
@@ -22,7 +23,7 @@ export function buildEntries(posts: Post[]): GalleryEntry[] {
     .filter((p) => p.media.length > 0)
     .map((p) => ({
       post: p,
-      coverUrl: p.media[0].url,
+      coverUrl: thumbSrc(p.media[0]),
       isVideo: p.media[0].type === "video",
       count: p.media.length,
     }));

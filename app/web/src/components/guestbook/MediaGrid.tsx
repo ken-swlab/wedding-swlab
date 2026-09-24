@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { MediaItem, OriginalStatus } from "@/types";
 import { MediaLightbox } from "./MediaLightbox";
 import { displayStatus } from "@/lib/original-status";
+import { thumbSrc } from "@/lib/media-url";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
 function cellClass(count: number, i: number) {
@@ -56,7 +57,7 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
           >
             {m.type === "video" ? (
               <>
-                <video src={m.url} muted playsInline preload="metadata"
+                <video src={thumbSrc(m)} muted playsInline preload="metadata"
                   className="h-full w-full object-cover" />
                 <span className="absolute inset-0 flex items-center justify-center text-3xl text-white/90 drop-shadow">
                   ▶
@@ -64,7 +65,7 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
               </>
             ) : (
               <Image
-                src={m.url}
+                src={thumbSrc(m)}
                 alt={m.alt ?? ""}
                 fill
                 sizes="(max-width: 640px) 50vw, 300px"

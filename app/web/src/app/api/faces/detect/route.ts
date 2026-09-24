@@ -3,6 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { background } from "@/lib/background";
 import { rebuildDetectedUserIds } from "@/lib/faces-server";
+import { keyUrl } from "@/lib/media-url";
 import {
   cropFace, detectFaces, ensureCollection, fetchImageBytes, normalizeImage,
 } from "@/lib/rekognition";
@@ -30,7 +31,7 @@ function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
 }
 
-type Media = { type?: string; url?: string };
+type Media = { type?: string; url?: string; storagePath?: string };
 
 async function processPost(postId: string): Promise<{ faces: number; auto: number }> {
   const { db } = admin();
@@ -57,7 +58,11 @@ async function processPost(postId: string): Promise<{ faces: number; auto: numbe
   let auto = 0;
 
   for (const { m, i } of images) {
-    const raw = await fetchImageBytes(m.url!);
+    // ★キーがあればキーから組む★
+    //   保存済み url は旧ドメインのことがある。取得先と faces.imageUrl の
+    //   両方をここで揃えておかないと、SSRF 許可リストと食い違って落ちる。
+    const src = keyUrl(m.storagePath) ?? m.url!;
+    const raw = await fetchImageBytes(src);
     const img = await normalizeImage(raw);
     const faces = await detectFaces(img.data);
 
@@ -88,7 +93,7 @@ async function processPost(postId: string): Promise<{ faces: number; auto: numbe
         {
           postId,
           mediaIndex: i,
-          imageUrl: m.url,
+          imageUrl: src,
           boundingBox: f.boundingBox,
           confidence: f.confidence,
           matchedGuestId,
