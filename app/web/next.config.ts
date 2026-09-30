@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 /**
+ * ★本番では Sentry の DSN を必須にする★
+ *   NEXT_PUBLIC_ の値はビルド時に、ブラウザ用・サーバー用・proxy 用の JS へ焼き込まれる。
+ *   本番のビルド環境に無いと、エラー監視と CSP の報告先がまとめて黙って止まる。
+ *   気づかないまま公開しないよう、ここでビルドを失敗させる（Preview とローカルは対象外）。
+ */
+if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_SENTRY_DSN) {
+  throw new Error("NEXT_PUBLIC_SENTRY_DSN が本番のビルド環境にありません（Sentry と CSP の報告先が無効になります）");
+}
+
+/**
  * ★next/image の許可ホスト★
  *
  *   ここはビルド時に解決されるので、環境変数を変えたら再デプロイが要る。

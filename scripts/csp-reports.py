@@ -32,6 +32,7 @@ UA = "wedding-swlab-csp-reports/1.0"
 # 既知の違反と扱い: (含まれる語, nonce 導入前の説明, nonce 導入後の説明)
 #   導入後にも出るものは、設定漏れの兆候なので要確認に倒す
 KNOWN = [
+    (("csp-test.invalid",), "P6-FIX2 の疎通テスト。無視してよい", "P6-FIX2 の疎通テスト。無視してよい"),
     (("apis.google.com",), "Firebase Auth が読む gapi。nonce + strict-dynamic で許可される",
      "★要確認★ strict-dynamic 下では出ないはず"),
     (("cdn.jsdelivr.net",), "画像圧縮ワーカーの CDN 読み込み。自前配信に切り替えて解消",
