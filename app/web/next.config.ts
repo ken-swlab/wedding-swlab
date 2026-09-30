@@ -8,6 +8,7 @@ import { withSentryConfig } from "@sentry/nextjs/config";
  *   ドメイン移行中は新旧の両方を許可しておく。片方だけにすると、
  *   まだ旧URLを持っている投稿の画像が 400 になる。
  *   旧ドメインを畳んだあとにフォールバックの1行を消す。
+ *   （CSP 側の許可ホストは src/lib/csp.ts）
  */
 const MEDIA_HOSTS = Array.from(
   new Set(
@@ -29,64 +30,9 @@ const MEDIA_HOSTS = Array.from(
   ),
 );
 
-/** Sentry の DSN から、CSP 違反レポートの受け口と送信先ホストを組み立てる */
-function sentryEndpoints(): { reportUri: string | null; ingestOrigin: string | null } {
-  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-  if (!dsn) return { reportUri: null, ingestOrigin: null };
-  try {
-    const u = new URL(dsn);
-    const projectId = u.pathname.replace(/^\/+/, "");
-    const key = u.username;
-    const origin = `${u.protocol}//${u.host}`;
-    if (!projectId || !key) return { reportUri: null, ingestOrigin: origin };
-    return { reportUri: `${origin}/api/${projectId}/security/?sentry_key=${key}`, ingestOrigin: origin };
-  } catch {
-    return { reportUri: null, ingestOrigin: null };
-  }
-}
-
-const sentry = sentryEndpoints();
-const media = MEDIA_HOSTS.map((h) => `https://${h}`);
-
-/**
- * ★CSP はまず Report-Only で入れる★
- *
- *   LIFF・Firebase Auth・R2 への直接アップロード・画像圧縮の Web Worker と、
- *   外部と通信する箇所が多い。いきなり強制すると本番が壊れるので、
- *   違反をブロックせず Sentry に報告させて1〜2週間観察し、
- *   報告が止まったら Content-Security-Policy に切り替える。
- *
- *   script-src の 'unsafe-inline' は Next.js がインラインで埋め込む
- *   スクリプトのため。nonce 化は強制モードへ移すときに検討する。
- */
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  ["img-src 'self' data: blob:", ...media,
-    "https://firebasestorage.googleapis.com", "https://storage.googleapis.com",
-    "https://lh3.googleusercontent.com", "https://profile.line-scdn.net", "https://obs.line-scdn.net"].join(" "),
-  ["media-src 'self' blob:", ...media].join(" "),
-  ["connect-src 'self'", ...media,
-    "https://*.googleapis.com",
-    "https://*.line.me", "https://*.line-scdn.net",
-    "https://*.r2.cloudflarestorage.com",
-    ...(sentry.ingestOrigin ? [sentry.ingestOrigin] : [])].join(" "),
-  "font-src 'self' data:",
-  // browser-image-compression は blob: の Web Worker で動く
-  "worker-src 'self' blob:",
-  "frame-src 'self' https://*.line.me https://*.firebaseapp.com https://*.web.app",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  // frame-ancestors は Report-Only では無視される（ブラウザが警告を出すだけ）ので
-  // ここには書かない。埋め込み防止は下の X-Frame-Options: DENY が担う。
-  // 強制モードへ切り替えるときに frame-ancestors 'none' を足す。
-  ...(sentry.reportUri ? [`report-uri ${sentry.reportUri}`] : []),
-].join("; ");
-
 /**
  * 強制してよいセキュリティヘッダ。
+ *   ページの CSP は Phase 6 で src/proxy.ts へ移した（nonce をリクエストごとに作るため）。
  *   HSTS は Vercel がカスタムドメインに既定で付けるのでここでは付けない。
  *   カメラはファイル選択（<input type="file">）経由でしか使っておらず、
  *   Permissions-Policy の対象外なので camera=() で塞いでも影響しない。
@@ -96,8 +42,15 @@ const SECURITY_HEADERS = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
-  { key: "Content-Security-Policy-Report-Only", value: CSP },
+  // 招待制のサイト。検索エンジンやアーカイブに載せない（リンクのプレビューは出る）
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
 ];
+
+/**
+ * API は JSON と音声しか返さない。万一ブラウザで HTML として開かれても何も実行させない。
+ * proxy.ts は /api を通らないので、ここで固定の CSP を付ける。
+ */
+const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 const nextConfig: NextConfig = {
   images: {
@@ -113,7 +66,10 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+    return [
+      { source: "/:path*", headers: SECURITY_HEADERS },
+      { source: "/api/:path*", headers: [{ key: "Content-Security-Policy", value: API_CSP }] },
+    ];
   },
 };
 

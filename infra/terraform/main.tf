@@ -46,6 +46,8 @@ locals {
     "secretmanager.googleapis.com",
     # 監査ログの定期エクスポート（audit.tf）
     "cloudscheduler.googleapis.com",
+    # 個人情報の閲覧ログ（data_access.tf）
+    "logging.googleapis.com",
   ]
 }
 

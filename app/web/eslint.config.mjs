@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // scripts/vendor-sync.mjs が node_modules から複製したもの
+    "public/vendor/**",
   ]),
 ]);
 
