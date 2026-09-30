@@ -3,6 +3,7 @@ import { admin } from "@/lib/firebase-admin";
 import { TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT } from "@/config/episodes";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,7 +62,7 @@ async function _POST(req: Request) {
     return await handle(req);
   } catch (e) {
     console.error("[episodes POST]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

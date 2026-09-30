@@ -39,7 +39,10 @@ async function request<T = Record<string, unknown>>(
   }
 
   if (!res.ok && res.status !== 202) {
-    throw new Error(data?.message ?? `サーバーエラー (${res.status})`);
+    const message = data?.message ?? `サーバーエラー (${res.status})`;
+    // 5xx は原因を返さない（safeMessage）。問い合わせ用に request_id の先頭8桁を添える
+    const rid = res.status >= 500 ? res.headers.get("x-request-id")?.slice(0, 8) : undefined;
+    throw new Error(rid ? `${message}（ID: ${rid}）` : message);
   }
   if (data && data.ok === false) {
     throw new Error(data.message ?? "操作に失敗しました");

@@ -6,6 +6,7 @@ import { DEFAULT_GUEST_TAGS } from "@/config/tags";
 import { knownTagIds } from "@/lib/tags-server";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type UpdateGuestPayload } from "@/types/admin";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ function isOurStorageUrl(url: string): boolean {
 async function _POST(req: Request) {
   try { return await handle(req); } catch (e) {
     console.error("[update-guest] 未捕捉の例外", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

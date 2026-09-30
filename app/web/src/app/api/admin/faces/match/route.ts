@@ -7,6 +7,7 @@ import {
 } from "@/lib/rekognition";
 import { IGNORED, type BoundingBox } from "@/types/faces";
 import { withGuard } from "@/lib/route-guard";
+import { PublicError, safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,10 +55,11 @@ async function learn(params: {
       faceIndexedAt: FieldValue.serverTimestamp(),
     });
   } catch (e) {
+    console.error("[faces/match] 顔の学習に失敗", params.faceId, e);
     await faceRef
       .update({
         faceIndexStatus: "failed",
-        faceIndexError: (e instanceof Error ? e.message : "unknown").slice(0, 200),
+        faceIndexError: "学習に失敗しました",
       })
       .catch(() => {});
   }
@@ -110,7 +112,7 @@ async function _POST(req: Request) {
   try {
     const postId = await db.runTransaction(async (tx) => {
       const snap = await tx.get(faceRef);
-      if (!snap.exists) throw new Error("顔データが見つかりません");
+      if (!snap.exists) throw new PublicError("顔データが見つかりません");
 
       const pid = snap.get("postId") as string;
 
@@ -154,7 +156,8 @@ async function _POST(req: Request) {
 
     return NextResponse.json({ ok: true, faceId, guestUid, postId });
   } catch (e) {
-    return fail(e instanceof Error ? e.message : "更新に失敗しました", 409);
+    if (!(e instanceof PublicError)) console.error("[faces/match] 更新に失敗", e);
+    return fail(safeMessage(e, "更新に失敗しました。もう一度お試しください"), 409);
   }
 }
 

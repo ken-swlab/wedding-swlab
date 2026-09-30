@@ -5,6 +5,7 @@ import { TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT, MAX_EPISODE_PERIOD, MAX_EPISODE_TARGETS, MAX_EPISODE_TITLE } from "@/config/episodes";
 import type { Episode, EpisodeStatus } from "@/types/episode";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -108,7 +109,7 @@ async function _GET(req: Request) {
     return NextResponse.json({ ok: true, episodes });
   } catch (e) {
     console.error("[episodes GET]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 
@@ -172,7 +173,7 @@ async function _POST(req: Request) {
     return NextResponse.json({ ok: true, id: ref.id });
   } catch (e) {
     console.error("[episodes POST]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 
@@ -248,7 +249,7 @@ async function _PUT(req: Request) {
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     console.error("[episodes PUT]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

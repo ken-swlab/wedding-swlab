@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -140,7 +141,7 @@ async function _POST(req: Request) {
         aborted
           ? `音声合成がタイムアウトしました（${Math.round(TIMEOUT_MS / 1000)}秒）。` +
             " GPU コンテナのコールドスタート中の可能性があります。もう一度試すか、/health を叩いて温めてください。"
-          : `音声合成サーバーに接続できませんでした: ${e instanceof Error ? e.message : String(e)}`,
+          : "音声合成サーバーに接続できませんでした",
         aborted ? 504 : 502,
       );
     } finally {
@@ -151,7 +152,7 @@ async function _POST(req: Request) {
       const detail = await upstream.text().catch(() => "");
       console.error("[tts] SBV2 error", upstream.status, detail.slice(0, 500));
       return fail(
-        `音声合成に失敗しました (${upstream.status}): ${detail.slice(0, 300) || "詳細不明"}`,
+        `音声合成に失敗しました (${upstream.status})`,
         upstream.status === 401 ? 500 : 502,
       );
     }
@@ -167,7 +168,7 @@ async function _POST(req: Request) {
     });
   } catch (e) {
     console.error("[tts]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

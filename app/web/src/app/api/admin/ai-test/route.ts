@@ -7,6 +7,7 @@ import { themeDef } from "@/config/episodes";
 import { givenName, type Politeness, type Speaker } from "@/config/persona";
 import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from "@google/genai";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ async function _POST(req: Request) {
     return await handle(req);
   } catch (e) {
     console.error("[ai-test]", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 
@@ -250,7 +251,7 @@ ${episodeBlock}
   let iterator:
     | Awaited<ReturnType<GoogleGenAI["models"]["generateContentStream"]>>
     | null = null;
-  let initError = "";
+  let initStatus = 0;
   try {
     const ai = new GoogleGenAI({
       vertexai: true,
@@ -260,11 +261,13 @@ ${episodeBlock}
     });
     iterator = await ai.models.generateContentStream({ model, contents, config });
   } catch (e) {
-    initError = e instanceof Error ? e.message : String(e);
+    // 返すのは HTTP ステータス（429 = 上限、403 = 権限 など）だけ。本文はログにだけ残す
+    const httpStatus = (e as { status?: unknown } | null)?.status;
+    initStatus = typeof httpStatus === "number" ? httpStatus : 0;
     console.error("[ai-test] GenAI Error:", e);
   }
   if (!iterator) {
-    return fail(`Vertex AI の呼び出しに失敗しました: ${initError}`, 502, { debug });
+    return fail(`Vertex AI の呼び出しに失敗しました${initStatus ? ` (${initStatus})` : ""}。詳細はサーバーのログにあります`, 502, { debug });
   }
 
   const gen = iterator;
@@ -306,7 +309,7 @@ ${episodeBlock}
         console.error("[ai-test] stream error:", e);
         send({
           type: "error",
-          message: `Vertex AI のストリームが中断しました: ${e instanceof Error ? e.message : String(e)}`,
+          message: "Vertex AI のストリームが中断しました。詳細はサーバーのログにあります",
         });
       } finally {
         controller.close();

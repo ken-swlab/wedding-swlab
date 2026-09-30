@@ -12,33 +12,11 @@ if (process.env.VERCEL_ENV === "production" && !process.env.NEXT_PUBLIC_SENTRY_D
 }
 
 /**
- * ★next/image の許可ホスト★
- *
- *   ここはビルド時に解決されるので、環境変数を変えたら再デプロイが要る。
- *   ドメイン移行中は新旧の両方を許可しておく。片方だけにすると、
- *   まだ旧URLを持っている投稿の画像が 400 になる。
- *   旧ドメインを畳んだあとにフォールバックの1行を消す。
- *   （CSP 側の許可ホストは src/lib/csp.ts）
+ * どのコミットが本番で動いているかを外から確かめる目印（/api/health の X-Build ヘッダ）。
+ *   push したコミットがデプロイされたかを、検証スクリプトが待つのに使う。
+ *   値はコミットの短縮 SHA だけで秘密は含まない。/api/health の本文には何も足さない。
  */
-const MEDIA_HOSTS = Array.from(
-  new Set(
-    [
-      process.env.NEXT_PUBLIC_MEDIA_BASE,
-      process.env.R2_PUBLIC_BASE,
-      "https://wedding-media.sw-lab.net",
-      "https://media.wedding.sw-lab.net", // ← 旧ドメイン撤去後に削除する
-    ]
-      .filter((v): v is string => !!v)
-      .map((v) => {
-        try {
-          return new URL(v).hostname;
-        } catch {
-          return null;
-        }
-      })
-      .filter((v): v is string => !!v),
-  ),
-);
+const BUILD_ID = (process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7);
 
 /**
  * 強制してよいセキュリティヘッダ。
@@ -63,22 +41,29 @@ const SECURITY_HEADERS = [
 const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
 const nextConfig: NextConfig = {
+  /**
+   * ★画像最適化（/_next/image）は使わない★
+   *   Vercel Hobby の画像最適化は月 5,000 回まで。使い切ると新しい写真が変換されず、
+   *   写真の代わりに alt が出る。披露宴当日の投稿量なら届きうる。
+   *   R2 の写真は、アップロード時にブラウザで長辺 1920px の JPEG に縮めた版と、
+   *   Worker が EXIF を落として公開した原本しかないので、R2 からそのまま配信する。
+   *   アイコン（LINE / Google）も直接読み込む（CSP の img-src で許可済み）。
+   *
+   *   unoptimized だけでは Vercel 側に /_next/image の入口が残ることがある
+   *   （nextjs/adapter-vercel #133）。許可先を空にして、外から叩かれても何も変換させない
+   *   （他人の画像で月の枠を使い切らせる悪用も防ぐ）。
+   *   画像の配信元を足すときは、ここではなく CSP（src/lib/csp.ts）の img-src に足す。
+   */
   images: {
-    remotePatterns: [
-      ...MEDIA_HOSTS.map((hostname) => ({ protocol: "https" as const, hostname })),
-      // reference_faces は Firebase Storage に残しているので、以下も必要
-      { protocol: "https", hostname: "firebasestorage.googleapis.com" },
-      { protocol: "https", hostname: "storage.googleapis.com" },
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
-      // LINE のプロフィール画像。ここを忘れると全員のアイコンが壊れる
-      { protocol: "https", hostname: "profile.line-scdn.net" },
-      { protocol: "https", hostname: "obs.line-scdn.net" },
-    ],
+    unoptimized: true,
+    remotePatterns: [],
+    localPatterns: [{ pathname: "/__image-optimizer-disabled__", search: "" }],
   },
   async headers() {
     return [
       { source: "/:path*", headers: SECURITY_HEADERS },
       { source: "/api/:path*", headers: [{ key: "Content-Security-Policy", value: API_CSP }] },
+      { source: "/api/health", headers: [{ key: "X-Build", value: BUILD_ID }] },
     ];
   },
 };

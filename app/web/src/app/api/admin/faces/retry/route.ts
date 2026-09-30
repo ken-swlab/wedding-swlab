@@ -5,6 +5,7 @@ import { rebuildDetectedUserIds, resolveGuestUid } from "@/lib/faces-server";
 import { cropFace, ensureCollection, fetchImageBytes, normalizeImage, searchFace, type NormalizedImage } from "@/lib/rekognition";
 import type { BoundingBox } from "@/types/faces";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ function fail(message: string, status: number) { return NextResponse.json({ ok: 
 async function _POST(req: Request) {
   try { return await handle(req); } catch (e) {
     console.error("[faces/retry] 未捕捉の例外", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

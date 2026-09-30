@@ -5,6 +5,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { INVITATION_STATUSES, isPreRegisteredUid } from "@/config/roster";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +52,7 @@ async function _POST(req: Request) {
     return await handle(req);
   } catch (e) {
     console.error("[roster] 未捕捉の例外", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

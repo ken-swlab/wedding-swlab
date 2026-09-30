@@ -5,6 +5,7 @@ import { admin } from "@/lib/firebase-admin";
 import { readCustomTags } from "@/lib/tags-server";
 import { MAX_TAG_LABEL, PALETTE_KEYS, TAG_DEFS, isCustomTagId } from "@/config/tags";
 import { withGuard } from "@/lib/route-guard";
+import { safeMessage } from "@/lib/public-error";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,7 +44,7 @@ async function _GET(req: Request) {
     return NextResponse.json({ ok: true, tags });
   } catch (e) {
     console.error("[tags] GET", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 
@@ -103,16 +104,13 @@ async function _POST(req: Request) {
     }
     if (!id) {
       console.error("[tags] 採番に失敗", lastErr);
-      return fail(
-        `タグの作成に失敗しました: ${lastErr instanceof Error ? lastErr.message : "不明なエラー"}`,
-        500,
-      );
+      return fail("タグの作成に失敗しました。もう一度お試しください", 500);
     }
 
     return NextResponse.json({ ok: true, tag: { id, ...doc } });
   } catch (e) {
     console.error("[tags] POST", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 
@@ -156,7 +154,7 @@ async function _PATCH(req: Request) {
     return NextResponse.json({ ok: true, id });
   } catch (e) {
     console.error("[tags] PATCH", e);
-    return fail(e instanceof Error ? e.message : "サーバー内部エラー", 500);
+    return fail(safeMessage(e), 500);
   }
 }
 

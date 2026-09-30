@@ -125,14 +125,20 @@ async function processPost(postId: string): Promise<{ faces: number; auto: numbe
   return { faces: total, auto };
 }
 
-async function markFailed(postId: string, reason: string) {
+/**
+ * ★例外の本文は posts に書かない★
+ *   posts はゲストも読める。AWS の例外にはアカウント ID や IAM ユーザー名が
+ *   入ることがあるので、詳細はログ（Sentry）にだけ残し、posts には定型文だけを書く。
+ */
+async function markFailed(postId: string, err: unknown) {
+  console.error("[faces/detect] 顔検出に失敗", postId, err);
   const { db } = admin();
   await db
     .collection("posts")
     .doc(postId)
     .update({
       faceDetectionStatus: "failed",
-      faceDetectionError: reason.slice(0, 200),
+      faceDetectionError: "顔検出に失敗しました",
     })
     .catch(() => {});
 }
@@ -180,7 +186,7 @@ async function _POST(req: Request) {
           try {
             await processPost(id);
           } catch (e) {
-            await markFailed(id, e instanceof Error ? e.message : "unknown");
+            await markFailed(id, e);
           }
         }
       })(),
@@ -205,7 +211,7 @@ async function _POST(req: Request) {
 
   await background(
     processPost(postId).catch((e) =>
-      markFailed(postId, e instanceof Error ? e.message : "unknown"),
+      markFailed(postId, e),
     ),
   );
 

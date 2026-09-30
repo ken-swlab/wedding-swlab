@@ -1,5 +1,6 @@
 import "server-only";
 import { admin } from "@/lib/firebase-admin";
+import { PublicError } from "@/lib/public-error";
 
 const CLAIMS_BYTE_LIMIT = 900;
 export type GuestClaims = { tags: string[]; isAdmin: boolean; hasAuthUser: boolean; };
@@ -26,7 +27,7 @@ export async function applyGuestTags(uid: string, tags: string[]): Promise<{ tag
     const user = await auth.getUser(uid);
     const prev = user.customClaims ?? {};
     const next = { ...prev, tags: sorted };
-    if (Buffer.byteLength(JSON.stringify(next), "utf8") > CLAIMS_BYTE_LIMIT) throw new Error("Custom Claims が上限に達しました");
+    if (Buffer.byteLength(JSON.stringify(next), "utf8") > CLAIMS_BYTE_LIMIT) throw new PublicError("Custom Claims が上限に達しました（タグを減らしてください）");
     await auth.setCustomUserClaims(uid, next);
 
     /**
