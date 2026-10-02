@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(vercel)",
+      "Bash(vercel deploy *)",
+      "Bash(vercel *--prod*)",
+      "Bash(npx vercel deploy *)",
+      "Bash(npx vercel *--prod*)",
+      "Bash(firebase deploy *)",
+      "Bash(terraform destroy *)",
+      "Bash(terraform -chdir=* destroy*)",
+      "Bash(git push *--force*)",
+      "Bash(git push -f *)",
+      "Bash(git push * -f)",
+      "Bash(git push * -f *)",
+      "Read(.env*)",
+      "Read(.dev.vars)",
+      "Read(*.tfstate*)",
+      "Read(*service-account*.json)",
+      "Read(*credentials*.json)",
+      "Read(pii-backup-*.json)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(gh pr merge *)",
+      "Bash(terraform apply *)",
+      "Bash(terraform -chdir=* apply*)",
+      "Bash(terraform import *)",
+      "Bash(terraform state *)",
+      "Bash(vercel env *)",
+      "Bash(vercel firewall *)",
+      "Bash(wrangler *)",
+      "Bash(npx wrangler *)",
+      "Bash(npm run deploy *)",
+      "Bash(modal deploy *)",
+      "Bash(node *scripts/ops.mjs maintenance *)",
+      "Bash(node *scripts/make-admin.mjs*)",
+      "Bash(node *scripts/migrate-*)"
+    ]
+  }
+}

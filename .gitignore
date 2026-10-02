@@ -44,3 +44,9 @@ __pycache__/
 .DS_Store
 .vercel
 .env*
+
+# ---- Claude Code の個人設定・個人情報の退避ファイル・Worker のローカル秘密 ----
+CLAUDE.local.md
+.claude/settings.local.json
+pii-backup-*.json
+.dev.vars
