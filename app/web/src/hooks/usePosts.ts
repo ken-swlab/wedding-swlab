@@ -8,6 +8,7 @@ import {
 import { db } from "@/lib/firebase";
 import { toPost } from "@/lib/posts";
 import { TAG_QUERY_LIMIT } from "@/config/tags";
+import { PULL_REFRESH_COOLDOWN_MS, PULL_REFRESH_TIMEOUT_MS } from "@/config/guestbook";
 import type { Post } from "@/types";
 
 /** createdAt が未確定（ローカル書き込み直後）のものは最新扱い */
@@ -43,14 +44,29 @@ export function usePosts(tags: string[], pageSize = 50) {
    *   見える範囲が変わったのに前のタグの投稿を出し続けないため。
    *   effect の中で setState してリセットすると描画が二重に走る。
    */
-  const [live, setLive] = useState<{ key: string; posts: Post[] } | null>(null);
+  const [live, setLive] = useState<{ key: string; nonce: number; posts: Post[] } | null>(null);
   const [older, setOlder] = useState<{ key: string; posts: Post[]; exhausted: boolean } | null>(null);
   const [errorState, setErrorState] = useState<{ key: string; error: FirestoreError | null } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const busy = useRef(false);
 
+  // 引っ張って更新で購読を張り直すための番号。refresh() が増やす
+  const [nonce, setNonce] = useState(0);
+  const nonceRef = useRef(0);
+  const lastRefreshAt = useRef(-Infinity);
+  const waiters = useRef<{ nonce: number; resolve: () => void }[]>([]);
+
   useEffect(() => {
     if (myTags.length === 0) return;
+
+    // この購読の最初の結果が届いたら、それを待っている refresh() を終える
+    const settle = () => {
+      waiters.current = waiters.current.filter((w) => {
+        if (w.nonce > nonce) return true;
+        w.resolve();
+        return false;
+      });
+    };
 
     const q = query(
       collection(db, "posts"),
@@ -63,16 +79,39 @@ export function usePosts(tags: string[], pageSize = 50) {
     return onSnapshot(
       q,
       (snap) => {
-        setLive({ key, posts: snap.docs.map(toPost) });
+        setLive({ key, nonce, posts: snap.docs.map(toPost) });
         setErrorState({ key, error: null });
+        settle();
       },
       (e) => {
         // 読めなくても読み込み中のままにしない
-        setLive((l) => (l?.key === key ? l : { key, posts: [] }));
+        setLive((l) => (l?.key === key ? l : { key, nonce, posts: [] }));
         setErrorState({ key, error: e });
+        settle();
       },
     );
-  }, [key, myTags, pageSize]);
+  }, [key, myTags, pageSize, nonce]);
+
+  /**
+   * 引っ張って更新。購読を張り直して最新の pageSize 件から読み直し、遡り分は捨てる。
+   * ★張り直しのあいだも前の一覧を出し続ける★（live はタグの組だけで照合する）
+   *   読み込み中の表示を挟むと、一覧が一瞬消えてちらつく。
+   * 戻り値の Promise は、新しい購読の最初の結果が届いたら（または時間切れで）終わる。
+   */
+  const refresh = useCallback((): Promise<void> => {
+    if (myTags.length === 0) return Promise.resolve();
+    const now = Date.now();
+    if (now - lastRefreshAt.current < PULL_REFRESH_COOLDOWN_MS) return Promise.resolve();
+    lastRefreshAt.current = now;
+
+    const next = ++nonceRef.current;
+    setNonce(next);
+    setOlder(null);
+    return new Promise<void>((resolve) => {
+      waiters.current.push({ nonce: next, resolve });
+      setTimeout(resolve, PULL_REFRESH_TIMEOUT_MS);
+    });
+  }, [myTags.length]);
 
   const livePosts = live?.key === key ? live.posts : EMPTY;
   const olderPosts = older?.key === key ? older.posts : EMPTY;
@@ -121,7 +160,7 @@ export function usePosts(tags: string[], pageSize = 50) {
     }
   }, [exhausted, key, myTags, pageSize, posts]);
 
-  return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, error };
+  return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, refresh, error };
 }
 
 const EMPTY: Post[] = [];

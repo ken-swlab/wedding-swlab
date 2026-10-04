@@ -4,6 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
+import { useSearchParams } from "next/navigation";
+import { filterPosts, parseQuery } from "@/lib/search";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
 import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
@@ -17,7 +19,7 @@ import {
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
 import { GuestbookShell, useGuestbookView } from "@/components/guestbook/GuestbookShell";
-import { COMPOSER_ANCHOR_ID } from "@/config/guestbook";
+import { COMPOSER_ANCHOR_ID, GUESTBOOK_QUERY_PARAM } from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
@@ -28,8 +30,14 @@ export default function GuestbookPage() {
   //   購読は guestbook/layout.tsx（GuestbookDataProvider）が持つ。
   //   タイムラインとギャラリー、詳細画面は同じ配列を見るので、
   //   タブの切り替えや詳細画面との行き来で Firestore への再取得は発生しない。
-  const { posts, loading, loadingMore, hasMore, loadMore, error, personUid, setPersonUid } =
+  const { posts: allPosts, loading, loadingMore, hasMore, loadMore, error, personUid, setPersonUid } =
     useGuestbookData();
+
+  // 検索語はヘッダーの検索欄が ?q= に書く。読み込み済みの投稿だけを端末で絞り込む（lib/search.ts）
+  const query = useSearchParams().get(GUESTBOOK_QUERY_PARAM) ?? "";
+  const terms = useMemo(() => parseQuery(query), [query]);
+  const searching = terms.length > 0;
+  const posts = useMemo(() => filterPosts(allPosts, terms), [allPosts, terms]);
   // 送信キューも layout 側に1つだけ（GuestbookDataProvider の★参照）
   const upload = useGuestbookUpload();
 
@@ -54,16 +62,17 @@ export default function GuestbookPage() {
   // ★取り残し検出用★
   //   自分の投稿で原本が pending のメディアを「どれか」まで特定して渡す。
   //   件数の引き算だと誤検知するので、thumbPath で突き合わせる。
+  // ★検索の絞り込み前の一覧で数える★ 絞り込んだ結果で数えると取り残しを見落とす
   const serverPending = useMemo<PendingOriginal[]>(
     () =>
-      posts
+      allPosts
         .filter((p) => p.authorUid === user?.uid)
         .flatMap((p) =>
           p.media
             .filter((m) => m.type === "image" && m.originalStatus === "pending")
             .map((m) => ({ postId: p.id, thumbPath: m.storagePath })),
         ),
-    [posts, user?.uid],
+    [allPosts, user?.uid],
   );
 
   const index = openId ? gallery.findIndex((p) => p.id === openId) : -1;
@@ -92,14 +101,29 @@ export default function GuestbookPage() {
           <div className="space-y-4">
             <UploadStatusBar upload={upload} serverPending={serverPending} />
 
+            {searching && (
+              <SearchSummary
+                query={query}
+                count={view === "timeline" ? posts.length : gallery.length}
+                unit={view === "timeline" ? "件" : "枚の写真"}
+                hasMore={hasMore}
+                loadingMore={loadingMore}
+                onLoadMore={() => void loadMore()}
+              />
+            )}
+
             {view === "timeline" ? (
               <>
                 {/* ヘッダーの「＋」はここへ飛ぶ。scroll-mt はヘッダーに隠れない分 */}
-                <div id={COMPOSER_ANCHOR_ID} className="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]">
-                  <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
-                </div>
-                <Timeline posts={posts} loading={loading} error={error} user={user} />
-                {hasMore && posts.length > 0 && (
+                {!searching && (
+                  <div id={COMPOSER_ANCHOR_ID} className="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]">
+                    <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
+                  </div>
+                )}
+                {searching && !loading && !error && posts.length === 0 ? null : (
+                  <Timeline posts={posts} loading={loading} error={error} user={user} />
+                )}
+                {!searching && hasMore && posts.length > 0 && (
                   <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
                 )}
               </>
@@ -111,7 +135,7 @@ export default function GuestbookPage() {
                 ) : (
               <GalleryGrid posts={gallery} onOpen={setOpenId}
                 footer={
-                  hasMore && !personUid && gallery.length > 0 ? (
+                  hasMore && !personUid && !searching && gallery.length > 0 ? (
                     <div className="pt-4">
                       <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
                     </div>
@@ -136,6 +160,43 @@ export default function GuestbookPage() {
       )}
       </GuestbookShell>
     </AuthorNameProvider>
+  );
+}
+
+/** 検索結果の件数と、さらに過去の投稿を読み込んで探すボタン */
+function SearchSummary({
+  query, count, unit, hasMore, loadingMore, onLoadMore,
+}: {
+  query: string;
+  count: number;
+  unit: string;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-stone-200/80 bg-white p-4 text-sm shadow-sm">
+      <p className="text-stone-800">
+        「<span className="font-medium">{query}</span>」の検索結果：
+        <span className="tabular-nums">{count}</span>
+        {unit}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-stone-500">
+        {hasMore
+          ? "読み込み済みの投稿から探しています。見つからないときは、さらに過去の投稿を読み込んで探せます。"
+          : "すべての投稿から探しました。"}
+      </p>
+      {hasMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          className="mt-3 w-full touch-manipulation rounded-full border border-stone-200 py-2.5 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-50"
+        >
+          {loadingMore ? "読み込み中…" : "さらに過去の投稿から探す"}
+        </button>
+      )}
+    </div>
   );
 }
 

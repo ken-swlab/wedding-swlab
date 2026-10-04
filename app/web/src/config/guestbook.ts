@@ -49,3 +49,27 @@ export const SCROLL_STORAGE_PREFIX = "guestbook-scroll:";
 
 /** popstate からこの時間内に描かれた画面を「戻る操作で来た」とみなす (ms) */
 export const POP_RESTORE_WINDOW_MS = 1500;
+
+/** 検索語のクエリ（/guestbook?q=） */
+export const GUESTBOOK_QUERY_PARAM = "q";
+
+/** 入力が止まってから検索に反映するまで (ms) */
+export const SEARCH_DEBOUNCE_MS = 250;
+
+/** ハッシュタグの候補の最大件数 */
+export const MAX_HASHTAG_SUGGESTIONS = 8;
+
+/** 引っ張って更新: 指の移動量に対する表示の移動量の比、発火する距離、表示の上限 (px) */
+export const PULL_RESISTANCE = 0.5;
+export const PULL_TRIGGER_PX = 64;
+export const PULL_MAX_PX = 96;
+
+/**
+ * 引っ張って更新の最短間隔 (ms)。
+ * ★更新は posts の購読の張り直しで、最大 50 件ぶんの読み取りになる★
+ *   連打で読み取りが膨らまないよう、間隔内の更新は何もせず終える。
+ */
+export const PULL_REFRESH_COOLDOWN_MS = 10_000;
+
+/** 更新の応答がこの時間来なくても、表示は終える (ms) */
+export const PULL_REFRESH_TIMEOUT_MS = 8_000;
