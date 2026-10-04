@@ -17,11 +17,29 @@ export const GUESTBOOK_PATHS = {
 } as const;
 
 /**
+ * 投稿 ID として受け付ける形。Firestore の自動 ID は英数字 20 文字。
+ * ★URL の値をそのまま doc() に渡さない★ "/" などが混ざると別のパスを指してしまう。
+ */
+export const POST_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+/** 投稿の詳細画面（コメント欄つき） */
+export function postPath(id: string): string {
+  return `${GUESTBOOK_PATHS.home}/posts/${encodeURIComponent(id)}`;
+}
+
+const POST_PATH_RE = /^\/guestbook\/posts\/[A-Za-z0-9_-]{1,64}$/;
+
+/**
  * ★承認済みゲストが留まれるパス★
- *   (guest)/layout.tsx はここに無いパスを /guestbook へ送り返す。
+ *   (guest)/layout.tsx はここで false になるパスを /guestbook へ送り返す。
  *   /guestbook の下に画面を足したら、ここにも足す。
  */
-export const GUESTBOOK_ALLOWED_PATHS: readonly string[] = Object.values(GUESTBOOK_PATHS);
+export function isGuestbookPath(pathname: string): boolean {
+  return (
+    (Object.values(GUESTBOOK_PATHS) as string[]).includes(pathname) ||
+    POST_PATH_RE.test(pathname)
+  );
+}
 
 /** ヘッダーの「＋」が飛ぶ先。タイムライン最上部の投稿欄 */
 export const COMPOSER_ANCHOR_ID = "composer";

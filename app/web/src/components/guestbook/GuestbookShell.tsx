@@ -97,11 +97,19 @@ function BottomNav() {
       <ul className="mx-auto flex h-16 max-w-xl">
         {NAV.map((item) => {
           const on = active === item.key;
+          // 詳細画面ではタイムラインを光らせるが、そこは「同じ画面」ではないので遷移させる
+          const here = on && pathname === item.href.split("?")[0];
           return (
             <li key={item.key} className="flex-1">
               <Link
                 href={item.href}
-                aria-current={on ? "page" : undefined}
+                aria-current={here ? "page" : undefined}
+                onClick={(e) => {
+                  if (!here) return;
+                  // 表示中のタブをもう一度押したら先頭へ戻す（同じ URL への遷移はしない）
+                  e.preventDefault();
+                  scrollToTop();
+                }}
                 className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition ${
                   on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
                 }`}
@@ -115,6 +123,11 @@ function BottomNav() {
       </ul>
     </nav>
   );
+}
+
+function scrollToTop() {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
 }
 
 /** 通知・設定など、まだ中身の無い画面の共通表示 */
