@@ -54,6 +54,15 @@ async function loadBlob(job: QueuedJob): Promise<Blob> {
  *
  * 送信は並列ではなく直列。1人が帯域を占有しないようにするため。
  */
+/**
+ * ★このタブで送信ループが動いている uid★
+ *   フックのインスタンスではなくモジュールで持つ。画面を移ってフックが作り直されても、
+ *   前のインスタンスの送信（実行中の1枚）は最後まで走る。そのあいだに
+ *   新しいインスタンスが resetStuckJobs で uploading を queued に戻したり、
+ *   start() で2本目のループを始めたりすると、同じ原本を二重に送ってしまう。
+ */
+const activeLoops = new Set<string>();
+
 export function useUpload(uid?: string) {
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [running, setRunning] = useState(false);
@@ -63,6 +72,8 @@ export function useUpload(uid?: string) {
 
   const progressRef = useRef<Record<string, number>>({});
   const runningRef = useRef(false);
+  // アンマウントされたら、実行中の1枚を送り終えたところでループを止める
+  const stopRef = useRef(false);
   const uidRef = useRef(uid);
   uidRef.current = uid;
 
@@ -86,7 +97,8 @@ export function useUpload(uid?: string) {
     let alive = true;
     void (async () => {
       try {
-        await resetStuckJobs(uid);
+        // 送信中のジョブを queued に戻すのは、このタブでループが動いていないときだけ
+        if (!activeLoops.has(uid)) await resetStuckJobs(uid);
       } catch {
         /* 読めないだけなら続行する */
       }
@@ -155,7 +167,8 @@ export function useUpload(uid?: string) {
 
   const start = useCallback(() => {
     const u = uidRef.current;
-    if (!u || runningRef.current) return;
+    if (!u || runningRef.current || activeLoops.has(u)) return;
+    activeLoops.add(u);
     runningRef.current = true;
     setRunning(true);
     setError("");
@@ -164,6 +177,7 @@ export function useUpload(uid?: string) {
     void (async () => {
       try {
         for (;;) {
+          if (stopRef.current) break;
           const list = await listJobs(u);
           const next = list.find((j) => j.status === "queued");
           if (!next) break;
@@ -203,6 +217,7 @@ export function useUpload(uid?: string) {
       } catch (e) {
         setError(e instanceof Error ? e.message : "アップロードを継続できませんでした");
       } finally {
+        activeLoops.delete(u);
         runningRef.current = false;
         setRunning(false);
         await refresh();
@@ -222,6 +237,20 @@ export function useUpload(uid?: string) {
       start();
     })();
   }, [refresh, start]);
+
+  /**
+   * ★アンマウントで送信ループを止める★
+   *   /guestbook 以下から出ていくのは、承認の取り消しや停止で (guest)/layout.tsx に
+   *   送り出されたときだけ。そこで裏の送信を続けると画面から見えなくなる。
+   *   実行中の1枚は送り終えてから止まり、残りは queued のまま端末に残る。
+   *   開発時の StrictMode は effect を2回走らせるので、本体で false に戻す。
+   */
+  useEffect(() => {
+    stopRef.current = false;
+    return () => {
+      stopRef.current = true;
+    };
+  }, []);
 
   /**
    * 離脱警告は「送信中」だけに限る。

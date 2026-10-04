@@ -94,7 +94,7 @@ export function UploadStatusBar({
             />
           </div>
           <p className="mt-1.5 text-[11px] leading-relaxed text-sky-700">
-            この画面を開いたままお待ちください。閉じても写真は端末に残るので、
+            ゲストブックを開いたままお待ちください。閉じても写真は端末に残るので、
             あとから続きを送れます。
           </p>
         </div>

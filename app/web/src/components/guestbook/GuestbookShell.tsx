@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useGuestbookUpload } from "./GuestbookDataProvider";
 import {
   COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
@@ -40,6 +41,7 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-stone-50">
       <Header />
+      <UploadMiniStatus />
       <main className="mx-auto max-w-xl px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4">
         {children}
       </main>
@@ -76,6 +78,36 @@ function Header() {
         </Link>
       </div>
     </header>
+  );
+}
+
+/**
+ * /guestbook 以外の画面（詳細・通知・設定）で、高画質版の送信中であることを出す。
+ * /guestbook では UploadStatusBar が詳しく出すので、ここでは出さない。
+ */
+function UploadMiniStatus() {
+  const pathname = usePathname();
+  const { running, remaining, current } = useGuestbookUpload();
+  if (!running || pathname === GUESTBOOK_PATHS.home) return null;
+
+  const pct = Math.round((current?.progress ?? 0) * 100);
+  return (
+    <Link
+      href={GUESTBOOK_PATHS.home}
+      role="status"
+      className="sticky top-[calc(3.5rem+1px+env(safe-area-inset-top))] z-30 block border-b border-sky-200 bg-sky-50/95 backdrop-blur"
+    >
+      <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-2 text-xs font-medium text-sky-900">
+        <span className="shrink-0">高画質版を送信中… 残り {remaining} 枚</span>
+        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-sky-200">
+          <span
+            className="block h-full rounded-full bg-sky-600 transition-[width] duration-300"
+            style={{ width: `${Math.max(3, pct)}%` }}
+          />
+        </span>
+        <span className="shrink-0 tabular-nums">{pct}%</span>
+      </div>
+    </Link>
   );
 }
 
