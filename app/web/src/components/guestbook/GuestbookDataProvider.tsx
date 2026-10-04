@@ -1,0 +1,41 @@
+"use client";
+
+import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { usePosts } from "@/hooks/usePosts";
+import { useGuestSessionContext } from "./GuestSessionContext";
+
+type GuestbookData = ReturnType<typeof usePosts> & {
+  /** ギャラリーの人物の絞り込み。詳細画面から戻っても残す */
+  personUid: string;
+  setPersonUid: (uid: string) => void;
+};
+
+const GuestbookDataContext = createContext<GuestbookData | null>(null);
+
+/**
+ * /guestbook 以下の画面で共有する投稿一覧。guestbook/layout.tsx で1回だけ置く。
+ *
+ * ★posts の購読はここに1本だけ★
+ *   ページで usePosts を呼ぶと、詳細画面との行き来のたびに購読を張り直し、
+ *   「もっと見る」で読み込んだ分とスクロール位置が失われる。
+ *   layout は画面を移ってもアンマウントされないので、ここに置く。
+ */
+export function GuestbookDataProvider({ children }: { children: ReactNode }) {
+  const { tags } = useGuestSessionContext();
+  const posts = usePosts(tags);
+  const [personUid, setPersonUid] = useState("");
+
+  const { posts: list, loading, loadingMore, hasMore, loadMore, error } = posts;
+  const value = useMemo<GuestbookData>(
+    () => ({ posts: list, loading, loadingMore, hasMore, loadMore, error, personUid, setPersonUid }),
+    [list, loading, loadingMore, hasMore, loadMore, error, personUid],
+  );
+
+  return <GuestbookDataContext.Provider value={value}>{children}</GuestbookDataContext.Provider>;
+}
+
+export function useGuestbookData(): GuestbookData {
+  const v = useContext(GuestbookDataContext);
+  if (!v) throw new Error("GuestbookDataProvider の外で呼ばれました");
+  return v;
+}

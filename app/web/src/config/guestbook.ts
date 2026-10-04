@@ -43,3 +43,9 @@ export function isGuestbookPath(pathname: string): boolean {
 
 /** ヘッダーの「＋」が飛ぶ先。タイムライン最上部の投稿欄 */
 export const COMPOSER_ANCHOR_ID = "composer";
+
+/** 戻る操作で復元するスクロール位置の保存先（sessionStorage）。ビューごとに分ける */
+export const SCROLL_STORAGE_PREFIX = "guestbook-scroll:";
+
+/** popstate からこの時間内に描かれた画面を「戻る操作で来た」とみなす (ms) */
+export const POP_RESTORE_WINDOW_MS = 1500;

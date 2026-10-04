@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useGuestSession } from "@/hooks/useGuestSession";
-import { usePosts } from "@/hooks/usePosts";
+import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
+import { useGuestbookData } from "@/components/guestbook/GuestbookDataProvider";
+import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { useUpload } from "@/hooks/useUpload";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
@@ -22,17 +23,20 @@ import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
 export default function GuestbookPage() {
-  const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSession();
+  const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSessionContext();
 
   // ★posts は1本しか購読しない★
-  //   タイムラインとギャラリーは同じ配列を見るので、
-  //   タブを切り替えても Firestore への再取得は発生しない。
-  const { posts, loading, loadingMore, hasMore, loadMore, error } = usePosts(tags);
+  //   購読は guestbook/layout.tsx（GuestbookDataProvider）が持つ。
+  //   タイムラインとギャラリー、詳細画面は同じ配列を見るので、
+  //   タブの切り替えや詳細画面との行き来で Firestore への再取得は発生しない。
+  const { posts, loading, loadingMore, hasMore, loadMore, error, personUid, setPersonUid } =
+    useGuestbookData();
   const upload = useUpload(user?.uid);
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
-  const [personUid, setPersonUid] = useState("");
+  // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
+  useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
 

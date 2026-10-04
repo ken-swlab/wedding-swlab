@@ -16,14 +16,16 @@ type State = { id: string; post: Post | null };
  *   permission-denied を別扱いで表示すると、「その ID の投稿は存在するが
  *   あなたには見えない」ことが分かってしまう。
  *   Rules の get は canSee() だけで status を見ないので、hidden もここで弾く。
+ *
+ * enabled が false のあいだは購読しない（一覧にすでにある投稿を開いたとき）。
  */
-export function usePost(id: string) {
+export function usePost(id: string, enabled = true) {
   const valid = POST_ID_RE.test(id);
   // id ごとに結果を持ち、id が変わったら読み込み中に戻す（effect 内で setState しない）
   const [state, setState] = useState<State | null>(null);
 
   useEffect(() => {
-    if (!valid) return;
+    if (!valid || !enabled) return;
     return onSnapshot(
       doc(db, "posts", id),
       (snap) => {
@@ -35,9 +37,9 @@ export function usePost(id: string) {
         setState({ id, post: null });
       },
     );
-  }, [id, valid]);
+  }, [id, valid, enabled]);
 
-  if (!valid) return { post: null, loading: false };
+  if (!valid || !enabled) return { post: null, loading: false };
   if (state?.id !== id) return { post: null, loading: true };
   return { post: state.post, loading: false };
 }

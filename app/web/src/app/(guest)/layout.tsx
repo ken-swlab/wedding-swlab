@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { SplashScreen } from "@/components/SplashScreen";
+import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext";
 import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
 
 /**
@@ -23,7 +24,8 @@ import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
 export default function GuestLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isActive, tags, loading, profile, profileLoading } = useGuestSession();
+  const session = useGuestSession();
+  const { user, isActive, tags, loading, profile, profileLoading } = session;
 
   const ready = !loading && (!user || !profileLoading);
 
@@ -62,5 +64,5 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
   if (!ready || !dest || pathname !== dest) {
     return <SplashScreen phase="booting" />;
   }
-  return <>{children}</>;
+  return <GuestSessionProvider value={session}>{children}</GuestSessionProvider>;
 }
