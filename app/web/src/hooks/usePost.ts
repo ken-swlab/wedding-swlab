@@ -1,0 +1,43 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { doc, onSnapshot, type QueryDocumentSnapshot } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { toPost } from "@/lib/posts";
+import { POST_ID_RE } from "@/config/guestbook";
+import type { Post } from "@/types";
+
+type State = { id: string; post: Post | null };
+
+/**
+ * 投稿1件の購読（詳細画面用）。
+ *
+ * ★見つからない・見えない・非表示はすべて post: null にまとめる★
+ *   permission-denied を別扱いで表示すると、「その ID の投稿は存在するが
+ *   あなたには見えない」ことが分かってしまう。
+ *   Rules の get は canSee() だけで status を見ないので、hidden もここで弾く。
+ */
+export function usePost(id: string) {
+  const valid = POST_ID_RE.test(id);
+  // id ごとに結果を持ち、id が変わったら読み込み中に戻す（effect 内で setState しない）
+  const [state, setState] = useState<State | null>(null);
+
+  useEffect(() => {
+    if (!valid) return;
+    return onSnapshot(
+      doc(db, "posts", id),
+      (snap) => {
+        const post = snap.exists() ? toPost(snap as QueryDocumentSnapshot) : null;
+        setState({ id, post: post?.status === "visible" ? post : null });
+      },
+      (e) => {
+        console.error(e);
+        setState({ id, post: null });
+      },
+    );
+  }, [id, valid]);
+
+  if (!valid) return { post: null, loading: false };
+  if (state?.id !== id) return { post: null, loading: true };
+  return { post: state.post, loading: false };
+}
