@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useGuestSession } from "@/hooks/useGuestSession";
+import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
+import { useGuestbookData } from "@/components/guestbook/GuestbookDataProvider";
 import { usePost } from "@/hooks/usePost";
 import { PostCard } from "@/components/guestbook/PostCard";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
@@ -13,8 +14,15 @@ import { publicName } from "@/lib/names";
 export default function PostDetailPage() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
-  const { user, profile } = useGuestSession();
-  const { post, loading } = usePost(id);
+  const { user, profile } = useGuestSessionContext();
+
+  // 一覧にある投稿はそれをすぐ出す（いいね数などはその購読で更新される）。
+  // 共有 URL を直接開いたときのように一覧に無いときだけ、1件を購読する。
+  const { posts } = useGuestbookData();
+  const cached = posts.find((p) => p.id === id) ?? null;
+  const remote = usePost(id, !cached);
+  const post = cached ?? remote.post;
+  const loading = !cached && remote.loading;
 
   // ★振り分けは (guest)/layout.tsx が行う★ ここは承認済みで開ける状態だけを描く
   if (!user || !profile) return <SplashScreen phase="booting" />;
