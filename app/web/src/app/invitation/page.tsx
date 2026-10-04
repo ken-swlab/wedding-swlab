@@ -1,80 +1,124 @@
 "use client";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
-import { WEDDING } from "@/config/wedding";
+import { getJson } from "@/lib/api-client";
+import { SplashScreen } from "@/components/SplashScreen";
+import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
+import { InvitationView } from "@/components/guestbook/InvitationView";
+import type { InvitationContent, InvitationStatus } from "@/types/invitation";
 
+type View =
+  | { kind: "checking" }
+  | { kind: "passcode" }
+  | { kind: "open"; invitation: InvitationContent }
+  | { kind: "error"; message: string };
+
+/**
+ * 招待状。未ログイン → LINE ログイン → パスコード → 招待状 → 出欠の回答（/onboarding）。
+ *
+ * ★ログインしてパスコードを通るまで、新郎新婦の名前・写真・会場を出さない★
+ *   中身はこのファイルにもバンドルにも無く、GET /api/guest/invitation が
+ *   パスコードを通った人にだけ返す。未ログインの画面に足すときも個人の情報を置かない。
+ */
 export default function InvitationPage() {
   const router = useRouter();
   const { phase, user, message, login } = useLiffAuth(false);
+  const [view, setView] = useState<View>({ kind: "checking" });
+
+  // 何度目の読み込みか。パスコード通過後や「もう一度読み込む」で増やして取り直す
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (user) router.replace("/guestbook");
-  }, [user, router]);
+    if (!user) return;
+    let cancelled = false;
+    getJson<InvitationStatus>("/api/guest/invitation")
+      .then((s) => {
+        if (cancelled) return;
+        // 登録済みの人はこれまでどおりゲストブックへ（承認待ちなら layout が /pending に振り分ける）
+        if (s.registered) router.replace("/guestbook");
+        else if (s.cleared && s.invitation) setView({ kind: "open", invitation: s.invitation });
+        else setView({ kind: "passcode" });
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setView({ kind: "error", message: e instanceof Error ? e.message : "読み込みに失敗しました" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, attempt, router]);
+
+  const reload = useCallback(() => {
+    setView({ kind: "checking" });
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
-    router.prefetch("/guestbook");
+    router.prefetch("/onboarding");
   }, [router]);
 
-  const busy = phase === "liff-init" || phase === "line-login" || phase === "exchanging";
+  if (phase === "booting") return <SplashScreen phase="booting" />;
+
+  if (!user) {
+    const busy = phase === "liff-init" || phase === "line-login" || phase === "exchanging";
+    return (
+      <main className="flex min-h-dvh flex-col bg-[#faf9f7] px-6 text-stone-800" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+        <div className="invitation-rise mx-auto flex w-full max-w-[24rem] flex-1 flex-col items-center justify-center text-center">
+          <svg viewBox="0 0 48 48" className="h-12 w-12 text-stone-300" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            <rect x="6" y="11" width="36" height="26" rx="3" />
+            <path d="M7 13l17 13 17-13" />
+          </svg>
+          <p className="mt-6 text-[11px] tracking-[0.35em] text-stone-400">INVITATION</p>
+          <h1 className="mt-3 font-serif text-xl text-stone-800">招待状が届いています</h1>
+          <p className="mt-4 text-[13.5px] leading-[1.9] text-stone-500">
+            招待状をご覧いただくには
+            <br />
+            LINE でログインしてください。
+          </p>
+        </div>
+        <div className="mx-auto w-full max-w-[24rem]">
+          {message && <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-[12px] leading-relaxed text-rose-700">{message}</p>}
+          <button type="button" onClick={login} disabled={busy} className="flex h-14 w-full touch-manipulation items-center justify-center gap-2.5 rounded-2xl bg-[#06C755] text-[15px] font-medium text-white shadow-sm transition active:brightness-95 disabled:opacity-60">
+            {busy ? "LINE に接続しています…" : "LINE でログイン"}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  if (view.kind === "checking") return <SplashScreen phase="booting" />;
 
   return (
     <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
-      <div className="relative h-[58dvh] min-h-[360px] w-full overflow-hidden bg-stone-200">
-        <div className="absolute inset-0 flex items-center justify-center text-stone-400 text-sm">
-          画像（/invitation/hero.jpg）を配置してください
+      {view.kind === "passcode" && (
+        <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col justify-center px-6 py-10">
+          <PasscodeStep onCleared={reload} />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/45" />
-        <div className="absolute inset-x-0 bottom-0 p-7 text-center text-white">
-          <p className="text-[11px] tracking-[0.35em] opacity-80">WEDDING INVITATION</p>
-          <h1 className="mt-3 font-serif text-[26px] leading-tight drop-shadow-sm">
-            {WEDDING.groom}
-            <span className="mx-3 text-lg opacity-70">&amp;</span>
-            {WEDDING.bride}
-          </h1>
-        </div>
-      </div>
-      <div className="mx-auto w-full max-w-[26rem] px-6 pb-32">
-        <section className="pt-10 text-center">
-          <p className="font-serif text-sm tracking-widest text-stone-400">ご挨拶</p>
-          <div className="mt-5 space-y-2.5">
-            {WEDDING.greeting.map((line) => (
-              <p key={line} className="text-[13.5px] leading-[2] text-stone-600">{line}</p>
-            ))}
-          </div>
-        </section>
-        <hr className="my-10 border-stone-200" />
-        <section>
-          <p className="text-center font-serif text-sm tracking-widest text-stone-400">開催概要</p>
-          <dl className="mt-5 space-y-4 text-[14px]">
-            <div>
-              <dt className="text-[11px] tracking-widest text-stone-400">日時</dt>
-              <dd className="mt-1 text-stone-700">{WEDDING.dateLabel}</dd>
-              <dd className="mt-0.5 text-[13px] text-stone-500">{WEDDING.receptionAt}</dd>
-            </div>
-            <div>
-              <dt className="text-[11px] tracking-widest text-stone-400">会場</dt>
-              <dd className="mt-1 text-stone-700">{WEDDING.venueName}</dd>
-              <dd className="mt-0.5 text-[13px] leading-relaxed text-stone-500">{WEDDING.venueAddress}</dd>
-              {WEDDING.venueMapUrl && (
-                <dd className="mt-2">
-                  <a href={WEDDING.venueMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-stone-500 underline underline-offset-4">
-                    地図を開く
-                  </a>
-                </dd>
-              )}
-            </div>
-          </dl>
-        </section>
-      </div>
-      <div className="fixed inset-x-0 bottom-0 border-t border-stone-200/80 bg-[#faf9f7]/95 backdrop-blur" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
-        <div className="mx-auto w-full max-w-[26rem] px-6 pt-4">
-          {message && <p className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-[12px] text-red-700">{message}</p>}
-          <button type="button" onClick={login} disabled={busy} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-2xl bg-[#06C755] text-[15px] font-medium text-white shadow-sm transition active:brightness-95 disabled:opacity-60">
-            {busy ? "LINE に接続しています…" : "出欠を回答する"}
+      )}
+
+      {view.kind === "error" && (
+        <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col items-center justify-center px-6 text-center">
+          <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-[13px] leading-relaxed text-rose-700">{view.message}</p>
+          <button type="button" onClick={reload} className="mt-5 min-h-11 touch-manipulation rounded-full bg-stone-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-stone-700">
+            もう一度読み込む
           </button>
         </div>
-      </div>
+      )}
+
+      {view.kind === "open" && (
+        <>
+          <div className="mx-auto w-full max-w-[26rem] px-6 pb-36 pt-12">
+            <InvitationView invitation={view.invitation} />
+          </div>
+          <div className="fixed inset-x-0 bottom-0 border-t border-stone-200/80 bg-[#faf9f7]/95 backdrop-blur" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
+            <div className="mx-auto w-full max-w-[26rem] px-6 pt-4">
+              <button type="button" onClick={() => router.push("/onboarding")} className="flex h-14 w-full touch-manipulation items-center justify-center rounded-2xl bg-stone-900 text-[15px] font-medium text-white shadow-sm transition hover:bg-stone-700 active:brightness-95">
+                出欠を回答する
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }
