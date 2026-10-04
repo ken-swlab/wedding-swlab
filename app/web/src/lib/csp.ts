@@ -85,7 +85,8 @@ function fixedParts(): Fixed {
  *   環境変数ではなくコードに置き、切り替えをコミットとして残す
  *   （いつから強制したかを履歴で追え、戻すときも git revert で済む）。
  */
-export const CSP_MODE: "report-only" | "enforce" = "report-only";
+// 2026-10: Issue #9 のオーナー指示で強制に切り替えた。戻すときはこの行を "report-only" にする
+export const CSP_MODE: "report-only" | "enforce" = "enforce";
 
 export function cspEnforced(): boolean {
   return CSP_MODE === "enforce";

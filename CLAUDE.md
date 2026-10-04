@@ -12,7 +12,7 @@
 スマホ（LINE アプリ内ブラウザ / Safari）── LIFF ログイン → /api/auth/line → Firebase カスタムトークン
   ▼
 Vercel Hobby: Next.js 16（app/web）   main への push = 本番デプロイ
-  ├ src/proxy.ts    ページごとに nonce 付き CSP（現在 Report-Only）
+  ├ src/proxy.ts    ページごとに nonce 付き CSP（強制）
   ├ src/app/api/**  全ルートを withGuard で包む（認証・メンテ・レート制限・監査ログ・Sentry）
   │   └ Firebase Admin / R2 署名付き URL / AWS Rekognition（顔）/ Vertex AI / Modal（音声合成）
   └ ブラウザは Firestore を直接読む（Security Rules + タグによるアクセス制御）
@@ -68,7 +68,7 @@ python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認�
 
 ### CSP と Sentry
 13. CSP の nonce は `src/proxy.ts` がリクエストごとに作る。ルートの `layout.tsx` の `await connection()` を消さない。インラインスクリプトは足さない（どうしても要るなら nonce を付ける）。
-14. 強制するかどうかは `src/lib/csp.ts` の `CSP_MODE` 定数で切り替える（環境変数ではない）。現在 `"report-only"`。強制への切り替えはオーナーの指示があるときだけ。
+14. 強制するかどうかは `src/lib/csp.ts` の `CSP_MODE` 定数で切り替える（環境変数ではない）。現在 `"enforce"`（Issue #9 で切り替え）。モードの変更はオーナーの指示があるときだけ。
 15. CSP の報告先と Sentry は `NEXT_PUBLIC_SENTRY_DSN` から作る。DSN をコードに書かない。`NEXT_PUBLIC_*` はビルド時に焼き込まれるので、変えたら再デプロイが要る。本番ビルドは DSN が無いと失敗する（意図どおり）。
 16. Sentry は `sendDefaultPii: false` と `src/lib/sentry-scrub.ts` を必ず通す。`Sentry.setUser` を呼ばず、Session Replay を入れない。
 

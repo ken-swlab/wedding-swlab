@@ -100,6 +100,8 @@ export type GuestAdmin = {
   /** 参照顔写真。実際の保存先はここ（guestAdmin）で、guests ではない */
   referencePhotoUrl: string;
   referencePhotoPath: string;
+  /** パスコードを間違え続けて永久ロックされている（/api/guest/passcode が書く） */
+  passcodeBlocked: boolean;
 };
 
 /** ダッシュボードの1行（3つを uid で結合したもの） */

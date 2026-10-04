@@ -31,6 +31,11 @@ export default function AdminPage() {
     setToast(`${adminName(row)} の停止を解除しました（タグの付け直しが必要です）`);
   }, []);
 
+  const onPasscodeUnlock = useCallback(async (row: GuestRow) => {
+    await postJson("/api/admin/passcode-unlock", { uid: row.uid });
+    setToast(`${adminName(row) || row.lineDisplayName || row.uid} のパスコード入力を再開できるようにしました`);
+  }, []);
+
   const onApprove = useCallback(async (row: GuestRow, preUid: string) => {
     if (preUid) await postJson("/api/admin/roster", { action: "merge", fromUid: preUid, toUid: row.uid });
     await postJson("/api/admin/update-guest", { uid: row.uid, isApproved: true });
@@ -50,6 +55,8 @@ export default function AdminPage() {
   const approved = useMemo(() => filtered.filter((r) => r.isRegistered && r.isApproved && r.isActive).sort(compareGuests), [filtered]);
   // 仮登録（まだ本人がログインしていない名簿行）は停止の対象になりえないので除く
   const banned = useMemo(() => filtered.filter((r) => r.isRegistered && !r.isActive).sort(compareGuests), [filtered]);
+  // パスコードを通っていないので isRegistered ではない。LINE ログインはしている
+  const passcodeBlocked = useMemo(() => filtered.filter((r) => r.passcodeBlocked), [filtered]);
 
   const stats = useMemo(() => {
     const by: Record<string, number> = {};
@@ -104,6 +111,24 @@ export default function AdminPage() {
               <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
               <GuestTable mode="approved" rows={approved} onSave={onSave} />
             </section>
+
+            {passcodeBlocked.length > 0 && (
+              <section>
+                <div className="mb-2 flex items-baseline gap-2">
+                  <h2 className="text-sm font-semibold text-rose-800">パスコードで停止中</h2>
+                  <p className="text-xs text-stone-400">パスコードを10回間違えて入力を止めています。ご本人と確認できたら解除してください（総当たりの可能性もあります）。</p>
+                </div>
+                <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
+                  {passcodeBlocked.map((r) => (
+                    <li key={r.uid} className="flex items-center gap-3 px-4 py-2.5">
+                      <span className="min-w-0 flex-1 truncate text-sm text-stone-700">{r.lineDisplayName || adminName(r) || "（名前なし）"}</span>
+                      <span className="truncate font-mono text-xs text-stone-400">{r.uid}</span>
+                      <button type="button" onClick={() => void onPasscodeUnlock(r)} className="shrink-0 rounded-full border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">入力を再開させる</button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {banned.length > 0 && (
               <section>

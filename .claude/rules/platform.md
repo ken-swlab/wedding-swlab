@@ -17,7 +17,7 @@ paths:
 - `script-src` は `'self' 'nonce-…' 'strict-dynamic' 'unsafe-inline'`（`'unsafe-inline'` は古いブラウザ向けの保険で、新しいブラウザは nonce があると無視する）。
 - `style-src` に nonce を入れない（入れると React の `style` 属性と framer-motion が止まる）。
 - ルートの `layout.tsx` の `await connection()` を消さない（静的描画になると nonce が付かない）。
-- ホストを足すときは `img-src` / `media-src` / `connect-src` のどれかを選んで足し、Report-Only のうちに `python3 scripts/csp-reports.py --hours 24 --after-nonce` で違反が増えていないことを確かめる。
+- ホストを足すときは `img-src` / `media-src` / `connect-src` のどれかを選んで足す。★強制中なので、足す前にそのホストを使う機能をデプロイすると本番で読み込みがブロックされる★ 足す変更を先に（または同じ PR で）入れ、デプロイ後に `python3 scripts/csp-reports.py --hours 24 --after-nonce` で違反が増えていないことを確かめる。
 - 強制への切り替え（オーナーの指示があるときだけ）: `csp-reports.py --after-nonce` の「要確認」が 0 → `CSP_MODE` を `"enforce"` にしてコミット → `python3 scripts/csp-verify.py --expect enforce --wait 900`。戻すときは `git revert`。`frame-ancestors` と `upgrade-insecure-requests` は強制時だけ付く。
 
 ## Sentry
