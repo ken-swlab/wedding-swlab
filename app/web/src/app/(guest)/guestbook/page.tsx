@@ -11,13 +11,13 @@ import { PersonFilter } from "@/components/guestbook/PersonFilter";
 import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
-import { ViewTabs, type GuestbookView } from "@/components/guestbook/ViewTabs";
 import {
   UploadStatusBar,
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
-import { GuestShell } from "@/components/guestbook/GuestShell";
+import { GuestbookShell, useGuestbookView } from "@/components/guestbook/GuestbookShell";
+import { COMPOSER_ANCHOR_ID } from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
@@ -30,7 +30,8 @@ export default function GuestbookPage() {
   const { posts, loading, loadingMore, hasMore, loadMore, error } = usePosts(tags);
   const upload = useUpload(user?.uid);
 
-  const [view, setView] = useState<GuestbookView>("timeline");
+  // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
+  const view = useGuestbookView();
   const [personUid, setPersonUid] = useState("");
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -83,15 +84,16 @@ export default function GuestbookPage() {
 
   return (
     <AuthorNameProvider value={authorName}>
-      <GuestShell>
+      <GuestbookShell>
           <div className="space-y-4">
             <UploadStatusBar upload={upload} serverPending={serverPending} />
 
-            <ViewTabs value={view} onChange={setView} />
-
             {view === "timeline" ? (
               <>
-                <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
+                {/* ヘッダーの「＋」はここへ飛ぶ。scroll-mt はヘッダーに隠れない分 */}
+                <div id={COMPOSER_ANCHOR_ID} className="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]">
+                  <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
+                </div>
                 <Timeline posts={posts} loading={loading} error={error} user={user} />
                 {hasMore && posts.length > 0 && (
                   <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
@@ -128,7 +130,7 @@ export default function GuestbookPage() {
           onClose={() => setOpenId(null)}
         />
       )}
-      </GuestShell>
+      </GuestbookShell>
     </AuthorNameProvider>
   );
 }
