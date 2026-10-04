@@ -1,0 +1,83 @@
+# セキュリティスキャン（Gitleaks / Semgrep / Checkov）
+#
+# ★本番デプロイ（Vercel の main 連携）とは独立している★
+#   Vercel は GitHub Actions の結果を待たずにデプロイするので、ここが失敗しても
+#   main のデプロイは止まらない。マージ前に PR 上で気づくためのもの。
+# ★サードパーティの Action はコミット SHA で固定する★
+#   タグは付け替えられる（サプライチェーン攻撃の入口になる）。更新は Dependabot が PR で出す。
+name: security
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 秘密の検出。PR ではその PR のコミット、push では push されたコミットだけを見る。
+  # 過去の履歴の誤検知（localStorage のキー名）は .gitleaksignore で除外している。
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # 検出時に PR へコメントするため（値は --redact で伏せられる）
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 個人アカウントのリポジトリなのでライセンスキーは不要
+          GITLEAKS_VERSION: 8.30.1
+
+  # アプリのコードの静的解析。PR のときだけ動かす。
+  # 導入時点の指摘は 0 件なので、指摘があれば PR のチェックを失敗にする（--error）。
+  # 誤検知が続くようなら --error を外して non-blocking にする。
+  semgrep:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: semgrep scan
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: >-
+          pipx run semgrep==1.179.0 scan
+          --config p/typescript
+          --config p/javascript
+          --config p/react
+          --config p/nextjs
+          --config p/secrets
+          --metrics=off
+          --error
+          app/web/src infra/workers/exif-stripper/src scripts
+
+  # Terraform の設定ミスの検出。terraform apply（オーナー）より前に PR で気づくため。
+  # ★導入時点の指摘 3 件はベースライン（infra/terraform/.checkov.baseline）に記録し、
+  #   それ以外の新しい指摘だけで失敗させる★
+  #   3 件（監査・メディアのバケットのアクセスログ、監査バケットの versioning）は
+  #   直すと terraform apply が要るので、対応を決めたらベースラインから消す。
+  checkov:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: bridgecrewio/checkov-action@99bb2caf247dfd9f03cf984373bc6043d4e32ebf # v12.1347.0
+        with:
+          directory: infra/terraform
+          framework: terraform
+          baseline: infra/terraform/.checkov.baseline
+          quiet: true
+          compact: true
+          skip_download: true
