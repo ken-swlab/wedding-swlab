@@ -76,7 +76,7 @@ export function UploadStatusBar({
     <div className="space-y-2">
       {/* ---- 送信中 ---- */}
       {running && (
-        <div className="sticky top-2 z-30 rounded-2xl border border-sky-200 bg-sky-50/95 p-3 shadow-sm backdrop-blur">
+        <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 rounded-2xl border border-sky-200 bg-sky-50/95 p-3 shadow-sm backdrop-blur">
           <div className="flex items-center justify-between text-xs font-medium text-sky-900">
             <span>
               送信中… 残り {remaining} 枚（{mb(remainingBytes)}）

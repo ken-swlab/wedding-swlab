@@ -6,6 +6,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { SplashScreen } from "@/components/SplashScreen";
+import { GUESTBOOK_ALLOWED_PATHS, GUESTBOOK_PATHS } from "@/config/guestbook";
 
 /**
  * ★ゲスト画面の振り分けをここ1箇所に集める★
@@ -43,7 +44,8 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
     else if (!profile.isRegistered) dest = "/onboarding";
     else if (mayStayOnOnboarding) dest = "/onboarding";
     else if (!(profile.isApproved && tags.length > 0)) dest = "/pending";
-    else dest = "/guestbook";
+    // 承認済みなら /guestbook 以下の画面（通知・設定）にも留まれる
+    else dest = GUESTBOOK_ALLOWED_PATHS.includes(pathname) ? pathname : GUESTBOOK_PATHS.home;
   }
 
   useEffect(() => {
