@@ -40,9 +40,14 @@ export function useGuestSession(): GuestSession {
   const [tags, setTags] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<GuestProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [isActive, setIsActive] = useState(true);
+  /**
+   * ★profile と isActive は「誰の値か（uid）」と一緒に持つ★
+   *   user が変わった瞬間は描画時に「読み込み中」「有効」へ戻る。
+   *   effect の中で setState してリセットすると、描画が二重に走るうえ、
+   *   切り替わりの一瞬に前のユーザーのプロフィールが見えてしまう。
+   */
+  const [profileState, setProfileState] = useState<{ uid: string; profile: GuestProfile | null } | null>(null);
+  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean } | null>(null);
   const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
@@ -63,10 +68,6 @@ export function useGuestSession(): GuestSession {
       setUser(u);
       await readClaims(u);
       setLoading(false);
-      if (!u) {
-        setProfile(null);
-        setProfileLoading(false);
-      }
     });
   }, [readClaims]);
 
@@ -83,7 +84,6 @@ export function useGuestSession(): GuestSession {
    */
   useEffect(() => {
     if (!user) return;
-    setProfileLoading(true);
 
     return onSnapshot(
       doc(db, "guests", user.uid),
@@ -105,13 +105,15 @@ export function useGuestSession(): GuestSession {
             photoURL: user.photoURL,
           }).catch(() => {});
         }
-        setProfile({
-          nickname: d?.nickname ?? "",
-          displayName: user.displayName ?? "ゲスト",
-          isRegistered: d?.isRegistered === true,
-          isApproved: d?.isApproved === true,
+        setProfileState({
+          uid: user.uid,
+          profile: {
+            nickname: d?.nickname ?? "",
+            displayName: user.displayName ?? "ゲスト",
+            isRegistered: d?.isRegistered === true,
+            isApproved: d?.isApproved === true,
+          },
         });
-        setProfileLoading(false);
 
         const ms: number | undefined = d?.claimsUpdatedAt?.toMillis?.();
         if (typeof ms === "number" && ms > lastSeen.current) {
@@ -119,7 +121,7 @@ export function useGuestSession(): GuestSession {
           void readClaims(auth.currentUser, true);
         }
       },
-      () => setProfileLoading(false),
+      () => setProfileState({ uid: user.uid, profile: null }),
     );
   }, [user, readClaims]);
 
@@ -129,17 +131,21 @@ export function useGuestSession(): GuestSession {
    * 「承認待ち」と「停止」では出すべき画面が違うので区別する。
    */
   useEffect(() => {
-    if (!user) {
-      setIsActive(true);
-      return;
-    }
+    if (!user) return;
     return onSnapshot(
       doc(db, "guestPrivate", user.uid),
-      (snap) => setIsActive(snap.data()?.isActive !== false),
+      (snap) => setActiveState({ uid: user.uid, isActive: snap.data()?.isActive !== false }),
       // 読めないときは停止と決めつけない（Rules の一時的な失敗で閉め出さない）
-      () => setIsActive(true),
+      () => setActiveState({ uid: user.uid, isActive: true }),
     );
   }, [user]);
+
+  const profileReady = !!user && profileState?.uid === user.uid;
+  const profile = profileReady ? profileState.profile : null;
+  // ログインしていなければ、認証の確定（loading）までを読み込み中とする（以前と同じ）
+  const profileLoading = user ? !profileReady : loading;
+  // 未ログイン・読み込み前は有効扱い（以前と同じ）
+  const isActive = user && activeState?.uid === user.uid ? activeState.isActive : true;
 
   return { user, isActive, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

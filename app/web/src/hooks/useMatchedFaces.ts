@@ -7,12 +7,11 @@ const PAGE = 300;
 
 export function useMatchedFaces(enabled: boolean) {
   const [faces, setFaces] = useState<FaceDoc[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
-    setLoading(true);
     const q = query(
       collection(db, "faces"),
       where("matchedGuestId", "!=", null),
@@ -32,8 +31,8 @@ export function useMatchedFaces(enabled: boolean) {
           };
         }),
       );
-      setError(null); setLoading(false);
-    }, (e) => { setError(e); setLoading(false); });
+      setError(null); setLoaded(true);
+    }, (e) => { setError(e); setLoaded(true); });
   }, [enabled]);
-  return { faces, loading, error };
+  return { faces, loading: !loaded, error };
 }

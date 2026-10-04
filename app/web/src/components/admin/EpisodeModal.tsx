@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { putJson } from "@/lib/api-client";
-import { TAG_DEFS, tagDef } from "@/config/tags";
+import { TAG_DEFS } from "@/config/tags";
 import { EPISODE_PERIODS, MAX_EPISODE_CONTENT, themeDef } from "@/config/episodes";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";

@@ -15,19 +15,15 @@ import type { Comment } from "@/types";
  * enabled を必ず渡すこと。タイムライン上の全投稿に常時リスナーを張ると
  * 30投稿 = 30本の接続になるため、開いたカードだけ購読する設計にしている。
  */
+type Result = { postId: string; comments: Comment[]; error: FirestoreError | null };
+
 export function useComments(postId: string, enabled: boolean, pageSize = 50) {
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<FirestoreError | null>(null);
+  // 結果は postId ごとに持ち、読み込み中かどうかは描画時に導く（effect 内で setState しない）
+  const [result, setResult] = useState<Result | null>(null);
 
   useEffect(() => {
-    if (!enabled) {
-      setComments([]);
-      setError(null);
-      return;
-    }
+    if (!enabled) return;
 
-    setLoading(true);
     const q = query(
       collection(db, "posts", postId, "comments"),
       orderBy("createdAt", "asc"),
@@ -36,17 +32,12 @@ export function useComments(postId: string, enabled: boolean, pageSize = 50) {
 
     return onSnapshot(
       q,
-      (snap) => {
-        setComments(snap.docs.map(toComment));
-        setError(null);
-        setLoading(false);
-      },
-      (e) => {
-        setError(e);
-        setLoading(false);
-      },
+      (snap) => setResult({ postId, comments: snap.docs.map(toComment), error: null }),
+      (e) => setResult({ postId, comments: [], error: e }),
     );
   }, [postId, enabled, pageSize]);
 
-  return { comments, loading, error };
+  if (!enabled) return { comments: [] as Comment[], loading: false, error: null };
+  if (result?.postId !== postId) return { comments: [] as Comment[], loading: true, error: null };
+  return { comments: result.comments, loading: false, error: result.error };
 }

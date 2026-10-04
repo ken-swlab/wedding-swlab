@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { postJson } from "@/lib/api-client";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
@@ -17,7 +17,6 @@ import {
   type PersonaConfig,
 } from "@/config/persona";
 
-type Turn = { role: "user" | "model"; text: string };
 
 type DebugEpisode = {
   id: string; title: string; period: string;
@@ -44,7 +43,6 @@ export default function AiTestPage() {
   const [persona, setPersona] = useState<PersonaConfig>(DEFAULT_PERSONA);
   const basePrompt = useMemo(() => composePersonaPrompt(persona), [persona]);
   const [guestUid, setGuestUid] = useState("");
-  const [history, setHistory] = useState<Turn[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [debug, setDebug] = useState<DebugInfo | null>(null);
   const [usage, setUsage] = useState<{ prompt: number; output: number } | null>(null);
@@ -73,38 +71,47 @@ export default function AiTestPage() {
     [guests, guestUid],
   );
 
-  /** ゲストを選んだ時点で、Gemini を叩かずに文脈だけ取りに行く */
-  // loadContext を persona に依存させるとゲスト切替以外でも再取得が走るため、
-  // 最新値だけを ref 経由で読む。
-  const personaRef = useRef(persona);
-  personaRef.current = persona;
-
-  const loadContext = useCallback(async (uid: string, prompt: string) => {
-    if (!uid) { setDebug(null); return; }
+  /**
+   * ゲストを選んだ時点で、Gemini を叩かずに文脈だけ取りに行く。
+   * ★effect ではなく操作（ゲストの選択・話者と口調の変更）から呼ぶ★
+   *   人格の自由記述の入力のたびには読み直さないため。
+   *   話者と口調は呼び名に影響するので取り直す。
+   */
+  const requestSeq = useRef(0);
+  const loadContext = useCallback(async (uid: string, p: PersonaConfig) => {
     setError(null);
+    if (!uid) { setDebug(null); return; }
+    // 連続で切り替えたとき、古い応答で上書きしない
+    const seq = ++requestSeq.current;
     try {
       const r = await postJson<{ debug: DebugInfo }>("/api/admin/ai-test", {
         guestUid: uid,
         preview: true,
-        basePrompt: prompt,
-        speaker: personaRef.current.speaker,
-        politeness: personaRef.current.politeness,
+        basePrompt: composePersonaPrompt(p),
+        speaker: p.speaker,
+        politeness: p.politeness,
         message: "",
       });
-      setDebug(r.debug ?? null);
+      if (seq === requestSeq.current) setDebug(r.debug ?? null);
     } catch (e) {
+      if (seq !== requestSeq.current) return;
       setError(e instanceof Error ? e.message : "文脈を取得できませんでした");
       setDebug(null);
     }
   }, []);
 
-  useEffect(() => {
-    if (guestUid) void loadContext(guestUid, basePrompt);
-    setHistory([]);
+  function onGuestChange(uid: string) {
+    setGuestUid(uid);
     setUsage(null);
-    // 人格の自由記述では読み直さない。ただし話者と口調は呼び名に影響するので取り直す。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guestUid, persona.speaker, persona.politeness, loadContext]);
+    void loadContext(uid, persona);
+  }
+
+  function onPersonaChange(next: PersonaConfig) {
+    setPersona(next);
+    if (next.speaker === persona.speaker && next.politeness === persona.politeness) return;
+    setUsage(null);
+    if (guestUid) void loadContext(guestUid, next);
+  }
 
 
   if (authLoading) {
@@ -164,7 +171,7 @@ export default function AiTestPage() {
           {/* ============ 2: AI の性格 ============ */}
           <section className={panel}>
             <div className={panelHead}>2. AI の性格（ベース人格）</div>
-            <PersonaEditor value={persona} onChange={setPersona} className="flex-1" />
+            <PersonaEditor value={persona} onChange={onPersonaChange} className="flex-1" />
           </section>
 
 
@@ -174,7 +181,7 @@ export default function AiTestPage() {
             <div className="shrink-0 border-b border-stone-100 p-3">
               <select
                 value={guestUid}
-                onChange={(e) => setGuestUid(e.target.value)}
+                onChange={(e) => onGuestChange(e.target.value)}
                 className="w-full rounded-lg border border-stone-200 bg-white px-2.5 py-2 text-sm text-gray-900 placeholder:text-gray-400"
               >
                 <option value="">— 選択してください —</option>
@@ -205,7 +212,11 @@ export default function AiTestPage() {
                   ゲストを選ぶと、AI が読み込む文脈が表示されます
                 </p>
               ) : !debug ? (
-                <div className="h-24 animate-pulse rounded-lg bg-stone-100" />
+                error ? (
+                  <p role="alert" className="rounded-lg bg-rose-50 p-3 text-xs text-rose-700">{error}</p>
+                ) : (
+                  <div className="h-24 animate-pulse rounded-lg bg-stone-100" />
+                )
               ) : (
                 <>
                   <div>

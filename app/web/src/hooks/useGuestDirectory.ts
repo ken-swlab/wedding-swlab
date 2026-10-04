@@ -7,10 +7,10 @@ const PAGE = 200;
 
 export function useGuestDirectory(enabled: boolean) {
   const [people, setPeople] = useState<Person[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!enabled) { setPeople([]); setLoading(false); return; }
+    if (!enabled) return;
     return onSnapshot(query(collection(db, "guests"), limit(PAGE)), (snap) => {
       /**
        * ★候補に出すのは「本登録が済んだゲストのニックネームだけ」★
@@ -27,8 +27,10 @@ export function useGuestDirectory(enabled: boolean) {
           const v = d.data();
           return { uid: d.id, name: v.nickname || "ゲスト", kana: "", tags: Array.isArray(v.tags) ? (v.tags as string[]) : [] };
         }));
-      setLoading(false);
-    }, () => setLoading(false));
+      setLoaded(true);
+    }, () => setLoaded(true));
   }, [enabled]);
-  return { people, loading };
+  // 無効のあいだは空として扱う（以前は effect で空にしていた）
+  if (!enabled) return { people: [] as Person[], loading: false };
+  return { people, loading: !loaded };
 }

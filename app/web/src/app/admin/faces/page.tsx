@@ -4,7 +4,6 @@ import { postJson } from "@/lib/api-client";
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { useUnmatchedFaces } from "@/hooks/useUnmatchedFaces";

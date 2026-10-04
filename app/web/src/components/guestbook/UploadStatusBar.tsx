@@ -45,12 +45,14 @@ export function UploadStatusBar({
   // 同じ食い違いが SETTLE_MS 続いたときだけ本物とみなす
   const [settledKey, setSettledKey] = useState("");
   useEffect(() => {
-    if (!missingKey) {
-      setSettledKey("");
-      return;
-    }
+    if (!missingKey) return;
     const t = setTimeout(() => setSettledKey(missingKey), SETTLE_MS);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      // ★食い違いが変わったら（解消も含む）数え直す★
+      //   残しておくと、一度消えた同じ食い違いが戻ったときに待たずに表示してしまう。
+      setSettledKey("");
+    };
   }, [missingKey]);
 
   const showMissing =
