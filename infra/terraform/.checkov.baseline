@@ -1,0 +1,27 @@
+{
+    "failed_checks": [
+        {
+            "file": "/audit.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.audit_archive",
+                    "check_ids": [
+                        "CKV_GCP_62",
+                        "CKV_GCP_78"
+                    ]
+                }
+            ]
+        },
+        {
+            "file": "/storage.tf",
+            "findings": [
+                {
+                    "resource": "google_storage_bucket.media",
+                    "check_ids": [
+                        "CKV_GCP_62"
+                    ]
+                }
+            ]
+        }
+    ]
+}

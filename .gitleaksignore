@@ -1,0 +1,7 @@
+# Gitleaks の誤検知の除外（gitleaks git --redact で全履歴を確認済み）
+# どれも VoiceTuner.tsx の localStorage のキー名（STORAGE_KEY の定義行）を generic-api-key と誤検知したもの。
+# ★ここに検出された文字列そのものを書かない★ コメントの中でも検出される。
+# ★本物の秘密をここに足して黙らせない★ 漏れた秘密は失効させてから履歴の扱いを決める。
+3a30d05d262eb3d0103bd3c5eb1b46406d7739c2:app/web/src/components/admin/VoiceTuner.tsx.bak-presets:generic-api-key:15
+bfb6dab499fc8f1a198160ab62b85f8f3e5928ec:app/web/src/components/admin/VoiceTuner.tsx.bak-sbv2:generic-api-key:15
+bfb6dab499fc8f1a198160ab62b85f8f3e5928ec:app/web/src/components/admin/VoiceTuner.tsx:generic-api-key:15
