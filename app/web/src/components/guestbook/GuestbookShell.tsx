@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
+import { SearchBar } from "./SearchBar";
+import { PullToRefresh } from "./PullToRefresh";
 import {
   COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
@@ -41,6 +43,7 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh bg-stone-50">
       <Header />
+      <PullToRefresh />
       <UploadMiniStatus />
       <main className="mx-auto max-w-xl px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4">
         {children}
@@ -55,20 +58,7 @@ function Header() {
     <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
         <span aria-hidden className="font-serif text-lg tracking-wide text-stone-900">GB</span>
-        {/* 検索は後日。いまは入力欄の見た目だけ */}
-        <form role="search" className="min-w-0 flex-1" onSubmit={(e) => e.preventDefault()}>
-          <label className="flex h-10 items-center gap-2 rounded-full border border-stone-200 bg-stone-100 px-3 text-stone-400 focus-within:border-stone-300 focus-within:bg-white">
-            <span aria-hidden className="text-sm">⌕</span>
-            {/* iOS は 16px 未満の入力欄でフォーカス時に拡大するので text-base にする */}
-            <input
-              type="search"
-              placeholder="投稿を検索"
-              aria-label="投稿を検索"
-              enterKeyHint="search"
-              className="min-w-0 flex-1 bg-transparent text-base text-stone-800 outline-none placeholder:text-stone-400"
-            />
-          </label>
-        </form>
+        <SearchBar />
         <Link
           href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
           aria-label="新しく投稿する"
