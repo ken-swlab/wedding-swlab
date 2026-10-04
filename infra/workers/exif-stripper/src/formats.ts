@@ -55,9 +55,38 @@ function concat(parts: Uint8Array[]): Uint8Array {
 
 const APP0 = 0xffe0;
 const APP1 = 0xffe1;
-const APP13 = 0xffed;
+const APP2 = 0xffe2;
+const APP14 = 0xffee;
+const COM = 0xfffe;
 const SOS = 0xffda;
 const EOI = 0xffd9;
+
+function startsWithAscii(seg: Uint8Array, at: number, text: string): boolean {
+  if (at + text.length > seg.length) return false;
+  for (let i = 0; i < text.length; i += 1) {
+    if (seg[at + i] !== text.charCodeAt(i)) return false;
+  }
+  return true;
+}
+
+/**
+ * ★APPn は残すものだけを決める（許可リスト）★
+ *   落とすものを列挙する方式だと、知らない APPn（APP3〜APP15）や COM に
+ *   書かれたコメント・位置情報・機種固有の情報が素通りする。
+ *   残すのは表示に必要なものだけ:
+ *     APP0  JFIF / JFXX（基本情報）
+ *     APP2  ICC_PROFILE（色。落とすと色がずれる）※ MPF（追加画像の索引）は落とす
+ *     APP14 Adobe（CMYK などの色変換に必要）
+ *   APP1（Exif・XMP）は Orientation だけを拾って作り直す。
+ */
+function keepJpegSegment(marker: number, seg: Uint8Array): boolean {
+  if (marker === COM) return false;
+  if (marker < APP0 || marker > 0xffef) return true; // DQT・SOF・DHT・DRI などの画像の本体
+  if (marker === APP0) return startsWithAscii(seg, 4, "JFIF\0") || startsWithAscii(seg, 4, "JFXX\0");
+  if (marker === APP2) return startsWithAscii(seg, 4, "ICC_PROFILE\0");
+  if (marker === APP14) return startsWithAscii(seg, 4, "Adobe");
+  return false;
+}
 
 /** APP1(Exif) から Orientation(0x0112) を読む。見つからなければ 1 */
 function readOrientation(seg: Uint8Array): number {
@@ -103,27 +132,44 @@ function orientationApp1(orientation: number): Uint8Array {
   return seg;
 }
 
+/**
+ * ★EOI（画像の終わり）で切り、その後ろは捨てる★
+ *   iPhone などは EOI の後ろに2枚目の JPEG（MPF のゲインマップ・深度画像）を
+ *   連結していて、そちらにも独自の Exif（位置情報を含むことがある）が入る。
+ *   以前は SOS から末尾までを丸写ししていたため、これが公開側に残っていた。
+ * ★SOS の後ろも読み進める★
+ *   プログレッシブ JPEG は SOS が複数あり、間に DHT や（まれに）APPn・COM が挟まる。
+ *   圧縮データの中の 0xFF は 0xFF00（スタッフィング）か RSTn なので、
+ *   それ以外の 0xFF xx をマーカーとして扱う。
+ */
 function stripJpeg(b: Uint8Array): SanitizeResult {
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const kept: Uint8Array[] = [];
   let orientation = 1;
   let p = 2;
   let sawSos = false;
+  let sawEoi = false;
 
   while (p + 1 < b.length) {
-    if (dv.getUint8(p) !== 0xff) break;
-    const marker = dv.getUint16(p);
-
-    if (marker === SOS) {
-      kept.push(b.subarray(p)); // 圧縮データ本体は最後までそのまま
-      sawSos = true;
-      break;
+    if (b[p] !== 0xff) return { status: "broken", reason: "JPEG のマーカーの位置が不正" };
+    const m = b[p + 1];
+    if (m === 0xff) {
+      p += 1; // 詰め物の 0xFF
+      continue;
     }
+    const marker = 0xff00 | m;
+
     if (marker === EOI) {
       kept.push(b.subarray(p, p + 2));
-      break;
+      sawEoi = true;
+      break; // ★ここより後ろ（連結された別の画像など）は捨てる★
     }
-    if (p + 4 > b.length) break;
+    if ((m >= 0xd0 && m <= 0xd7) || m === 0x01) {
+      kept.push(b.subarray(p, p + 2)); // 長さを持たないマーカー
+      p += 2;
+      continue;
+    }
+    if (p + 4 > b.length) return { status: "broken", reason: "JPEG が途中で切れている" };
 
     const len = dv.getUint16(p + 2);
     if (len < 2) return { status: "broken", reason: "JPEG のセグメント長が不正" };
@@ -132,16 +178,37 @@ function stripJpeg(b: Uint8Array): SanitizeResult {
 
     const seg = b.subarray(p, end);
     if (marker === APP1) {
-      // 落とす前に Orientation だけ拾っておく
+      // 落とす前に Orientation だけ拾っておく（最初の APP1 Exif を正とする）
       const o = readOrientation(seg);
-      if (o !== 1) orientation = o;
-    } else if (marker !== APP13) {
+      if (o !== 1 && orientation === 1) orientation = o;
+    } else if (keepJpegSegment(marker, seg)) {
       kept.push(seg);
     }
     p = end;
+
+    if (marker === SOS) {
+      sawSos = true;
+      // 圧縮データ: 次のマーカーの手前までをそのまま残す
+      let q = p;
+      while (q + 1 < b.length) {
+        if (b[q] === 0xff) {
+          const n = b[q + 1];
+          if (n === 0x00 || (n >= 0xd0 && n <= 0xd7)) {
+            q += 2;
+            continue;
+          }
+          break;
+        }
+        q += 1;
+      }
+      if (q + 1 >= b.length) return { status: "broken", reason: "JPEG の終わり（EOI）が見つからない" };
+      kept.push(b.subarray(p, q));
+      p = q;
+    }
   }
 
   if (!sawSos) return { status: "broken", reason: "JPEG の画像本体が見つからない" };
+  if (!sawEoi) return { status: "broken", reason: "JPEG の終わり（EOI）が見つからない" };
 
   // JFIF(APP0) の直後に Orientation を置く
   const parts: Uint8Array[] = [b.subarray(0, 2)];
@@ -167,8 +234,23 @@ function stripJpeg(b: Uint8Array): SanitizeResult {
 
 // ───────────────────────── PNG ─────────────────────────
 
-/** 位置情報やコメントが入りうるチャンク。iCCP(色) は残す */
-const PNG_DROP = new Set(["eXIf", "tEXt", "iTXt", "zTXt", "tIME"]);
+/**
+ * ★残すチャンクを決める（許可リスト）★
+ *   eXIf・tEXt・iTXt・zTXt・tIME や、アプリ独自のチャンクはすべて落とす。
+ *   表示に要るもの（色・透過・解像度・APNG のアニメーション）だけを残す。
+ */
+const PNG_KEEP = new Set([
+  "IHDR", "PLTE", "IDAT", "IEND",
+  "tRNS", "cHRM", "gAMA", "iCCP", "sBIT", "sRGB", "cICP", "mDCv", "cLLi",
+  "bKGD", "pHYs", "sPLT", "hIST",
+  "acTL", "fcTL", "fdAT",
+]);
+
+/** 1文字目が大文字のチャンクは必須チャンク。知らない必須チャンクを落とすと画像が壊れる */
+function isCriticalPngChunk(type: string): boolean {
+  const c = type.charCodeAt(0);
+  return c >= 0x41 && c <= 0x5a;
+}
 
 function stripPng(b: Uint8Array): SanitizeResult {
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
@@ -184,13 +266,19 @@ function stripPng(b: Uint8Array): SanitizeResult {
     if (len > b.length || end > b.length) {
       return { status: "broken", reason: "PNG のチャンク長が不正" };
     }
+    if (p === 8 && type !== "IHDR") return { status: "broken", reason: "PNG の先頭が IHDR ではない" };
     // チャンクごと丸写しするので CRC の再計算は不要
-    if (PNG_DROP.has(type)) dropped += 1;
-    else parts.push(b.subarray(p, end));
+    if (PNG_KEEP.has(type)) {
+      parts.push(b.subarray(p, end));
+    } else if (isCriticalPngChunk(type)) {
+      return { status: "broken", reason: `PNG に未知の必須チャンク（${type}）がある` };
+    } else {
+      dropped += 1;
+    }
     p = end;
     if (type === "IEND") {
       sawIend = true;
-      break;
+      break; // IEND より後ろは捨てる
     }
   }
 
@@ -205,28 +293,32 @@ function stripPng(b: Uint8Array): SanitizeResult {
 
 // ───────────────────────── WebP ─────────────────────────
 
-const WEBP_DROP = new Set(["EXIF", "XMP "]);
+/** ★残すチャンクを決める（許可リスト）★ EXIF・XMP・独自チャンクは落とす */
+const WEBP_KEEP = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF", "ICCP"]);
 
 function stripWebp(b: Uint8Array): SanitizeResult {
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   const chunks: Uint8Array[] = [];
+  // ★RIFF が名乗る長さまでだけを読む★ その後ろに連結されたデータは捨てる
+  const riffEnd = 8 + dv.getUint32(4, true);
+  if (riffEnd > b.length) return { status: "broken", reason: "WebP が途中で切れている" };
   let p = 12; // "RIFF" + size + "WEBP"
   let vp8xAt = -1;
   let dropped = 0;
 
-  while (p + 8 <= b.length) {
+  while (p + 8 <= riffEnd) {
     const cc = fourcc(b, p);
     const size = dv.getUint32(p + 4, true); // RIFF はリトルエンディアン
     const padded = size + (size % 2); // 奇数長は1バイト詰める
     const end = p + 8 + padded;
-    if (size > b.length || end > b.length) {
+    if (size > b.length || end > riffEnd) {
       return { status: "broken", reason: "WebP のチャンク長が不正" };
     }
-    if (WEBP_DROP.has(cc)) {
-      dropped += 1;
-    } else {
+    if (WEBP_KEEP.has(cc)) {
       if (cc === "VP8X") vp8xAt = chunks.length;
       chunks.push(b.subarray(p, end));
+    } else {
+      dropped += 1;
     }
     p = end;
   }
@@ -264,8 +356,7 @@ function stripWebp(b: Uint8Array): SanitizeResult {
 
 // ───────────────────────── 入口 ─────────────────────────
 
-export function sanitize(b: Uint8Array): SanitizeResult {
-  const format = detect(b);
+function sanitizeByFormat(b: Uint8Array, format: Format): SanitizeResult {
   switch (format) {
     case "jpeg":
       return stripJpeg(b);
@@ -289,5 +380,62 @@ export function sanitize(b: Uint8Array): SanitizeResult {
       };
     default:
       return { status: "unsupported", reason: "未知の形式" };
+  }
+}
+
+function countAscii(b: Uint8Array, text: string): number {
+  const first = text.charCodeAt(0);
+  let n = 0;
+  outer: for (let i = b.indexOf(first); i !== -1 && i + text.length <= b.length; i = b.indexOf(first, i + 1)) {
+    for (let j = 1; j < text.length; j += 1) {
+      if (b[i + j] !== text.charCodeAt(j)) continue outer;
+    }
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * 除去の結果を、公開する前にもう一度確かめる。合格しなければ公開しない。
+ *   (1) 形式が入力と同じ
+ *   (2) もう一度かけても変わらない（＝落とすべきものが残っていない）
+ *   (3) Exif・XMP の署名が残っていない（JPEG は作り直した Orientation の1つだけ許す）
+ */
+function verify(out: Uint8Array, format: Format): string | null {
+  if (detect(out) !== format) return "出力の形式が入力と違う";
+
+  const again = sanitizeByFormat(out, format);
+  if (again.status !== "ok") return `出力をもう一度解析できない（${again.reason}）`;
+  if (again.out.length !== out.length || again.out.some((v, i) => v !== out[i])) {
+    return "出力にまだ除去できるものが残っている";
+  }
+
+  const exif = countAscii(out, "Exif\0\0");
+  if (exif > (format === "jpeg" ? 1 : 0)) return "Exif が残っている";
+  if (countAscii(out, "http://ns.adobe.com/xap/1.0/") > 0 || countAscii(out, "<x:xmpmeta") > 0) {
+    return "XMP が残っている";
+  }
+  if (format === "jpeg" && (out[out.length - 2] !== 0xff || out[out.length - 1] !== 0xd9)) {
+    return "JPEG が EOI で終わっていない";
+  }
+  return null;
+}
+
+/**
+ * ★フェイルセーフの入口★ ここが "ok" を返したものだけが公開バケットへ出る。
+ *   - 解析中の例外（壊れたファイルで範囲外を読むなど）は "broken" にする。
+ *     投げたままにすると run ごと止まり、同じファイルで毎回止まる。
+ *   - 除去の結果を verify() で確かめ、不合格なら "broken" にする（隔離されて公開されない）。
+ */
+export function sanitize(b: Uint8Array): SanitizeResult {
+  try {
+    const format = detect(b);
+    const result = sanitizeByFormat(b, format);
+    if (result.status !== "ok") return result;
+    const problem = verify(result.out, format);
+    if (problem) return { status: "broken", reason: `除去後の検証で不合格: ${problem}` };
+    return result;
+  } catch {
+    return { status: "broken", reason: "解析中に例外が起きた" };
   }
 }

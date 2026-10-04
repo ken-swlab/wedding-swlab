@@ -1,4 +1,4 @@
-/// <reference types="@cloudflare/workers-types" />
+/// <reference types="@cloudflare/workers-types/2023-07-01" />
 import { detect, sanitize } from "./formats";
 
 /**
