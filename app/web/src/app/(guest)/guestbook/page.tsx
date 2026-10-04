@@ -2,9 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
-import { useGuestbookData } from "@/components/guestbook/GuestbookDataProvider";
+import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { useUpload } from "@/hooks/useUpload";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
 import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
@@ -31,7 +30,8 @@ export default function GuestbookPage() {
   //   タブの切り替えや詳細画面との行き来で Firestore への再取得は発生しない。
   const { posts, loading, loadingMore, hasMore, loadMore, error, personUid, setPersonUid } =
     useGuestbookData();
-  const upload = useUpload(user?.uid);
+  // 送信キューも layout 側に1つだけ（GuestbookDataProvider の★参照）
+  const upload = useGuestbookUpload();
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
