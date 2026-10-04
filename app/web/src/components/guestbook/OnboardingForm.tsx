@@ -11,16 +11,12 @@ const inputClass =
 export function OnboardingForm({
   user,
   initialNickname,
-  /** 初回登録のときだけ true。2回目以降（入力内容の修正）は求めない */
-  needsPasscode,
   onDone,
 }: {
   user: User;
   initialNickname?: string;
-  needsPasscode: boolean;
   onDone: () => void;
 }) {
-  const [passcode, setPasscode] = useState("");
   const [realName, setRealName] = useState("");
   const [kana, setKana] = useState("");
   const [nickname, setNickname] = useState(initialNickname || "");
@@ -32,20 +28,15 @@ export function OnboardingForm({
   const ready =
     realName.trim().length > 0 &&
     nickname.trim().length > 0 &&
-    attendance !== "unanswered" &&
-    (!needsPasscode || passcode.trim().length > 0);
-
-  /** 上限に達してロックされた状態。入力を閉じて誤送信を防ぐ */
-  const locked = error !== null && error.includes("上限に達し");
+    attendance !== "unanswered";
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (busy || !ready || locked) return;
+    if (busy || !ready) return;
     setBusy(true);
     setError(null);
     try {
       await postJson("/api/guest/register", {
-        ...(needsPasscode ? { passcode: passcode.trim() } : {}),
         realName: realName.trim(),
         kana: kana.trim(),
         nickname: nickname.trim(),
@@ -54,9 +45,7 @@ export function OnboardingForm({
       });
       onDone();
     } catch (e) {
-      // サーバーが残り回数やロック時間を文言に含めて返す
       setError(e instanceof Error ? e.message : "送信に失敗しました");
-      setPasscode("");
     } finally {
       setBusy(false);
     }
@@ -72,28 +61,6 @@ export function OnboardingForm({
           ゲストブックを開放いたします。
         </p>
       </div>
-
-      {needsPasscode && (
-        <label className="mt-6 block rounded-xl bg-stone-50 p-4">
-          <span className="text-xs font-medium text-stone-700">パスコード</span>
-          <input
-            value={passcode}
-            onChange={(e) => setPasscode(e.target.value)}
-            disabled={locked}
-            required
-            maxLength={16}
-            inputMode="numeric"
-            autoComplete="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            placeholder="＿＿＿＿"
-            className={`${inputClass} text-center text-lg tracking-[0.5em] disabled:opacity-50`}
-          />
-          <span className="mt-1.5 block text-[11px] leading-relaxed text-stone-400">
-            新郎新婦からお伝えした数字をご入力ください。
-          </span>
-        </label>
-      )}
 
       <label className="mt-6 block">
         <span className="text-xs font-medium text-stone-600">お名前（本名）</span>
@@ -130,19 +97,14 @@ export function OnboardingForm({
       </label>
 
       {error && (
-        <p
-          role="alert"
-          className={`mt-4 rounded-xl px-3 py-2.5 text-sm leading-relaxed ${
-            locked ? "bg-amber-50 text-amber-800" : "bg-rose-50 text-rose-700"
-          }`}
-        >
+        <p role="alert" className="mt-4 rounded-xl bg-rose-50 px-3 py-2.5 text-sm leading-relaxed text-rose-700">
           {error}
         </p>
       )}
 
       <button
         type="submit"
-        disabled={busy || !ready || locked}
+        disabled={busy || !ready}
         className="mt-6 w-full rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
       >
         {busy ? "送信中…" : "送信する"}
