@@ -119,11 +119,15 @@ export default function VoiceTuner({
   const firstRun = useRef(true);
 
   // 復元（localStorage は SSR と食い違うので必ず effect の中で読む）
+  // ★ここの setState は意図したもの★ useState の初期化関数で読むと、
+  //   サーバーの HTML（既定値）と食い違ってハイドレーションエラーになる。
+  //   マウント後に1回だけ、外部（localStorage）の値を取り込む。
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const v = JSON.parse(raw) as Partial<Stored>;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 上の★のとおり
       if (v.params) setParams({ ...DEFAULT_PARAMS, ...v.params });
       if (typeof v.styleName === "string" && v.styleName) setStyleName(v.styleName);
       if (Array.isArray(v.dictionary)) {
@@ -145,6 +149,7 @@ export default function VoiceTuner({
       const raw = localStorage.getItem(PRESETS_KEY);
       if (!raw) return;
       const v = JSON.parse(raw) as VoicePreset[];
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 上の復元と同じ理由
       if (Array.isArray(v)) setPresets(v.filter((p) => p && p.id && p.name));
     } catch {
       /* 壊れていたら無視 */
@@ -199,20 +204,41 @@ export default function VoiceTuner({
   }, [presetId, presets, writePresets]);
 
   // モデルが持つスタイル一覧を取りに行く
+  const fetchStyles = useCallback(
+    () =>
+      getJson<{ styles: string[] }>("/api/admin/tts").then((r) =>
+        Array.isArray(r.styles) && r.styles.length > 0 ? r.styles : ["Neutral"],
+      ),
+    [],
+  );
+  const stylesErrorText = (e: unknown) =>
+    e instanceof Error ? e.message : "スタイル一覧を取得できませんでした";
+
+  // 再読み込みボタン用。前回のエラー表示を消してから取り直す
   const loadStyles = useCallback(async () => {
     setStylesError("");
     try {
-      const r = await getJson<{ styles: string[] }>("/api/admin/tts");
-      setStyles(Array.isArray(r.styles) && r.styles.length > 0 ? r.styles : ["Neutral"]);
+      setStyles(await fetchStyles());
     } catch (e) {
       setStyles(["Neutral"]);
-      setStylesError(e instanceof Error ? e.message : "スタイル一覧を取得できませんでした");
+      setStylesError(stylesErrorText(e));
     }
-  }, []);
+  }, [fetchStyles]);
 
+  // 最初の読み込み。結果の反映は応答が来てからだけ行う
   useEffect(() => {
-    void loadStyles();
-  }, [loadStyles]);
+    let alive = true;
+    fetchStyles()
+      .then((list) => alive && setStyles(list))
+      .catch((e) => {
+        if (!alive) return;
+        setStyles(["Neutral"]);
+        setStylesError(stylesErrorText(e));
+      });
+    return () => {
+      alive = false;
+    };
+  }, [fetchStyles]);
 
   // 変更のたびに TTS へ反映し、localStorage に永続化する
   useEffect(() => {

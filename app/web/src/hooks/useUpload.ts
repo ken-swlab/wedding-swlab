@@ -82,10 +82,7 @@ export function useUpload(uid?: string) {
 
   // マウント時: 送信中のまま中断されたものを queued に戻してから復元する
   useEffect(() => {
-    if (!uid) {
-      setHydrated(true);
-      return;
-    }
+    if (!uid) return;
     let alive = true;
     void (async () => {
       try {
@@ -256,7 +253,8 @@ export function useUpload(uid?: string) {
     running,
     sentCount,
     error,
-    hydrated,
+    // 未ログインなら復元するものが無いので、読み込み済みとして扱う（以前と同じ）
+    hydrated: !uid || hydrated,
     enqueue,
     start,
     retryFailed,

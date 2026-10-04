@@ -30,14 +30,6 @@ function byNewest(a: Post, b: Post) {
  * タイムラインとギャラリーは同じ配列を共有する（タブ切替で再取得しない）。
  */
 export function usePosts(tags: string[], pageSize = 50) {
-  const [live, setLive] = useState<Post[]>([]);
-  const [older, setOlder] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [exhausted, setExhausted] = useState(false);
-  const [error, setError] = useState<FirestoreError | null>(null);
-  const busy = useRef(false);
-
   // tags は毎レンダリング新しい配列になり得るので、内容で購読キーを作る
   const key = useMemo(() => [...tags].sort().join("|"), [tags]);
   const myTags = useMemo(
@@ -45,18 +37,21 @@ export function usePosts(tags: string[], pageSize = 50) {
     [key],
   );
 
+  /**
+   * ★結果はすべて購読キー（タグの組）と一緒に持つ★
+   *   タグが変わったら、描画時に「読み込み中・遡り分なし」へ戻る。
+   *   見える範囲が変わったのに前のタグの投稿を出し続けないため。
+   *   effect の中で setState してリセットすると描画が二重に走る。
+   */
+  const [live, setLive] = useState<{ key: string; posts: Post[] } | null>(null);
+  const [older, setOlder] = useState<{ key: string; posts: Post[]; exhausted: boolean } | null>(null);
+  const [errorState, setErrorState] = useState<{ key: string; error: FirestoreError | null } | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const busy = useRef(false);
+
   useEffect(() => {
-    // タグが変わったら遡り分は破棄する（見える範囲が変わるため）
-    setOlder([]);
-    setExhausted(false);
+    if (myTags.length === 0) return;
 
-    if (myTags.length === 0) {
-      setLive([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
     const q = query(
       collection(db, "posts"),
       where("status", "==", "visible"),
@@ -68,23 +63,29 @@ export function usePosts(tags: string[], pageSize = 50) {
     return onSnapshot(
       q,
       (snap) => {
-        setLive(snap.docs.map(toPost));
-        setError(null);
-        setLoading(false);
+        setLive({ key, posts: snap.docs.map(toPost) });
+        setErrorState({ key, error: null });
       },
       (e) => {
-        setError(e);
-        setLoading(false);
+        // 読めなくても読み込み中のままにしない
+        setLive((l) => (l?.key === key ? l : { key, posts: [] }));
+        setErrorState({ key, error: e });
       },
     );
-  }, [myTags, pageSize]);
+  }, [key, myTags, pageSize]);
+
+  const livePosts = live?.key === key ? live.posts : EMPTY;
+  const olderPosts = older?.key === key ? older.posts : EMPTY;
+  const exhausted = older?.key === key && older.exhausted;
+  const loading = myTags.length > 0 && live?.key !== key;
+  const error = errorState?.key === key ? errorState.error : null;
 
   const posts = useMemo(() => {
     const map = new Map<string, Post>();
-    for (const p of live) map.set(p.id, p);
-    for (const p of older) if (!map.has(p.id)) map.set(p.id, p);
+    for (const p of livePosts) map.set(p.id, p);
+    for (const p of olderPosts) if (!map.has(p.id)) map.set(p.id, p);
     return [...map.values()].sort(byNewest);
-  }, [live, older]);
+  }, [livePosts, olderPosts]);
 
   const loadMore = useCallback(async () => {
     if (busy.current || exhausted || myTags.length === 0) return;
@@ -106,15 +107,21 @@ export function usePosts(tags: string[], pageSize = 50) {
         ),
       );
       const page = snap.docs.map(toPost);
-      if (page.length < pageSize) setExhausted(true);
-      if (page.length > 0) setOlder((o) => [...o, ...page]);
+      // 取得中にタグが変わっていたら、古いキーの分として捨てられる（表示には出ない）
+      setOlder((o) => ({
+        key,
+        posts: [...(o?.key === key ? o.posts : []), ...page],
+        exhausted: page.length < pageSize,
+      }));
     } catch (e) {
-      setError(e as FirestoreError);
+      setErrorState({ key, error: e as FirestoreError });
     } finally {
       busy.current = false;
       setLoadingMore(false);
     }
-  }, [exhausted, myTags, pageSize, posts]);
+  }, [exhausted, key, myTags, pageSize, posts]);
 
   return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, error };
 }
+
+const EMPTY: Post[] = [];

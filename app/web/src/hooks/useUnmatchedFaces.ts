@@ -12,12 +12,11 @@ const PAGE = 300;
 
 export function useUnmatchedFaces(enabled: boolean) {
   const [faces, setFaces] = useState<FaceDoc[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
-    setLoading(true);
 
     const q = query(
       collection(db, "faces"),
@@ -51,11 +50,11 @@ export function useUnmatchedFaces(enabled: boolean) {
           }),
         );
         setError(null);
-        setLoading(false);
+        setLoaded(true);
       },
       (e) => {
         setError(e);
-        setLoading(false);
+        setLoaded(true);
       },
     );
   }, [enabled]);
@@ -70,5 +69,5 @@ export function useUnmatchedFaces(enabled: boolean) {
     [faces],
   );
 
-  return { faces: ordered, loading, error };
+  return { faces: ordered, loading: !loaded, error };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
@@ -15,26 +15,28 @@ import { db } from "@/lib/firebase";
  * タイムライン全件で呼ぶと投稿数ぶんの読み取りが走る。
  */
 export function useMyReaction(postId: string, uid: string, enabled: boolean) {
-  const [reacted, setReacted] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  // 結果は「どの投稿・誰の」ものかと一緒に持つ。投稿が変わったら描画時に未読込へ戻る
+  const key = `${postId}/${uid}`;
+  const [state, setState] = useState<{ key: string; reacted: boolean } | null>(null);
 
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    setLoaded(false);
 
     void getDoc(doc(db, "posts", postId, "reactions", uid))
       .then((snap) => {
-        if (!alive) return;
-        setReacted(snap.exists());
-        setLoaded(true);
+        if (alive) setState({ key: `${postId}/${uid}`, reacted: snap.exists() });
       })
-      .catch(() => alive && setLoaded(true));
+      // 読めなくても押せるようにする（以前と同じく白ハート扱い）
+      .catch(() => alive && setState({ key: `${postId}/${uid}`, reacted: false }));
 
     return () => {
       alive = false;
     };
   }, [postId, uid, enabled]);
 
-  return { reacted, setReacted, loaded };
+  const setReacted = useCallback((reacted: boolean) => setState({ key, reacted }), [key]);
+  const loaded = state?.key === key;
+
+  return { reacted: loaded && state.reacted, setReacted, loaded };
 }

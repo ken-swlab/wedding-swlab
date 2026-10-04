@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { TAG_DEFS, tagDef } from "@/config/tags";

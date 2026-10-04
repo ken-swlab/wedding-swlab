@@ -6,7 +6,6 @@ import { useTags } from "@/lib/tags-client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { auth } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { compareGuests } from "@/lib/roster";
