@@ -4,7 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { expectedPasscode, isPasscodeCleared, normalizePasscode, passcodeMatches } from "@/lib/passcode-server";
-import { PASSCODE_LOCK_MINUTES, PASSCODE_MAX_ATTEMPTS } from "@/config/passcode";
+import { PASSCODE_LOCK_MINUTES, PASSCODE_MAX_ATTEMPTS, PASSCODE_MAX_LOCKS } from "@/config/passcode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +25,8 @@ async function _POST(req: Request) {
 type Outcome =
   | { kind: "cleared" }
   | { kind: "locked"; minutes: number }
-  | { kind: "wrong"; count: number; locking: boolean };
+  | { kind: "blocked" }
+  | { kind: "wrong"; count: number; locking: boolean; blocking: boolean };
 
 async function handle(req: Request) {
   const { auth, db } = admin();
@@ -80,8 +81,10 @@ async function handle(req: Request) {
 
     const now = Date.now();
     const att = (snap.get("passcodeAttempts") ?? {}) as {
-      count?: number; firstAt?: number; lockedUntil?: number;
+      count?: number; firstAt?: number; lockedUntil?: number; locks?: number; permanent?: boolean;
     };
+    // ★永久ロックは正しいパスコードでも通さない★ 総当たりの途中で当たっても入れない
+    if (att.permanent === true) return { kind: "blocked" };
     const lockedUntil = typeof att.lockedUntil === "number" ? att.lockedUntil : 0;
     if (lockedUntil > now) {
       return { kind: "locked", minutes: Math.ceil((lockedUntil - now) / 60000) };
@@ -100,6 +103,9 @@ async function handle(req: Request) {
     const prev = lockedUntil > 0 ? 0 : (att.count ?? 0);
     const count = prev + 1;
     const locking = count >= PASSCODE_MAX_ATTEMPTS;
+    // ロックの回数はロックが明けても数え続ける（リセットするのは通過か管理者の解除だけ）
+    const locks = (att.locks ?? 0) + (locking ? 1 : 0);
+    const blocking = locking && locks >= PASSCODE_MAX_LOCKS;
     tx.set(
       adminRef,
       {
@@ -107,24 +113,34 @@ async function handle(req: Request) {
         passcodeAttempts: {
           count,
           firstAt: prev > 0 ? (att.firstAt ?? now) : now,
-          lockedUntil: locking ? now + PASSCODE_LOCK_MINUTES * 60000 : 0,
+          lockedUntil: locking && !blocking ? now + PASSCODE_LOCK_MINUTES * 60000 : 0,
           lastAt: now,
+          locks,
+          permanent: blocking,
         },
       },
       { merge: true },
     );
-    return { kind: "wrong", count, locking };
+    return { kind: "wrong", count, locking, blocking };
   });
 
   if (outcome.kind === "cleared") return NextResponse.json({ ok: true });
 
   // 文言の「上限」で画面が入力欄を閉じる（PasscodeStep.tsx）
+  const blockedMessage =
+    "入力の回数が上限に達したため、受付を停止しました。お手数ですが、新郎新婦までご連絡ください";
+  if (outcome.kind === "blocked") return fail(blockedMessage, 403);
   if (outcome.kind === "locked") {
     return fail(`入力の回数が上限に達しています。お手数ですが、約${outcome.minutes}分後にもう一度お試しください`, 429);
   }
 
   // 想定内の失敗なので Sentry には送らない（console.warn）
   console.warn(`[guest/passcode] パスコード不一致 uid=${uid} ${outcome.count}/${PASSCODE_MAX_ATTEMPTS}`);
+  if (outcome.blocking) {
+    // 総当たりの疑い。管理者に気づいてもらうため Sentry に送る（値は出さない）
+    console.error(`[guest/passcode] 永久ロック uid=${uid}`);
+    return fail(blockedMessage, 403);
+  }
   if (outcome.locking) {
     return fail(`入力の回数が上限に達しました。お手数ですが、約${PASSCODE_LOCK_MINUTES}分おいてからもう一度お試しください`, 429);
   }

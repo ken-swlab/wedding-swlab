@@ -97,6 +97,7 @@ export function useAdminGuests(enabled: boolean) {
           firstLoginAt: v.firstLoginAt ?? null,
           referencePhotoUrl: v.referencePhotoUrl ?? "",
           referencePhotoPath: v.referencePhotoPath ?? "",
+          passcodeBlocked: v.passcodeAttempts?.permanent === true,
         };
       }
       setAdm(next);
@@ -142,6 +143,7 @@ export function useAdminGuests(enabled: boolean) {
             firstLoginAt: a?.firstLoginAt ?? null,
             referencePhotoUrl: a?.referencePhotoUrl ?? "",
             referencePhotoPath: a?.referencePhotoPath ?? "",
+            passcodeBlocked: a?.passcodeBlocked ?? false,
           };
         }),
     [pub, priv, adm],
