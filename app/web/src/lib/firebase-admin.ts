@@ -1,5 +1,12 @@
 import "server-only"; // クライアントバンドルに混入したらビルド時に落とす
 
+/*
+ * ★firebase-admin は 13 系に留める（Issue #38）★
+ *   14 系は firebase-admin/auth → jwks-rsa 4 → ESM 専用の jose 6 を require() する。
+ *   Vercel の関数ではここで ERR_REQUIRE_ESM になり、このファイルを読み込む API がすべて 500 になった
+ *   （手元の Node 22 / 24 では再現しない）。上げるときはプレビューで /api/auth/line などが動くことを確かめる。
+ */
+
 import {
   applicationDefault, cert, getApps, initializeApp, type App,
 } from "firebase-admin/app";

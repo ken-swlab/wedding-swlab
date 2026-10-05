@@ -17,6 +17,13 @@ updates:
       time: "06:00"
       timezone: Asia/Tokyo
     open-pull-requests-limit: 0
+    # ★firebase-admin のメジャー更新は自動で出さない（Issue #38）★
+    #   14 系は jwks-rsa 4 → ESM 専用の jose 6 を require() する。Vercel の関数ではこれが
+    #   ERR_REQUIRE_ESM で落ち、firebase-admin を使う API（ログイン・アップロードなど）がすべて 500 になった。
+    #   Vercel 上で動くことを確かめてから、手で上げる。
+    ignore:
+      - dependency-name: firebase-admin
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels: [dependencies]
