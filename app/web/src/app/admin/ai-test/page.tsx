@@ -129,7 +129,7 @@ export default function AiTestPage() {
   const panelHead = "shrink-0 border-b border-stone-100 px-3 py-2 text-xs font-semibold text-stone-500";
 
   return (
-    <main className="min-h-screen bg-stone-50">
+    <main className="selectable min-h-screen bg-stone-50">
       <div className="mx-auto max-w-[1700px] px-4 py-6">
         <header className="mb-4">
           <Link href="/admin" className="text-xs text-stone-400 hover:text-stone-700">

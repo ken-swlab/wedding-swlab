@@ -79,7 +79,7 @@ export default function AdminPage() {
   if (!user || !isAdmin) return <main className="flex min-h-screen items-center justify-center bg-stone-50 p-8"><div className="max-w-sm rounded-2xl border border-stone-200 bg-white p-8 text-center"><p className="font-medium text-stone-800">管理者専用ページです</p></div></main>;
 
   return (
-    <main className="min-h-screen bg-stone-50">
+    <main className="selectable min-h-screen bg-stone-50">
       <div className="mx-auto max-w-[1600px] px-4 py-8">
         <header className="mb-5">
           <div className="flex flex-wrap items-center gap-3">
