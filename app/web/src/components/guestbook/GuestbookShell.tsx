@@ -9,6 +9,7 @@ import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import {
   COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
+  GUESTBOOK_SELECT_PARAM,
   GUESTBOOK_VIEW_PARAM,
   type GuestbookView,
 } from "@/config/guestbook";
@@ -34,6 +35,18 @@ export function useGuestbookView(): GuestbookView {
 }
 
 /**
+ * 保存する写真を選ぶモード（ギャラリーの ?select=1）に入る・抜ける URL。
+ * 検索語（?q=）とビューは残す。顔の絞り込みは Context にあるので URL に関係なく残る。
+ */
+export function selectModeHref(params: URLSearchParams, on: boolean): string {
+  const next = new URLSearchParams(params.toString());
+  if (on) next.set(GUESTBOOK_SELECT_PARAM, "1");
+  else next.delete(GUESTBOOK_SELECT_PARAM);
+  const s = next.toString();
+  return s ? `${GUESTBOOK_PATHS.home}?${s}` : GUESTBOOK_PATHS.home;
+}
+
+/**
  * /guestbook 以下で共通の枠: 上に検索バーと「＋」、下に固定のタブ。
  *
  * ★本文の下余白はボトムナビの高さ＋safe-area 分を必ず空ける★
@@ -54,11 +67,31 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
 }
 
 function Header() {
+  const { pathname, params } = useBackdropLocation();
+  const view = useGuestbookView();
+  const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
+  const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   return (
     <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
         <span aria-hidden className="font-serif text-lg tracking-wide text-stone-900">GB</span>
         <SearchBar />
+        {/* ギャラリーでだけ出す。押すと保存する写真を選ぶモードに入る（もう一度押すと抜ける） */}
+        {gallery && (
+          <Link
+            href={selectModeHref(params, !selecting)}
+            replace={selecting}
+            scroll={false}
+            aria-label={selecting ? "写真の選択をやめる" : "写真を選んで保存する"}
+            className={`flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border text-lg leading-none transition ${
+              selecting
+                ? "border-sky-600 bg-sky-600 text-white"
+                : "border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
+            }`}
+          >
+            <span aria-hidden>⤓</span>
+          </Link>
+        )}
         <Link
           href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
           aria-label="新しく投稿する"
