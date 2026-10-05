@@ -97,3 +97,17 @@ export const SWIPE_SLOP_PX = 10;
 export const SWIPE_DISMISS_RATIO = 0.25;
 /** これより速く指を払ったら、距離が足りなくても閉じる・送る (px/ms) */
 export const SWIPE_FLICK_VELOCITY = 0.5;
+
+/** ギャラリーで保存する写真を選ぶモード（/guestbook?view=gallery&select=1） */
+export const GUESTBOOK_SELECT_PARAM = "select";
+
+/**
+ * 写真の保存を何枚・何バイトずつに分けるか。
+ * ★共有シートはタップ1回につき1回しか開けない★（ブラウザの決まり）。原本は1枚最大 24MiB あり、
+ *   全部を一度に読み込むとスマホのメモリが足りなくなるので、この単位で読み込んでは渡す。
+ */
+export const SAVE_BATCH_MAX_FILES = 10;
+export const SAVE_BATCH_MAX_BYTES = 50 * 1024 * 1024;
+
+/** 選択モードで、一番下のこの距離 (px) 手前まで来たら過去の写真を読み込み始める */
+export const PICKER_PRELOAD_MARGIN_PX = 800;

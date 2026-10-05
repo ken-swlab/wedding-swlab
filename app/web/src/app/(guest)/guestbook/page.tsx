@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { filterPosts, parseQuery } from "@/lib/search";
 import { Composer } from "@/components/guestbook/Composer";
@@ -15,13 +15,19 @@ import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
 import { PostDetailSheet } from "@/components/guestbook/PostDetailSheet";
+import { PhotoPicker } from "@/components/guestbook/PhotoPicker";
 import {
   UploadStatusBar,
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
-import { GuestbookShell, useGuestbookView } from "@/components/guestbook/GuestbookShell";
-import { COMPOSER_ANCHOR_ID, GUESTBOOK_QUERY_PARAM, postIdFromPath } from "@/config/guestbook";
+import { GuestbookShell, selectModeHref, useGuestbookView } from "@/components/guestbook/GuestbookShell";
+import {
+  COMPOSER_ANCHOR_ID,
+  GUESTBOOK_QUERY_PARAM,
+  GUESTBOOK_SELECT_PARAM,
+  postIdFromPath,
+} from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
@@ -37,7 +43,10 @@ export default function GuestbookPage() {
 
   // 検索語はヘッダーの検索欄が ?q= に書く。読み込み済みの投稿だけを端末で絞り込む（lib/search.ts）
   // 詳細シートの表示中は URL が変わるので、開く前の値を読む（useBackdropLocation の★参照）
-  const query = useBackdropLocation().params.get(GUESTBOOK_QUERY_PARAM) ?? "";
+  const { params } = useBackdropLocation();
+  const query = params.get(GUESTBOOK_QUERY_PARAM) ?? "";
+  // ギャラリーで保存する写真を選ぶモード。ヘッダーのダウンロードボタンが ?select=1 を付ける
+  const router = useRouter();
   // タイムラインのカードから開いた詳細シート（PostDetailSheet の★参照）。
   // URL が /guestbook/posts/{id} の間だけ出し、戻る操作で URL が戻ったら外す
   const sheetId = postIdFromPath(usePathname());
@@ -49,6 +58,9 @@ export default function GuestbookPage() {
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
+  const selecting = view === "gallery" && params.get(GUESTBOOK_SELECT_PARAM) === "1";
+  // 選択モードの自動読み込みに渡す。毎回作り直すと読み込みの見張りが張り直しになる
+  const loadMoreGallery = useCallback(() => void loadMore(), [loadMore]);
   // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
@@ -136,7 +148,16 @@ export default function GuestbookPage() {
             ) : (
               <>
                 <PersonFilter viewer={viewer} people={directory.people} value={personUid} onChange={setPersonUid} />
-                {personUid && gallery.length === 0 ? (
+                {selecting ? (
+                  // 顔・文字の絞り込みはそのまま。絞り込んだ一覧（gallery）から写真を選ぶ
+                  <PhotoPicker
+                    posts={gallery}
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    loadMore={loadMoreGallery}
+                    onExit={() => router.replace(selectModeHref(params, false), { scroll: false })}
+                  />
+                ) : personUid && gallery.length === 0 ? (
                   <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">その方が写っている写真はまだありません。</p>
                 ) : (
               <GalleryGrid posts={gallery} onOpen={setOpenId}
