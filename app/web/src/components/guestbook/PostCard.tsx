@@ -7,11 +7,10 @@ import type { User } from "firebase/auth";
 import type { Post } from "@/types";
 import { toggleReaction } from "@/lib/posts";
 import { useMyReaction } from "@/hooks/useMyReaction";
-import { postPath } from "@/config/guestbook";
+import { COMMENT_INPUT_ID, postPath } from "@/config/guestbook";
 import { MediaGrid } from "./MediaGrid";
 import { TagBadge } from "./TagBadge";
 import { RichText } from "./RichText";
-import { CommentArea } from "./CommentArea";
 import { openPostSheet } from "./PostDetailSheet";
 
 function relativeTime(post: Post): string {
@@ -33,7 +32,8 @@ const INTERACTIVE = "a, button, input, textarea, select, label, video";
  *     （PostDetailSheet）。写真のタップは写真ビューア（MediaLightbox）。
  *     コメントは件数だけを出す（購読は詳細画面でだけ張る）。
  *     ★timeline はタイムラインのページ（/guestbook）でだけ使う★ シートを出すのはそのページだけ。
- *   - detail: 詳細画面用。コメント欄を最初から開き、カード自体は遷移しない。
+ *   - detail: 詳細画面用。画面の端から端まで広げ、カード自体は遷移しない。
+ *     いいねとコメントはアイコンと数字だけ。コメントの一覧と入力欄は PostDetail が下に出す。
  */
 export function PostCard({
   post,
@@ -95,9 +95,11 @@ export function PostCard({
       // シートはここから広がり（PostDetailSheet）、閉じるときはここへ縮む
       data-post-card={detail ? undefined : post.id}
       data-post-detail={detail ? "" : undefined}
-      className={`rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm ${
-        detail ? "" : "cursor-pointer touch-manipulation"
-      }`}
+      className={
+        detail
+          ? "bg-white p-4"
+          : "cursor-pointer touch-manipulation rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm"
+      }
     >
       <header className="flex items-start gap-3">
         <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-stone-200">
@@ -150,6 +152,7 @@ export function PostCard({
             }}
             disabled={busy}
             aria-pressed={reacted}
+            aria-label={`いいね ${post.reactionCount}件`}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
               reacted ? "bg-rose-50 text-rose-600" : "text-stone-500 hover:bg-stone-50"
             }`}
@@ -157,7 +160,18 @@ export function PostCard({
             <span aria-hidden>{reacted ? "❤️" : "🤍"}</span>
             <span className="tabular-nums">{post.reactionCount}</span>
           </button>
-          {!detail && (
+          {detail ? (
+            // 押すと画面下のコメント入力欄にフォーカスする（タップの処理の中で呼ぶので iOS でもキーボードが開く）
+            <button
+              type="button"
+              onClick={() => document.getElementById(COMMENT_INPUT_ID)?.focus()}
+              aria-label={`コメント ${post.commentCount}件。コメントを書く`}
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
+            >
+              <span aria-hidden>💬</span>
+              <span aria-hidden className="tabular-nums">{post.commentCount}</span>
+            </button>
+          ) : (
             <Link
               href={href}
               onClick={onLinkClick}
@@ -167,7 +181,6 @@ export function PostCard({
             </Link>
           )}
         </div>
-        {detail && <CommentArea post={post} user={user} defaultOpen />}
       </footer>
     </article>
   );

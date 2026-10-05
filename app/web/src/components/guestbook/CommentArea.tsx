@@ -55,20 +55,39 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
   );
 }
 
-export function CommentArea({
+/** コメントの一覧（読み込み中・失敗の表示を含む）。購読は呼び出し側の useComments が持つ */
+export function CommentList({
   post,
   user,
-  defaultOpen = false,
+  comments,
+  loading,
+  error,
 }: {
   post: Post;
   user: User;
-  /** ライトボックスなど、最初から展開したい場面で true */
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const authorName = useAuthorName();
-  const { comments, loading, error } = useComments(post.id, open);
+} & Pick<ReturnType<typeof useComments>, "comments" | "loading" | "error">) {
+  if (error) {
+    return (
+      <p className="py-3 text-sm text-rose-600">
+        コメントを読み込めませんでした（{error.code}）
+      </p>
+    );
+  }
+  if (loading && comments.length === 0) {
+    return <p className="py-3 text-sm text-stone-400">読み込み中…</p>;
+  }
+  return (
+    <ul className="divide-y divide-stone-100">
+      {comments.map((c) => (
+        <CommentRow key={c.id} comment={c} post={post} uid={user.uid} />
+      ))}
+    </ul>
+  );
+}
 
+/** コメントの入力と送信（文字数の上限・送信中・失敗の状態を持つ） */
+export function useCommentForm(post: Post, user: User, onSent?: () => void) {
+  const authorName = useAuthorName();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -76,10 +95,11 @@ export function CommentArea({
   const count = countChars(text);
   const over = count > MAX_COMMENT_LENGTH;
   const near = count > MAX_COMMENT_LENGTH * 0.9;
+  const canSend = !busy && !over && !!text.trim();
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (busy || over || !text.trim()) return;
+    if (!canSend) return;
 
     setBusy(true);
     setFormError(null);
@@ -93,12 +113,45 @@ export function CommentArea({
         text,
       });
       setText("");
+      onSent?.();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "送信に失敗しました");
     } finally {
       setBusy(false);
     }
   }
+
+  return { text, setText, busy, formError, count, over, near, canSend, onSubmit };
+}
+
+/** 文字数の表示（上限の 9 割で amber、超えたら rose） */
+export function CharCount({ count, over, near }: { count: number; over: boolean; near: boolean }) {
+  return (
+    <span
+      aria-live="polite"
+      className={`text-xs tabular-nums ${
+        over ? "font-semibold text-rose-600" : near ? "text-amber-600" : "text-stone-400"
+      }`}
+    >
+      {count}/{MAX_COMMENT_LENGTH}
+    </span>
+  );
+}
+
+/** 開閉できるコメント欄（写真ビューアの横で使う）。投稿の詳細画面は CommentList + CommentBar */
+export function CommentArea({
+  post,
+  user,
+  defaultOpen = false,
+}: {
+  post: Post;
+  user: User;
+  /** ライトボックスなど、最初から展開したい場面で true */
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const { comments, loading, error } = useComments(post.id, open);
+  const { text, setText, busy, formError, count, over, near, canSend, onSubmit } = useCommentForm(post, user);
 
   return (
     <div className="mt-1">
@@ -112,19 +165,7 @@ export function CommentArea({
 
       {open && (
         <div className="mt-2 border-t border-stone-100 pt-1">
-          {error ? (
-            <p className="py-3 text-sm text-rose-600">
-              コメントを読み込めませんでした（{error.code}）
-            </p>
-          ) : loading && comments.length === 0 ? (
-            <p className="py-3 text-sm text-stone-400">読み込み中…</p>
-          ) : (
-            <ul className="divide-y divide-stone-100">
-              {comments.map((c) => (
-                <CommentRow key={c.id} comment={c} post={post} uid={user.uid} />
-              ))}
-            </ul>
-          )}
+          <CommentList post={post} user={user} comments={comments} loading={loading} error={error} />
 
           <form onSubmit={onSubmit} className="mt-2">
             <textarea
@@ -136,20 +177,13 @@ export function CommentArea({
             />
 
             <div className="mt-1.5 flex items-center justify-between gap-3">
-              <span
-                aria-live="polite"
-                className={`text-xs tabular-nums ${
-                  over ? "font-semibold text-rose-600" : near ? "text-amber-600" : "text-stone-400"
-                }`}
-              >
-                {count}/{MAX_COMMENT_LENGTH}
-              </span>
+              <CharCount count={count} over={over} near={near} />
 
               <div className="flex items-center gap-3">
                 {formError && <span className="text-xs text-rose-600">{formError}</span>}
                 <button
                   type="submit"
-                  disabled={busy || over || !text.trim()}
+                  disabled={!canSend}
                   className="rounded-full bg-stone-900 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
                 >
                   {busy ? "送信中…" : "送信"}

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "firebase/auth";
 import { useSwipeBack } from "@/hooks/useSwipeBack";
+import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import {
   MOTION_EASING,
@@ -74,13 +75,16 @@ function timelineCard(id: string): DOMRect | null {
  *   シート全体を clip-path でカードの位置・大きさに切り抜き、中身はカードの位置へずらした
  *   状態から始めて、両方を同時に全画面へ戻す。文字を拡大縮小しないので、展開中も滲まない。
  *   動かすのは clip-path と transform だけ（レイアウトを動かすと LINE 内ブラウザでカクつく）。
- * ★閉じるのは「戻る」「右スワイプ」「Esc」「端末の戻る操作」★ どれも履歴を1つ戻すだけで、
- *   シートは URL が /guestbook に戻ったときにページ側が外す。
+ * ★閉じるのは「右スワイプ」「Esc」「端末の戻る操作」（と読み上げ用の見えない「閉じる」）★
+ *   どれも履歴を1つ戻すだけで、シートは URL が /guestbook に戻ったときにページ側が外す。
+ * シート（sheet）は縦並びの枠で、中のスクロールする箱（scroller）と下のコメント入力欄を持つ。
+ * キーボードが開くと枠ごと見えている範囲に縮める（useVisualViewportFrame の★参照）。
  */
 export function PostDetailSheet({ id, user }: { id: string; user: User }) {
   const router = useRouter();
   const sheet = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const closing = useRef(false);
 
   // 裏のタイムラインを止める。PullToRefresh もこれを見て引っ張りを始めない
@@ -122,7 +126,7 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
 
   const back = useCallback(() => router.back(), [router]);
 
-  /** 「戻る」ボタンと Esc: タイムラインのカードへ縮んでから戻る */
+  /** Esc と読み上げ用の「閉じる」: タイムラインのカードへ縮んでから戻る */
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
@@ -173,11 +177,11 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
       back();
     },
     {
-      // ★シートの先頭で下へ引く操作を止める★ シートは自前でスクロールするため
-      //   PullToRefresh の守りが効かず、LINE の iOS 版ではブラウザごと閉じてしまう。
-      blockNative: (axis, d) => axis === "y" && d > 0 && (sheet.current?.scrollTop ?? 0) <= 0,
+      // ★スクロールする箱の先頭で下へ引く操作を止める★（PostDetail の★参照）
+      blockNative: (axis, d) => axis === "y" && d > 0 && (scroller.current?.scrollTop ?? 0) <= 0,
     },
   );
+  useVisualViewportFrame(sheet);
 
   return (
     <div
@@ -186,15 +190,10 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
       aria-modal="true"
       aria-label="投稿の詳細"
       tabIndex={-1}
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain bg-stone-50 outline-none"
+      className="fixed inset-x-0 top-0 z-50 flex h-dvh flex-col bg-white outline-none"
       style={{ touchAction: "pan-y" }}
     >
-      <div
-        ref={content}
-        className="mx-auto max-w-xl px-4 pb-[calc(2.5rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))]"
-      >
-        <PostDetail id={id} user={user} onBack={close} />
-      </div>
+      <PostDetail id={id} user={user} onClose={close} scroller={scroller} content={content} />
     </div>
   );
 }
