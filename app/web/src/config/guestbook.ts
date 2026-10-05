@@ -70,6 +70,13 @@ export const MAX_HASHTAG_SUGGESTIONS = 8;
 export const PULL_RESISTANCE = 0.5;
 export const PULL_TRIGGER_PX = 64;
 export const PULL_MAX_PX = 96;
+/** 引っ張って更新: 更新中にタイムラインを下げておく距離と、スピナーの直径 (px) */
+export const PULL_HOLD_PX = 56;
+export const PULL_SPINNER_PX = 28;
+/** 引っ張って更新: 指を離したあと・更新が終わったあとに、タイムラインが戻る時間 (ms) */
+export const PULL_SETTLE_MS = 420;
+/** 引っ張って更新: 更新がすぐ終わっても、スピナーを回して見せる最短の時間 (ms) */
+export const PULL_MIN_SPIN_MS = 500;
 
 /**
  * 引っ張って更新の最短間隔 (ms)。
