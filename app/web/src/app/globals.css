@@ -32,6 +32,7 @@ body {
  *   LINE 内ブラウザ / Safari の上下の UI は、ページ全体のスクロールに合わせて隠れる。
  *   html / body に overflow や height: 100dvh を付けて中の箱をスクロールさせると隠れなくなる。
  *   ここでは端で引っ張ったときのバウンス（ラバーバンド）だけを止める。
+ *   （LINE の iOS 版のシートが閉じる問題は PullToRefresh がタッチイベントでも止めている）
  * ★入力欄は選択できるままにする★
  *   iOS では親の user-select: none が入力欄にも効き、文字を打てなくなることがある。
  *   コピーさせたい本文には `selectable` を付ける。
@@ -54,7 +55,7 @@ body {
 
   input,
   textarea,
-  [contenteditable="true"] {
+  [contenteditable]:not([contenteditable="false"]) {
     -webkit-user-select: text;
     user-select: text;
   }
@@ -64,6 +65,11 @@ body {
 @utility selectable {
   -webkit-user-select: text;
   user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/* 拡大表示の写真は長押しで保存できるようにする（披露宴の写真を持ち帰れるように） */
+@utility allow-callout {
   -webkit-touch-callout: default;
 }
 

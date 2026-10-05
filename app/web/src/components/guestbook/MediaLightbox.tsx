@@ -353,7 +353,7 @@ export function MediaLightbox({
       aria-modal="true"
       aria-label="写真の拡大表示"
       onClick={onTap}
-      className="fixed inset-0 z-[60] select-none overflow-hidden"
+      className="allow-callout fixed inset-0 z-[60] select-none overflow-hidden"
       style={{ touchAction: "pinch-zoom" }}
     >
       <div ref={backdrop} className="absolute inset-0 bg-black" />

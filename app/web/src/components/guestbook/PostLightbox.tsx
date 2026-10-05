@@ -30,7 +30,7 @@ function MediaCarousel({ post }: { post: Post }) {
   }
 
   return (
-    <div className="relative bg-black">
+    <div className="allow-callout relative bg-black">
       <div
         ref={ref}
         onScroll={onScroll}

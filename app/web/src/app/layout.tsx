@@ -23,7 +23,7 @@ export const metadata: Metadata = {
  * ★viewportFit: "cover" を外さない★
  *   これが無いと iOS では env(safe-area-inset-*) が常に 0 になり、ブラウザの UI が隠れたときに
  *   固定のボトムナビがホームインジケーターに重なる（ヘッダーとナビはこの値で余白を取っている）。
- *   拡大はアクセシビリティのため禁止しない。
+ *   拡大はアクセシビリティのため禁止しない（写真を拡大して見るのにも使う）。
  */
 export const viewport: Viewport = {
   width: "device-width",
