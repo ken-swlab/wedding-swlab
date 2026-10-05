@@ -2,10 +2,10 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
+import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import {
   COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
@@ -27,9 +27,9 @@ const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
   { key: "settings", label: "設定", icon: "⚙", href: GUESTBOOK_PATHS.settings },
 ];
 
-/** /guestbook のクエリから表示中のビューを読む */
+/** /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー） */
 export function useGuestbookView(): GuestbookView {
-  const params = useSearchParams();
+  const { params } = useBackdropLocation();
   return params.get(GUESTBOOK_VIEW_PARAM) === "gallery" ? "gallery" : "timeline";
 }
 
@@ -76,7 +76,7 @@ function Header() {
  * /guestbook では UploadStatusBar が詳しく出すので、ここでは出さない。
  */
 function UploadMiniStatus() {
-  const pathname = usePathname();
+  const { pathname } = useBackdropLocation();
   const { running, remaining, current } = useGuestbookUpload();
   if (!running || pathname === GUESTBOOK_PATHS.home) return null;
 
@@ -102,7 +102,7 @@ function UploadMiniStatus() {
 }
 
 function BottomNav() {
-  const pathname = usePathname();
+  const { pathname } = useBackdropLocation();
   const view = useGuestbookView();
   const active: NavKey =
     pathname === GUESTBOOK_PATHS.notifications

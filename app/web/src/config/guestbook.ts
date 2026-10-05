@@ -27,7 +27,12 @@ export function postPath(id: string): string {
   return `${GUESTBOOK_PATHS.home}/posts/${encodeURIComponent(id)}`;
 }
 
-const POST_PATH_RE = /^\/guestbook\/posts\/[A-Za-z0-9_-]{1,64}$/;
+const POST_PATH_RE = /^\/guestbook\/posts\/([A-Za-z0-9_-]{1,64})$/;
+
+/** 投稿の詳細画面のパスなら投稿 ID を、そうでなければ null を返す */
+export function postIdFromPath(pathname: string): string | null {
+  return POST_PATH_RE.exec(pathname)?.[1] ?? null;
+}
 
 /**
  * ★承認済みゲストが留まれるパス★
@@ -73,3 +78,22 @@ export const PULL_REFRESH_COOLDOWN_MS = 10_000;
 
 /** 更新の応答がこの時間来なくても、表示は終える (ms) */
 export const PULL_REFRESH_TIMEOUT_MS = 8_000;
+
+/** 投稿カード ⇔ 詳細シートの展開・収縮にかける時間 (ms) */
+export const SHEET_EXPAND_MS = 320;
+export const SHEET_COLLAPSE_MS = 260;
+
+/** 写真ビューアを開く・閉じる・写真を送るのにかける時間 (ms) */
+export const VIEWER_OPEN_MS = 260;
+export const VIEWER_CLOSE_MS = 220;
+export const VIEWER_PAGE_MS = 220;
+
+/** 展開・収縮の動きの曲線（初速が速く、最後にゆっくり止まる） */
+export const MOTION_EASING = "cubic-bezier(0.2, 0, 0, 1)";
+
+/** スワイプ: 縦横どちらの操作かを決めるまでの遊び (px) */
+export const SWIPE_SLOP_PX = 10;
+/** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */
+export const SWIPE_DISMISS_RATIO = 0.25;
+/** これより速く指を払ったら、距離が足りなくても閉じる・送る (px/ms) */
+export const SWIPE_FLICK_VELOCITY = 0.5;

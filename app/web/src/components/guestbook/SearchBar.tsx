@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { useGuestbookData } from "./GuestbookDataProvider";
 import { applyHashtag, hashtagDraft, suggestHashtags } from "@/lib/search";
 import {
@@ -22,8 +23,8 @@ import {
  */
 export function SearchBar() {
   const router = useRouter();
-  const pathname = usePathname();
-  const params = useSearchParams();
+  // 詳細シートの表示中も、シートを開く前の検索語を出し続ける（useBackdropLocation の★参照）
+  const { pathname, params } = useBackdropLocation();
   const { posts } = useGuestbookData();
   const onHome = pathname === GUESTBOOK_PATHS.home;
   const q = onHome ? (params.get(GUESTBOOK_QUERY_PARAM) ?? "") : "";
