@@ -86,11 +86,12 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   return (
     <div className="group/chrome min-h-dvh bg-stone-50" data-chrome={compact ? "compact" : "full"} style={motion}>
       <Header compact={compact} />
-      <PullToRefresh />
       <UploadMiniStatus />
-      <main className="mx-auto max-w-xl px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4">
-        {children}
-      </main>
+      <PullToRefresh>
+        <main className="mx-auto max-w-xl px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-4">
+          {children}
+        </main>
+      </PullToRefresh>
       <BottomNav compact={compact} onExpand={expand} />
     </div>
   );
