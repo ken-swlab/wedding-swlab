@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import type { MediaItem, OriginalStatus } from "@/types";
-import { MediaLightbox } from "./MediaLightbox";
+import { useRef, useState } from "react";
+import type { OriginalStatus, Post } from "@/types";
+import { MediaLightbox, measureMedia, type MediaSize } from "./MediaLightbox";
 import { displayStatus } from "@/lib/original-status";
 import { thumbSrc } from "@/lib/media-url";
 
@@ -35,8 +35,11 @@ const BADGE: Record<OriginalStatus, Badge> = {
   unavailable: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
 };
 
-export function MediaGrid({ media }: { media: MediaItem[] }) {
-  const [open, setOpen] = useState<number | null>(null);
+export function MediaGrid({ post }: { post: Post }) {
+  const media = post.media;
+  // ビューアはタップしたマスから広がり、閉じるときは今の写真のマスへ戻る
+  const cells = useRef<(HTMLButtonElement | null)[]>([]);
+  const [open, setOpen] = useState<{ index: number; size: MediaSize | null } | null>(null);
   if (media.length === 0) return null;
 
   const items = media.slice(0, 4);
@@ -52,7 +55,10 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
           <button
             key={m.storagePath || `${m.url}-${i}`}
             type="button"
-            onClick={() => setOpen(i)}
+            ref={(el) => {
+              cells.current[i] = el;
+            }}
+            onClick={(e) => setOpen({ index: i, size: measureMedia(e.currentTarget, m) })}
             className={`group relative overflow-hidden bg-stone-100 ${cellClass(items.length, i)}`}
           >
             {m.type === "video" ? (
@@ -88,10 +94,12 @@ export function MediaGrid({ media }: { media: MediaItem[] }) {
 
       {open !== null && (
         <MediaLightbox
+          post={post}
           media={items}
-          index={open}
+          startIndex={open.index}
+          startSize={open.size}
+          thumbRect={(i) => cells.current[i]?.getBoundingClientRect() ?? null}
           onClose={() => setOpen(null)}
-          onMove={setOpen}
         />
       )}
     </>

@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import type { User } from "firebase/auth";
 import type { Post } from "@/types";
 import { toggleReaction } from "@/lib/posts";
@@ -13,6 +12,7 @@ import { MediaGrid } from "./MediaGrid";
 import { TagBadge } from "./TagBadge";
 import { RichText } from "./RichText";
 import { CommentArea } from "./CommentArea";
+import { openPostSheet } from "./PostDetailSheet";
 
 function relativeTime(post: Post): string {
   if (!post.createdAt) return "送信中…";
@@ -29,8 +29,10 @@ const INTERACTIVE = "a, button, input, textarea, select, label, video";
 
 /**
  * 投稿カード。
- *   - timeline: カードの余白・本文のタップで詳細画面へ。写真のタップはライトボックス。
+ *   - timeline: カードの余白・本文のタップで、カードがそのまま広がって詳細シートになる
+ *     （PostDetailSheet）。写真のタップは写真ビューア（MediaLightbox）。
  *     コメントは件数だけを出す（購読は詳細画面でだけ張る）。
+ *     ★timeline はタイムラインのページ（/guestbook）でだけ使う★ シートを出すのはそのページだけ。
  *   - detail: 詳細画面用。コメント欄を最初から開き、カード自体は遷移しない。
  */
 export function PostCard({
@@ -42,7 +44,7 @@ export function PostCard({
   user: User;
   variant?: "timeline" | "detail";
 }) {
-  const router = useRouter();
+  const card = useRef<HTMLElement>(null);
   const detail = variant === "detail";
   const href = postPath(post.id);
 
@@ -59,7 +61,19 @@ export function PostCard({
     if ((e.target as Element).closest(INTERACTIVE)) return;
     // 本文を長押しで選択した直後のタップでは遷移しない（コピーしたいだけのため）
     if (window.getSelection()?.toString()) return;
-    router.push(href);
+    openDetail();
+  }
+
+  function openDetail() {
+    if (card.current) openPostSheet(post.id, card.current.getBoundingClientRect());
+  }
+
+  /** 時刻・コメントのリンク。新しいタブで開く操作だけはブラウザに任せる */
+  function onLinkClick(e: MouseEvent<HTMLAnchorElement>) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    openDetail();
   }
 
   async function onReact() {
@@ -76,7 +90,11 @@ export function PostCard({
 
   return (
     <article
+      ref={card}
       onClick={onCardClick}
+      // シートはここから広がり（PostDetailSheet）、閉じるときはここへ縮む
+      data-post-card={detail ? undefined : post.id}
+      data-post-detail={detail ? "" : undefined}
       className={`rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm ${
         detail ? "" : "cursor-pointer touch-manipulation"
       }`}
@@ -94,7 +112,7 @@ export function PostCard({
               <time className="shrink-0 text-xs text-stone-400">{relativeTime(post)}</time>
             ) : (
               // キーボードや読み上げでも詳細へ行けるよう、時刻をリンクにしておく
-              <Link href={href} className="shrink-0 text-xs text-stone-400 hover:underline">
+              <Link href={href} onClick={onLinkClick} className="shrink-0 text-xs text-stone-400 hover:underline">
                 <time>{relativeTime(post)}</time>
               </Link>
             )}
@@ -114,12 +132,12 @@ export function PostCard({
 
       {/*
         ★写真まわりのクリックをカードに伝えない★
-          MediaLightbox は fixed で全画面に出るが、React のイベントは DOM ではなく
+          MediaLightbox は body 直下（portal）に全画面で出るが、React のイベントは DOM ではなく
           コンポーネントの木をたどって伝わる。ここで止めないと、ライトボックス内の
           操作（閉じる・送る）までカードのクリックになり、詳細画面へ飛んでしまう。
       */}
       <div onClick={(e) => e.stopPropagation()}>
-        <MediaGrid media={post.media} />
+        <MediaGrid post={post} />
       </div>
 
       <footer className="mt-3 border-t border-stone-100 pt-2">
@@ -142,6 +160,7 @@ export function PostCard({
           {!detail && (
             <Link
               href={href}
+              onClick={onLinkClick}
               className="inline-flex min-h-11 items-center rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
             >
               💬 {post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}

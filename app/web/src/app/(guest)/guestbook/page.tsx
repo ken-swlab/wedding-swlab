@@ -4,7 +4,8 @@ import { useCallback, useMemo, useState } from "react";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
-import { useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { filterPosts, parseQuery } from "@/lib/search";
 import { Composer } from "@/components/guestbook/Composer";
 import { Timeline } from "@/components/guestbook/Timeline";
@@ -13,13 +14,14 @@ import { PersonFilter } from "@/components/guestbook/PersonFilter";
 import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
 import { PostLightbox } from "@/components/guestbook/PostLightbox";
+import { PostDetailSheet } from "@/components/guestbook/PostDetailSheet";
 import {
   UploadStatusBar,
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
 import { GuestbookShell, useGuestbookView } from "@/components/guestbook/GuestbookShell";
-import { COMPOSER_ANCHOR_ID, GUESTBOOK_QUERY_PARAM } from "@/config/guestbook";
+import { COMPOSER_ANCHOR_ID, GUESTBOOK_QUERY_PARAM, postIdFromPath } from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 
@@ -34,7 +36,11 @@ export default function GuestbookPage() {
     useGuestbookData();
 
   // 検索語はヘッダーの検索欄が ?q= に書く。読み込み済みの投稿だけを端末で絞り込む（lib/search.ts）
-  const query = useSearchParams().get(GUESTBOOK_QUERY_PARAM) ?? "";
+  // 詳細シートの表示中は URL が変わるので、開く前の値を読む（useBackdropLocation の★参照）
+  const query = useBackdropLocation().params.get(GUESTBOOK_QUERY_PARAM) ?? "";
+  // タイムラインのカードから開いた詳細シート（PostDetailSheet の★参照）。
+  // URL が /guestbook/posts/{id} の間だけ出し、戻る操作で URL が戻ったら外す
+  const sheetId = postIdFromPath(usePathname());
   const terms = useMemo(() => parseQuery(query), [query]);
   const searching = terms.length > 0;
   const posts = useMemo(() => filterPosts(allPosts, terms), [allPosts, terms]);
@@ -158,6 +164,7 @@ export default function GuestbookPage() {
           onClose={() => setOpenId(null)}
         />
       )}
+      {sheetId && <PostDetailSheet key={sheetId} id={sheetId} user={user} />}
       </GuestbookShell>
     </AuthorNameProvider>
   );
