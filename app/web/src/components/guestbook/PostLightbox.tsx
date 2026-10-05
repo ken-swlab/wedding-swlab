@@ -197,7 +197,7 @@ export function PostLightbox({
             {post.text && (
               <RichText
                 text={post.text}
-                className="mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
+                className="selectable mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
               />
             )}
 

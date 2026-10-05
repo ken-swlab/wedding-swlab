@@ -155,7 +155,7 @@ export default function AdminRosterPage() {
   if (!user || !isAdmin) return <main className="flex min-h-screen items-center justify-center bg-stone-50 p-8"><p className="text-sm text-stone-600">管理者専用ページです</p></main>;
 
   return (
-    <main className="min-h-screen bg-stone-50">
+    <main className="selectable min-h-screen bg-stone-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <header className="mb-5">
           <Link href="/admin" className="text-xs text-stone-400 hover:text-stone-700">← ゲスト管理に戻る</Link>

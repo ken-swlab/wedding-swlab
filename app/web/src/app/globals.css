@@ -26,28 +26,27 @@ body {
 }
 
 /*
- * スマホでアプリのような手ざわりにする（Issue #32）。
+ * ネイティブアプリのような手ざわり（Issue #32）。
  *
- * ★ラバーバンドは overscroll-behavior で止め、html / body に overflow を付けない★
- *   スクロールを body の中の箱に閉じ込めると window がスクロールしなくなり、
- *   LINE 内ブラウザ・Safari の上下のバーが下スクロールで隠れなくなる。
+ * ★スクロールは window（body）のまま残す★
+ *   LINE 内ブラウザ / Safari の上下の UI は、ページ全体のスクロールに合わせて隠れる。
+ *   html / body に overflow や height: 100dvh を付けて中の箱をスクロールさせると隠れなくなる。
+ *   ここでは端で引っ張ったときのバウンス（ラバーバンド）だけを止める。
  *   （LINE の iOS 版のシートが閉じる問題は PullToRefresh がタッチイベントでも止めている）
+ * ★入力欄は選択できるままにする★
+ *   iOS では親の user-select: none が入力欄にも効き、文字を打てなくなることがある。
+ *   コピーさせたい本文には `selectable` を付ける。
  */
-html,
-body {
-  overscroll-behavior-y: none;
-}
-
 @layer base {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
   html {
     -webkit-tap-highlight-color: transparent;
   }
 
-  /*
-   * ★文字の選択と長押しのメニューは既定で出さない★ 選ばせたい所だけ select-text を付ける
-   *   （投稿本文・コメントは RichText、招待状の開催概要、管理画面は admin/layout.tsx）。
-   * ★入力欄には text を明示する★ 親が none のままだと、古い iOS で入力欄に文字を打てない。
-   */
   body {
     -webkit-user-select: none;
     user-select: none;
@@ -56,14 +55,21 @@ body {
 
   input,
   textarea,
-  [contenteditable] {
+  [contenteditable]:not([contenteditable="false"]) {
     -webkit-user-select: text;
     user-select: text;
   }
 }
 
+/* 投稿本文・コメント・会場の住所など、コピーできてほしい箇所に付ける */
+@utility selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* 拡大表示の写真は長押しで保存できるようにする（披露宴の写真を持ち帰れるように） */
-.allow-callout {
+@utility allow-callout {
   -webkit-touch-callout: default;
 }
 

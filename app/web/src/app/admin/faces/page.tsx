@@ -127,7 +127,7 @@ export default function AdminFacesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-stone-50">
+    <main className="selectable min-h-screen bg-stone-50">
       <div className="mx-auto max-w-6xl px-4 py-8">
         <header className="mb-5">
           <Link href="/admin" className="text-xs text-stone-400 hover:text-stone-700">

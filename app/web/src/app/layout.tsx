@@ -20,10 +20,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * ★viewport-fit=cover を外さない★
- *   無いと iPhone の縦向きで env(safe-area-inset-*) が 0 になり、ブラウザのバーが
- *   隠れたときにボトムナビがホームインジケーターに重なる（各画面の余白は env() 前提で書いてある）。
- *   拡大（ピンチ）は止めない。写真を拡大して見るのに使う。
+ * ★viewportFit: "cover" を外さない★
+ *   これが無いと iOS では env(safe-area-inset-*) が常に 0 になり、ブラウザの UI が隠れたときに
+ *   固定のボトムナビがホームインジケーターに重なる（ヘッダーとナビはこの値で余白を取っている）。
+ *   拡大はアクセシビリティのため禁止しない（写真を拡大して見るのにも使う）。
  */
 export const viewport: Viewport = {
   width: "device-width",
