@@ -91,6 +91,21 @@ export const VIEWER_PAGE_MS = 220;
 /** 展開・収縮の動きの曲線（初速が速く、最後にゆっくり止まる） */
 export const MOTION_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 
+/** スクロール連動の全画面化: ナビを縮める・戻すアニメーションの時間 (ms) */
+export const CHROME_MORPH_MS = 420;
+/**
+ * spring 風の曲線（少し行き過ぎてから戻る）。CSS の linear() で近似する。
+ * linear() が使えない古い Safari（17.2 未満）では既定の ease で動く（GuestbookShell の CHROME_MOTION）。
+ */
+export const CHROME_MORPH_EASING =
+  "linear(0, 0.13 6%, 0.45 14%, 0.79 23%, 1.02 32%, 1.1 39%, 1.09 46%, 1.03 55%, 0.99 66%, 1)";
+/** 先頭からこの距離までは常に通常表示 (px)。ヘッダーの高さより少し大きく取る */
+export const CHROME_TOP_ZONE_PX = 80;
+/** 下へこの距離だけ続けてスクロールしたら縮める (px)。小さな揺れで縮まないための遊び */
+export const CHROME_COMPACT_AFTER_PX = 24;
+/** 上へこの距離スクロールしたら戻す (px)。「少しでも上へ」で戻すため小さく取る */
+export const CHROME_EXPAND_AFTER_PX = 4;
+
 /** スワイプ: 縦横どちらの操作かを決めるまでの遊び (px) */
 export const SWIPE_SLOP_PX = 10;
 /** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { markOriginalUnavailable } from "@/lib/media";
 import type { UploadApi } from "@/hooks/useUpload";
+import { CHROME_MOTION } from "./GuestbookShell";
 
 /** サーバー側で原本を待っているメディア1件 */
 export type PendingOriginal = { postId: string; thumbPath: string };
@@ -76,9 +77,11 @@ export function UploadStatusBar({
 
   return (
     <div className="space-y-2">
-      {/* ---- 送信中 ---- */}
+      {/* ---- 送信中（全画面でヘッダーが隠れたら、その分だけ上へ詰める） ---- */}
       {running && (
-        <div className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 rounded-2xl border border-sky-200 bg-sky-50/95 p-3 shadow-sm backdrop-blur">
+        <div
+          className={`sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 rounded-2xl border border-sky-200 bg-sky-50/95 p-3 shadow-sm backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-[calc(3.5rem+1px)]`}
+        >
           <div className="flex items-center justify-between text-xs font-medium text-sky-900">
             <span>
               送信中… 残り {remaining} 枚（{mb(remainingBytes)}）
