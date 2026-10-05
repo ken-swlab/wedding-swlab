@@ -26,6 +26,48 @@ body {
 }
 
 /*
+ * ネイティブアプリのような手ざわり（Issue #32）。
+ *
+ * ★スクロールは window（body）のまま残す★
+ *   LINE 内ブラウザ / Safari の上下の UI は、ページ全体のスクロールに合わせて隠れる。
+ *   html / body に overflow や height: 100dvh を付けて中の箱をスクロールさせると隠れなくなる。
+ *   ここでは端で引っ張ったときのバウンス（ラバーバンド）だけを止める。
+ * ★入力欄は選択できるままにする★
+ *   iOS では親の user-select: none が入力欄にも効き、文字を打てなくなることがある。
+ *   コピーさせたい本文には `selectable` を付ける。
+ */
+@layer base {
+  html,
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+/* 投稿本文・コメント・会場の住所など、コピーできてほしい箇所に付ける */
+@utility selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+/*
  * 招待状（/invitation）のアニメーション。
  * ★opacity と transform だけを動かす★ レイアウトを動かすと LINE 内ブラウザでカクつく。
  */

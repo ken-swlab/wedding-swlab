@@ -48,7 +48,7 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
         </div>
         <RichText
           text={comment.text}
-          className="mt-0.5 block whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-700"
+          className="selectable mt-0.5 block whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-700"
         />
       </div>
     </li>

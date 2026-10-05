@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -17,6 +17,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "WEDDING INVITATION",
   description: "招待状とゲストブック",
+};
+
+/**
+ * ★viewportFit: "cover" を外さない★
+ *   これが無いと iOS では env(safe-area-inset-*) が常に 0 になり、ブラウザの UI が隠れたときに
+ *   固定のボトムナビがホームインジケーターに重なる（ヘッダーとナビはこの値で余白を取っている）。
+ *   拡大はアクセシビリティのため禁止しない。
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 /**
