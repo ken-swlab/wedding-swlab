@@ -39,7 +39,8 @@ export function InvitationView({ invitation }: { invitation: InvitationContent }
 
       <section style={delay(0.9 + greeting.length * 0.12)} className="invitation-rise mt-10 rounded-2xl border border-stone-200/80 bg-white p-6 shadow-sm">
         <p className="text-center font-serif text-sm tracking-widest text-stone-400">開催概要</p>
-        <dl className="mt-5 space-y-4 text-[14px]">
+        {/* 日時・会場・住所はコピーできるようにする（全体は globals.css で選択を止めている） */}
+        <dl className="mt-5 select-text space-y-4 text-[14px]">
           <div>
             <dt className="text-[11px] tracking-widest text-stone-400">日時</dt>
             <dd className="mt-1 text-stone-700">{dateLabel}</dd>

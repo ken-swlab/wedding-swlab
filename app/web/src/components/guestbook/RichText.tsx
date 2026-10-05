@@ -19,7 +19,8 @@ export function RichText({
   const tokens = tokenizeText(text);
 
   return (
-    <span className={className}>
+    // 本文はコピーできるようにする（全体は globals.css で選択を止めている）
+    <span className={`select-text ${className ?? ""}`}>
       {tokens.map((t, i) => {
         if (t.kind === "text") return <Fragment key={i}>{t.value}</Fragment>;
 

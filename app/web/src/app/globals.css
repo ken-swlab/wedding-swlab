@@ -26,6 +26,48 @@ body {
 }
 
 /*
+ * スマホでアプリのような手ざわりにする（Issue #32）。
+ *
+ * ★ラバーバンドは overscroll-behavior で止め、html / body に overflow を付けない★
+ *   スクロールを body の中の箱に閉じ込めると window がスクロールしなくなり、
+ *   LINE 内ブラウザ・Safari の上下のバーが下スクロールで隠れなくなる。
+ *   （LINE の iOS 版のシートが閉じる問題は PullToRefresh がタッチイベントでも止めている）
+ */
+html,
+body {
+  overscroll-behavior-y: none;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+   * ★文字の選択と長押しのメニューは既定で出さない★ 選ばせたい所だけ select-text を付ける
+   *   （投稿本文・コメントは RichText、招待状の開催概要、管理画面は admin/layout.tsx）。
+   * ★入力欄には text を明示する★ 親が none のままだと、古い iOS で入力欄に文字を打てない。
+   */
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
+/* 拡大表示の写真は長押しで保存できるようにする（披露宴の写真を持ち帰れるように） */
+.allow-callout {
+  -webkit-touch-callout: default;
+}
+
+/*
  * 招待状（/invitation）のアニメーション。
  * ★opacity と transform だけを動かす★ レイアウトを動かすと LINE 内ブラウザでカクつく。
  */
