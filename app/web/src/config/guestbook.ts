@@ -48,6 +48,8 @@ export function isGuestbookPath(pathname: string): boolean {
 
 /** ヘッダーの「＋」が飛ぶ先。タイムライン最上部の投稿欄 */
 export const COMPOSER_ANCHOR_ID = "composer";
+/** 投稿の詳細画面の下に固定したコメント入力欄。詳細の「💬」を押すとここにフォーカスする */
+export const COMMENT_INPUT_ID = "comment-input";
 
 /** 戻る操作で復元するスクロール位置の保存先（sessionStorage）。ビューごとに分ける */
 export const SCROLL_STORAGE_PREFIX = "guestbook-scroll:";
