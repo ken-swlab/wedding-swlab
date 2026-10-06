@@ -18,7 +18,7 @@ paths:
 | `guestPrivate/{uid}` | 本人・管理者 | サーバー |
 | `guestAdmin/{uid}` | 管理者 | サーバー |
 | `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる） | 作成は本人（`validPost()` かつ自分のタグの範囲）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
-| `posts/{id}/comments` | 親の `canSee` | 本人が作成（`visibleToTags` は親と完全一致）。更新不可 |
+| `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
 | `posts/{id}/reactions/{uid}` | サインイン済み | 本人の1件だけ |
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
@@ -27,6 +27,7 @@ paths:
 
 - 上にないパスはすべて拒否。コレクションやフィールドを足すときは、先に「誰が読めるか」を決めて Rules を書く。
 - 個人情報は `guestPrivate`（本人も見てよいもの）か `guestAdmin`（管理者だけ）へ。`guests` に足してよいのは公開して困らない値だけ。ゲスト向けの表示名は `src/lib/names.ts` の `publicName`（本名は出さない）。
+- 投稿の非表示は `/api/admin/posts/visibility` だけで行う（`status: "hidden"` を直接書かない）。コメントも `visibleToTags: []`・`hidden: true` にして、横断購読（`/screen`）から外す。戻すときは親の `visibleToTags` を写し直す。
 - アクセス停止は `guestPrivate.isActive === false`。判定は `!== false`（未設定を停止扱いにしない）。
 
 ## クライアントのクエリ

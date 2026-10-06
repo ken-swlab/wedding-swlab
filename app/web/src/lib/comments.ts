@@ -18,6 +18,7 @@ export function toComment(snap: QueryDocumentSnapshot<DocumentData>): Comment {
     mentions: Array.isArray(d.mentions) ? d.mentions : [],
     visibleToTags: Array.isArray(d.visibleToTags) ? d.visibleToTags : [],
     createdAt: d.createdAt ?? null,
+    hidden: d.hidden === true,
   };
 }
 

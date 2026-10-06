@@ -12,6 +12,8 @@ import { TagBadge } from "./TagBadge";
 import { RichText } from "./RichText";
 import { openPostSheet } from "./PostDetailSheet";
 import { AuthorAvatar } from "./AuthorAvatar";
+import { useGuestSessionContext } from "./GuestSessionContext";
+import { postJson } from "@/lib/api-client";
 import { useAuthorProfile } from "@/lib/profiles-client";
 
 function relativeTime(post: Post): string {
@@ -58,6 +60,9 @@ export function PostCard({
   const reacted = detail ? mine.reacted : localReacted;
   const setReacted = detail ? mine.setReacted : setLocalReacted;
   const [busy, setBusy] = useState(false);
+  const { isAdmin } = useGuestSessionContext();
+  const [hiding, setHiding] = useState(false);
+  const hidden = post.status === "hidden";
 
   function onCardClick(e: MouseEvent<HTMLElement>) {
     if (detail || e.defaultPrevented) return;
@@ -91,6 +96,20 @@ export function PostCard({
     }
   }
 
+  /** 管理者: 投稿とそのコメントを非表示にする（/api/admin/posts/visibility。戻すのは管理画面から） */
+  async function onHide() {
+    if (hiding) return;
+    if (!confirm("この投稿とコメントを非表示にします。ほかのゲストと会場のスクリーンから消えます。よろしいですか？")) return;
+    setHiding(true);
+    try {
+      await postJson("/api/admin/posts/visibility", { postId: post.id, hidden: true });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "非表示にできませんでした");
+    } finally {
+      setHiding(false);
+    }
+  }
+
   return (
     <article
       ref={card}
@@ -104,6 +123,12 @@ export function PostCard({
           : "cursor-pointer touch-manipulation rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm"
       }
     >
+      {/* 非表示の投稿は投稿者本人にだけ届く（usePost / Rules）。何が起きたかを伝える */}
+      {hidden && (
+        <p role="status" className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900">
+          この投稿は新郎新婦が非表示にしました。ほかのゲストと会場のスクリーンには表示されません。
+        </p>
+      )}
       <header className="flex items-start gap-3">
         <AuthorAvatar uid={post.authorUid} profile={author} className="h-10 w-10" sizes="40px" />
         <div className="min-w-0 flex-1">
@@ -180,6 +205,18 @@ export function PostCard({
             </Link>
           )}
         </div>
+        {detail && isAdmin && !hidden && (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => void onHide()}
+              disabled={hiding}
+              className="min-h-11 touch-manipulation rounded-full px-3 text-xs text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+            >
+              {hiding ? "非表示にしています…" : "非表示にする（管理者）"}
+            </button>
+          </div>
+        )}
       </footer>
     </article>
   );

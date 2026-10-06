@@ -49,6 +49,10 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
           text={comment.text}
           className="selectable mt-0.5 block whitespace-pre-wrap break-words text-sm leading-relaxed text-stone-700"
         />
+        {/* 親の投稿が非表示になったコメントは、書いた本人（と投稿者・管理者）にだけ届く */}
+        {comment.hidden && (
+          <p className="mt-1 text-[11px] text-amber-700">このコメントは非表示になりました（投稿が非表示になったため）</p>
+        )}
       </div>
     </li>
   );

@@ -105,9 +105,14 @@ service cloud.firestore {
       match /comments/{commentId} {
         function parentPost() { return get(/databases/$(database)/documents/posts/$(postId)).data; }
         function validComment(d, parent) { return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','visibleToTags','createdAt']) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
-        allow get:  if signedIn() && resource != null && canSee(resource.data);
+        // ★非表示にした投稿のコメントは visibleToTags が空になる（/api/admin/posts/visibility の★）★
+        //   canSee() では誰にも見えなくなるので、書いた本人だけは読めるようにする（「非表示になりました」を出すため）。
+        allow get:  if signedIn() && resource != null && (canSee(resource.data) || resource.data.authorUid == myUid());
         allow list: if signedIn() && request.query.limit <= 100 && canRead(parentPost());
-        allow create: if signedIn() && request.resource.data.authorUid == myUid() && canRead(parentPost()) && validComment(request.resource.data, parentPost());
+        // 非表示の投稿にはコメントできない（隠したあとに付いたコメントが、投稿の範囲を写して見えてしまうため）
+        allow create: if signedIn() && request.resource.data.authorUid == myUid()
+          && parentPost().status == 'visible' && canSee(parentPost())
+          && validComment(request.resource.data, parentPost());
         allow update: if false;
         allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == myUid());
       }
@@ -207,10 +212,12 @@ service cloud.firestore {
     //     /screen が全投稿横断でコメントを購読するために必要。
     //   ABAC は resource.data.visibleToTags で1件ずつ評価される。
     // =====================================================
+    //   ★書いた本人は、非表示になった自分のコメントも一覧できる★（マイページの「非表示になったコメント」。
+    //     クエリは where("authorUid", "==", 自分) を付ける。非表示のコメントは visibleToTags が空なので canSee では外れる）
     match /{path=**}/comments/{commentId} {
       allow list: if signedIn()
         && request.query.limit <= 100
-        && (isAdmin() || canSee(resource.data));
+        && (isAdmin() || canSee(resource.data) || resource.data.authorUid == myUid());
     }
 
   }

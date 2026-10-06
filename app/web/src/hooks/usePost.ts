@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { doc, onSnapshot, type QueryDocumentSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { toPost } from "@/lib/posts";
 import { POST_ID_RE } from "@/config/guestbook";
 import type { Post } from "@/types";
@@ -15,7 +15,7 @@ type State = { id: string; post: Post | null };
  * ★見つからない・見えない・非表示はすべて post: null にまとめる★
  *   permission-denied を別扱いで表示すると、「その ID の投稿は存在するが
  *   あなたには見えない」ことが分かってしまう。
- *   Rules の get は canSee() だけで status を見ないので、hidden もここで弾く。
+ *   hidden は Rules でも投稿者本人と管理者にしか返らないが、管理者にもここでは出さない（本人だけに出す）。
  *
  * enabled が false のあいだは購読しない（一覧にすでにある投稿を開いたとき）。
  */
@@ -30,7 +30,9 @@ export function usePost(id: string, enabled = true) {
       doc(db, "posts", id),
       (snap) => {
         const post = snap.exists() ? toPost(snap as QueryDocumentSnapshot) : null;
-        setState({ id, post: post?.status === "visible" ? post : null });
+        // 非表示の投稿は、投稿者本人にだけ出す（「非表示になりました」を表示するため。Rules も本人には読ませる）
+        const mine = post?.authorUid === auth.currentUser?.uid;
+        setState({ id, post: post && (post.status === "visible" || mine) ? post : null });
       },
       (e) => {
         console.error(e);

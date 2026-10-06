@@ -99,7 +99,8 @@ export function PostDetail({
         </div>
       </div>
 
-      {post && <CommentBar post={post} user={user} onSent={showLatest} />}
+      {/* 非表示の投稿（本人にだけ見える）にはコメントできない（Rules） */}
+      {post && post.status === "visible" && <CommentBar post={post} user={user} onSent={showLatest} />}
     </>
   );
 }
