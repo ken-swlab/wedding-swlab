@@ -6,7 +6,7 @@ import { useGuestSession } from "@/hooks/useGuestSession";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { SplashScreen } from "@/components/SplashScreen";
 import { GuestShell } from "@/components/guestbook/GuestShell";
-import { getJson } from "@/lib/api-client";
+import { getJson, postJson } from "@/lib/api-client";
 import type { InvitationStatus } from "@/types/invitation";
 
 export default function OnboardingPage() {
@@ -43,9 +43,12 @@ export default function OnboardingPage() {
   return (
     <GuestShell>
       <OnboardingForm
-        user={user}
+        displayName={user.displayName}
         initialNickname={profile.nickname}
-        onDone={() => router.replace("/guestbook")}
+        onSubmit={async (answer) => {
+          await postJson("/api/guest/register", answer);
+          router.replace("/guestbook");
+        }}
       />
     </GuestShell>
   );

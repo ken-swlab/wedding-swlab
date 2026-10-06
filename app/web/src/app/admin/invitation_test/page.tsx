@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
+import { GuestShell } from "@/components/guestbook/GuestShell";
+import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
 import type { InvitationContent } from "@/types/invitation";
 
 /**
@@ -25,13 +27,20 @@ const DUMMY_INVITATION: InvitationContent = {
 /** ダミーのパスコード判定でわざと間違いにする値。エラー表示の確認用 */
 const WRONG_PASSCODE = "0000";
 
-const STEP_LABEL: Record<InvitationStep["kind"], string> = {
+/** 出欠フォームの下に出す LINE の表示名（ダミー） */
+const DUMMY_DISPLAY_NAME = "LINE の表示名";
+
+/** InvitationFlow の段階に、本番では別ページ（/onboarding）の出欠回答を足したもの */
+type TestStep = InvitationStep | { kind: "rsvp" };
+
+const STEP_LABEL: Record<TestStep["kind"], string> = {
   entrance: "1-2. 入り口・LINE ログイン",
   loading: "読み込み中",
   passcode: "3. パスコード",
   teaser: "4. ティザー動画",
   open: "5. 招待状・出欠",
   error: "エラー",
+  rsvp: "6. 出欠回答（/onboarding）",
 };
 
 /**
@@ -43,7 +52,7 @@ const STEP_LABEL: Record<InvitationStep["kind"], string> = {
  */
 export default function InvitationTestPage() {
   const { user, isAdmin, loading } = useGuestSession();
-  const [step, setStep] = useState<InvitationStep>({ kind: "entrance", busy: false, message: null });
+  const [step, setStep] = useState<TestStep>({ kind: "entrance", busy: false, message: null });
   const [note, setNote] = useState<string | null>(null);
   const [teaserSrc, setTeaserSrc] = useState<string | undefined>(undefined);
 
@@ -79,7 +88,16 @@ export default function InvitationTestPage() {
 
   const onRsvp = useCallback(() => {
     console.log("[invitation_test] 出欠を回答する（ダミー）");
-    setNote("本番はここで出欠の回答（/onboarding）へ進みます");
+    setNote(null);
+    setStep({ kind: "rsvp" });
+  }, []);
+
+  // ★回答の中身（本名・アレルギー）をログに出さない★ ダミーでも本物を入れて試すことがあるため
+  const onRsvpSubmit = useCallback(async (answer: OnboardingAnswer) => {
+    console.log("[invitation_test] 出欠の回答を送信（ダミー）", answer.attendance);
+    await new Promise((r) => setTimeout(r, 400));
+    setNote("送信しました（ダミー）。本番はここでゲストブック（承認待ちなら /pending）へ進みます");
+    window.scrollTo({ top: 0 });
   }, []);
 
   if (loading) {
@@ -95,21 +113,12 @@ export default function InvitationTestPage() {
 
   return (
     <>
-      <InvitationFlow
-        step={step}
-        onLogin={onLogin}
-        onPasscodeSubmit={onPasscodeSubmit}
-        onTeaserEnd={onTeaserEnd}
-        onRsvp={onRsvp}
-        onRetry={restart}
-        teaserSrc={teaserSrc}
-      />
-
-      {/* テスト用の操作パネル。招待状の上に重ねる */}
-      <aside
-        className="fixed inset-x-2 z-50 rounded-2xl border border-stone-200/80 bg-white/90 p-3 text-[12px] text-stone-600 shadow-sm backdrop-blur"
-        style={{ top: "max(0.5rem, env(safe-area-inset-top))" }}
-      >
+      {/*
+        テスト用の操作パネル。★fixed にせずページの先頭に置く★
+        下へスクロールすれば消え、その下はゲストが見る画面とまったく同じになる。
+        ティザー動画（全画面の fixed）の間は動画に隠れる。
+      */}
+      <aside className="border-b border-stone-200 bg-white px-3 pb-3 text-[12px] text-stone-600" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
         <div className="flex items-center gap-2">
           <Link href="/admin" className="text-stone-400 hover:text-stone-700">← 管理</Link>
           <span className="flex-1 truncate font-medium text-stone-800">テスト: {STEP_LABEL[step.kind]}</span>
@@ -118,7 +127,7 @@ export default function InvitationTestPage() {
           </button>
         </div>
         <p className="mt-1.5 leading-relaxed text-stone-500">
-          ダミーです（ログイン・保存はしません）。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。
+          ダミーです（ログイン・保存はしません）。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。下へスクロールするとこのパネルが消え、ゲストと同じ画面になります。
         </p>
         <label className="mt-1.5 flex items-center gap-2">
           <span className="shrink-0">動画:</span>
@@ -134,6 +143,23 @@ export default function InvitationTestPage() {
         </label>
         {note && <p className="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sky-800">{note}</p>}
       </aside>
+
+      {step.kind === "rsvp" ? (
+        // 本番の /onboarding と同じ組み合わせ（GuestShell + OnboardingForm）
+        <GuestShell>
+          <OnboardingForm displayName={DUMMY_DISPLAY_NAME} onSubmit={onRsvpSubmit} />
+        </GuestShell>
+      ) : (
+        <InvitationFlow
+          step={step}
+          onLogin={onLogin}
+          onPasscodeSubmit={onPasscodeSubmit}
+          onTeaserEnd={onTeaserEnd}
+          onRsvp={onRsvp}
+          onRetry={restart}
+          teaserSrc={teaserSrc}
+        />
+      )}
     </>
   );
 }
