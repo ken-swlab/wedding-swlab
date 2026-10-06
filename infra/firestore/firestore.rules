@@ -50,32 +50,80 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    function validPost(d) {
-      return d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt','updatedAt']) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
+    // 投稿者の表示名・アイコンの形（中身の正しさは表示側が guests の最新値で補う。profiles-client の★参照）
+    function validAuthor(d) {
+      return d.authorName is string && d.authorName.size() >= 1 && d.authorName.size() <= 40
+        && (!('authorPhotoURL' in d) || (d.authorPhotoURL is string && d.authorPhotoURL.size() <= 1024));
     }
-    function counterStep(field) {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field, 'updatedAt']) && (request.resource.data[field] == resource.data[field] + 1 || request.resource.data[field] == resource.data[field] - 1);
+    function validPost(d) {
+      return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt','updatedAt']) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
+    }
+    // updatedAt を変えるならサーバー時刻（serverTimestamp()）だけ。変えない更新はそのまま通す
+    function updatedAtIsNow() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['updatedAt'])
+        || request.resource.data.updatedAt == request.time;
+    }
+    // ★カウンタは ±1 だけ、0 未満にしない、updatedAt はサーバー時刻だけ★
+    function counterStep(field, delta) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field, 'updatedAt'])
+        && request.resource.data[field] == resource.data[field] + delta
+        && request.resource.data[field] >= 0
+        && updatedAtIsNow();
+    }
+    // ★いいねの数は、自分のリアクションの作成・削除と同じトランザクションでだけ動かせる★
+    //   以前は見える投稿なら誰でも何度でも ±1 でき、いいね数を水増しできた（lib/posts.ts の toggleReaction）。
+    function myReaction(postId) {
+      return /databases/$(database)/documents/posts/$(postId)/reactions/$(myUid());
+    }
+    function reactionAdded(postId)   { return !exists(myReaction(postId)) && existsAfter(myReaction(postId)); }
+    function reactionRemoved(postId) { return exists(myReaction(postId)) && !existsAfter(myReaction(postId)); }
+    // ★非表示（status != 'visible'）の投稿はゲストに見せない★ 管理者と投稿者本人は読める
+    //   （本人は高画質版の状態を更新するトランザクションで自分の投稿を読む。lib/media.ts）。
+    function canRead(data) {
+      return isAdmin() || data.authorUid == myUid() || (data.status == 'visible' && canSee(data));
     }
 
     match /posts/{postId} {
-      allow get:  if signedIn() && resource != null && canSee(resource.data);
-      allow list: if signedIn() && request.query.limit <= 50 && canSee(resource.data);
+      allow get:  if signedIn() && resource != null && canRead(resource.data);
+      allow list: if signedIn() && request.query.limit <= 50 && canRead(resource.data);
       allow create: if signedIn() && request.resource.data.authorUid == myUid() && validPost(request.resource.data) && tagsInMyScope(request.resource.data);
-      allow update: if isAdmin() || (signedIn() && resource.data.authorUid == myUid() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','media','visibleToTags','hashtags','mentions','updatedAt']) && tagsInMyScope(request.resource.data)) || (signedIn() && canSee(resource.data) && counterStep('reactionCount')) || (signedIn() && canSee(resource.data) && counterStep('commentCount'));
+      // ★投稿者本人が変えられるのは media（高画質版の状態）と updatedAt だけ★
+      //   本文・公開範囲（visibleToTags）を後から変える画面は無い。特に公開範囲を狭められると、
+      //   投稿時の範囲を写したコメントの visibleToTags が広いまま残り、collectionGroup の購読から漏れる。
+      //   編集機能を足すときは、コメントの範囲との整合を決めてからここを開ける。
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.authorUid == myUid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['media','updatedAt'])
+            && request.resource.data.media is list && request.resource.data.media.size() <= 4
+            && updatedAtIsNow())
+        || (signedIn() && canRead(resource.data) && counterStep('reactionCount', 1) && reactionAdded(postId))
+        || (signedIn() && canRead(resource.data) && counterStep('reactionCount', -1) && reactionRemoved(postId))
+        || (signedIn() && canRead(resource.data) && counterStep('commentCount', 1))
+        || (signedIn() && canRead(resource.data) && counterStep('commentCount', -1));
       allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == myUid());
 
       match /comments/{commentId} {
         function parentPost() { return get(/databases/$(database)/documents/posts/$(postId)).data; }
-        function validComment(d, parent) { return d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','visibleToTags','createdAt']) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
+        function validComment(d, parent) { return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','visibleToTags','createdAt']) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
         allow get:  if signedIn() && resource != null && canSee(resource.data);
-        allow list: if signedIn() && request.query.limit <= 100 && canSee(parentPost());
-        allow create: if signedIn() && request.resource.data.authorUid == myUid() && canSee(parentPost()) && validComment(request.resource.data, parentPost());
+        allow list: if signedIn() && request.query.limit <= 100 && canRead(parentPost());
+        allow create: if signedIn() && request.resource.data.authorUid == myUid() && canRead(parentPost()) && validComment(request.resource.data, parentPost());
         allow update: if false;
         allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == myUid());
       }
+      // ★リアクションは本人の1件だけを読み書きする★
+      //   以前は読み取りをサインイン済みの全員に開けていた（承認前の人や、投稿が見えない人でも、
+      //   誰がどの投稿にいいねしたかを読めた）。クライアントが読むのは自分の1件だけ（useMyReaction）。
+      //   作成も、その投稿が見える人に限る。
       match /reactions/{uid} {
-        allow read: if signedIn();
-        allow create, update: if signedIn() && uid == myUid() && request.resource.data.emoji is string && request.resource.data.emoji.size() <= 8;
+        allow get: if isAdmin() || (signedIn() && uid == myUid());
+        allow list: if isAdmin() && request.query.limit <= 500;
+        allow create, update: if signedIn() && uid == myUid()
+          && canRead(get(/databases/$(database)/documents/posts/$(postId)).data)
+          && request.resource.data.keys().hasOnly(['emoji','uid','createdAt'])
+          && request.resource.data.emoji is string && request.resource.data.emoji.size() <= 8
+          && (!('uid' in request.resource.data) || request.resource.data.uid == myUid())
+          && (!('createdAt' in request.resource.data) || request.resource.data.createdAt == request.time);
         allow delete: if signedIn() && uid == myUid();
       }
     }
