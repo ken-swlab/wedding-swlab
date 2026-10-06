@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState, type MouseEvent } from "react";
 import type { User } from "firebase/auth";
@@ -12,6 +11,8 @@ import { MediaGrid } from "./MediaGrid";
 import { TagBadge } from "./TagBadge";
 import { RichText } from "./RichText";
 import { openPostSheet } from "./PostDetailSheet";
+import { AuthorAvatar } from "./AuthorAvatar";
+import { useAuthorProfile } from "@/lib/profiles-client";
 
 function relativeTime(post: Post): string {
   if (!post.createdAt) return "送信中…";
@@ -47,6 +48,8 @@ export function PostCard({
   const card = useRef<HTMLElement>(null);
   const detail = variant === "detail";
   const href = postPath(post.id);
+  // 名前とアイコンは最新を出す（投稿に保存した値は投稿したときのもの。profiles-client の★参照）
+  const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
 
   // ★いいね済みかの読み取りは詳細画面でだけ行う★（useMyReaction のコメント参照）
   //   タイムラインは従来どおり白ハートから始める。
@@ -102,14 +105,10 @@ export function PostCard({
       }
     >
       <header className="flex items-start gap-3">
-        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full bg-stone-200">
-          {post.authorPhotoURL && (
-            <Image src={post.authorPhotoURL} alt="" fill sizes="40px" className="object-cover" />
-          )}
-        </div>
+        <AuthorAvatar uid={post.authorUid} profile={author} className="h-10 w-10" sizes="40px" />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <p className="truncate text-sm font-semibold text-stone-900">{post.authorName}</p>
+            <p className="truncate text-sm font-semibold text-stone-900">{author.name}</p>
             {detail ? (
               <time className="shrink-0 text-xs text-stone-400">{relativeTime(post)}</time>
             ) : (

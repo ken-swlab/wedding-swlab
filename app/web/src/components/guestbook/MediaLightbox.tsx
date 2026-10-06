@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useAuthorProfile } from "@/lib/profiles-client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import type { MediaItem, Post } from "@/types";
@@ -120,6 +121,7 @@ export function MediaLightbox({
   thumbRect: (index: number) => DOMRect | null;
   onClose: () => void;
 }) {
+  const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
   const [index, setIndex] = useState(startIndex);
   const [sizes, setSizes] = useState<(MediaSize | null)[]>(() =>
     media.map((m, i) =>
@@ -425,12 +427,12 @@ export function MediaLightbox({
         <div className="mx-auto max-w-xl">
           <div className="flex items-center gap-2.5">
             <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-white/20">
-              {post.authorPhotoURL && (
-                <Image src={post.authorPhotoURL} alt="" fill sizes="32px" className="object-cover" />
+              {author.photoURL && (
+                <Image src={author.photoURL} alt="" fill sizes="32px" className="object-cover" />
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{post.authorName}</p>
+              <p className="truncate text-sm font-medium">{author.name}</p>
               <p className="text-[11px] text-white/55">{fullDate(post)}</p>
             </div>
             {media.length > 1 && (

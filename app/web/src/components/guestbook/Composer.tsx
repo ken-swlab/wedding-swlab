@@ -13,6 +13,7 @@ import { createPost } from "@/lib/posts";
 import { postJson } from "@/lib/api-client";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import { useAuthorName } from "./AuthorNameProvider";
+import { useGuestSessionContext } from "./GuestSessionContext";
 import type { MediaItem } from "@/types";
 
 type Picked = {
@@ -76,6 +77,8 @@ export function Composer({
 
   const storageReady = isStorageConfigured();
   const name = useAuthorName();
+  // アイコンは本人が設定したもの（guests.photoURL）。Auth の photoURL は LINE の画像のまま
+  const photoURL = useGuestSessionContext().profile?.photoURL || user.photoURL;
 
   // プレビュー用の objectURL を確実に解放する
   useEffect(() => {
@@ -204,7 +207,7 @@ export function Composer({
       const postRef = await createPost({
         uid: user.uid,
         displayName: name,
-        photoURL: user.photoURL,
+        photoURL,
         text: finalText,
         media,
         visibleToTags: selected,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 export type GuestProfile = {
@@ -17,6 +17,12 @@ export type GuestProfile = {
   displayName: string;
   isRegistered: boolean;
   isApproved: boolean;
+  /** 他のゲストに見せるアイコン（guests.photoURL）。LINE の画像か、本人が設定した画像 */
+  photoURL: string;
+  /** 一言ステータス（guests.bio） */
+  bio: string;
+  /** 本人が設定したアイコンを使っているか（false なら LINE のアイコン） */
+  customPhoto: boolean;
 };
 
 export type GuestSession = {
@@ -91,20 +97,11 @@ export function useGuestSession(): GuestSession {
         const d = snap.data();
 
         /**
-         * アイコンだけ Firestore に同期する。
-         *
-         * ★氏名は同期しない★
-         *   以前は lineDisplayName も書こうとしていたが、Rules の
-         *   update は displayName / photoURL / bio しか許しておらず、
-         *   この書き込みは毎回失敗していた（catch で握り潰されていた）。
-         *   氏名は guestPrivate に移したので、更新は
-         *   /api/auth/line が Admin SDK で行う。
+         * ★アイコンをここから書かない★
+         *   以前は Auth の photoURL（LINE の画像）を guests へ書き戻していたが、
+         *   本人が設定したアイコンを上書きしてしまう。Rules でも本人の直接の書き込みは閉じた。
+         *   LINE の画像の追従は /api/auth/line が行う（photoSource が "custom" のときは除く）。
          */
-        if (d && user && user.photoURL && d.photoURL !== user.photoURL) {
-          void updateDoc(doc(db, "guests", user.uid), {
-            photoURL: user.photoURL,
-          }).catch(() => {});
-        }
         setProfileState({
           uid: user.uid,
           profile: {
@@ -112,6 +109,9 @@ export function useGuestSession(): GuestSession {
             displayName: user.displayName ?? "ゲスト",
             isRegistered: d?.isRegistered === true,
             isApproved: d?.isApproved === true,
+            photoURL: typeof d?.photoURL === "string" ? d.photoURL : "",
+            bio: typeof d?.bio === "string" ? d.bio : "",
+            customPhoto: d?.photoSource === "custom",
           },
         });
 
