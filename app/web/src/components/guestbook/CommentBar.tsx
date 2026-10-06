@@ -14,6 +14,13 @@ import type { Post } from "@/types";
  * ★閉じているときも本物の textarea を置く（ボタンにしない）★
  *   iOS はタップの処理の中で focus しないとキーボードを出さない。ボタンを押してから
  *   textarea を描いて focus しても、キーボードが開かない。
+ * ★背景は不透明の白にし、欄の下にも白を伸ばす★
+ *   キーボードが開くと枠はキーボードの上までに縮み、枠の下（キーボードと iOS の「^ v 完了」バーの裏）には
+ *   裏の画面（タイムラインなど）が残る。バーは半透明なので、そのままだと写真や文字が透けて崩れて見える。
+ *   欄の下に画面の高さ分の白を付けておけば、枠と一緒に動き（右スワイプで戻るときも）、裏を隠せる。
+ *   fixed ではなく absolute にする（枠は transform で動くので、中の fixed は使えない。useSwipeBack の★参照）。
+ * ★enterkeyhint は付けない★ 複数行のコメントなので改行キーは改行のまま。「送信」表示にすると押しても
+ *   改行になり紛らわしい。iOS の「^ v 完了」バーは enterkeyhint や inputmode では消せない。
  * ★文字の大きさは 16px 以上★ それより小さいと iOS がフォーカス時に画面を拡大し、
  *   枠の位置合わせ（visualViewport）が拡大中の扱いになって崩れる。
  */
@@ -35,10 +42,12 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
     <form
       onSubmit={onSubmit}
       // キーボードが開いている間はホームインジケーターが隠れるので、safe-area の余白は要らない
-      className={`shrink-0 border-t border-stone-200/80 bg-white/95 px-3 pt-2 backdrop-blur ${
+      className={`relative z-10 shrink-0 border-t border-stone-200/80 bg-white px-3 pt-2 ${
         focused ? "pb-2" : "pb-[calc(0.5rem+env(safe-area-inset-bottom))]"
       }`}
     >
+      {/* キーボードの裏を隠す白（★参照） */}
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-lvh bg-white" />
       <div className="mx-auto max-w-xl">
         <div className="flex items-end gap-2">
           <textarea
