@@ -31,4 +31,4 @@ paths:
 - アニメーションは framer-motion（`components/screen/*` だけ。transform のみ）。
 - 画像は `next/image`（unoptimized）。`<img>` を使うときは理由をコメントに書き、eslint-disable を付ける。URL は `src/lib/media-url.ts` 経由。
 - 古い Safari のため、正規表現の後読みを使わない。文字数は `countChars`（書記素単位）で数える。
-- コンポーネントは `components/{guestbook,admin,screen}/` に PascalCase、フックは `hooks/useX.ts`、ライブラリは kebab-case。
+- コンポーネントは `components/{guestbook,guide,admin,screen}/` に PascalCase、フックは `hooks/useX.ts`、ライブラリは kebab-case。

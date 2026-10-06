@@ -240,8 +240,9 @@ export function useUpload(uid?: string) {
 
   /**
    * ★アンマウントで送信ループを止める★
-   *   /guestbook 以下から出ていくのは、承認の取り消しや停止で (guest)/layout.tsx に
-   *   送り出されたときだけ。そこで裏の送信を続けると画面から見えなくなる。
+   *   /guestbook 以下から出ていくのは、左上のロゴ（SpaceSwitch）で案内モード（/guide）へ移ったときと、
+   *   承認の取り消しや停止で (guest)/layout.tsx に送り出されたとき。そこで裏の送信を続けると
+   *   画面から見えなくなる（案内モードへ移るときは、SpaceSwitch のシートで止まることを知らせる）。
    *   実行中の1枚は送り終えてから止まり、残りは queued のまま端末に残る。
    *   開発時の StrictMode は effect を2回走らせるので、本体で false に戻す。
    */
