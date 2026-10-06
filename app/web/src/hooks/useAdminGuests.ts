@@ -98,6 +98,14 @@ export function useAdminGuests(enabled: boolean) {
           referencePhotoUrl: v.referencePhotoUrl ?? "",
           referencePhotoPath: v.referencePhotoPath ?? "",
           passcodeBlocked: v.passcodeAttempts?.permanent === true,
+          answerChange:
+            v.answerChangeUnread === true
+              ? {
+                  fields: Array.isArray(v.answerChangeFields) ? v.answerChangeFields : [],
+                  at: v.answerChangedAt ?? null,
+                  attendanceBefore: v.attendanceBefore ?? null,
+                }
+              : null,
         };
       }
       setAdm(next);
@@ -144,6 +152,7 @@ export function useAdminGuests(enabled: boolean) {
             referencePhotoUrl: a?.referencePhotoUrl ?? "",
             referencePhotoPath: a?.referencePhotoPath ?? "",
             passcodeBlocked: a?.passcodeBlocked ?? false,
+            answerChange: a?.answerChange ?? null,
           };
         }),
     [pub, priv, adm],
