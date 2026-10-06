@@ -78,9 +78,11 @@ export type Comment = {
   text: string;
   hashtags: string[];
   mentions: string[];
-  /** 親投稿からのコピー。Rules が一致を検証する */
+  /** 親投稿からのコピー。Rules が一致を検証する（親を非表示にすると空になる） */
   visibleToTags: string[];
   createdAt: Timestamp | null;
+  /** 親の投稿を管理者が非表示にした（/api/admin/posts/visibility）。読めるのは書いた本人と管理者だけ */
+  hidden?: boolean;
 };
 
 export type Guest = {

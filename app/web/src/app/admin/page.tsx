@@ -5,6 +5,7 @@ import { postJson } from "@/lib/api-client";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { GuestTable, type GuestPatch } from "@/components/admin/GuestTable";
+import { HiddenPosts } from "@/components/admin/HiddenPosts";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
@@ -114,6 +115,10 @@ export default function AdminPage() {
             <section>
               <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
               <GuestTable mode="approved" rows={approved} onSave={onSave} />
+            </section>
+            <section>
+              <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">非表示の投稿</h2><p className="text-xs text-stone-400">ゲストブックで投稿を開き「非表示にする（管理者）」を押すとここに入ります。コメントも一緒に隠れます。</p></div>
+              <HiddenPosts enabled={isAdmin} />
             </section>
 
             {passcodeBlocked.length > 0 && (

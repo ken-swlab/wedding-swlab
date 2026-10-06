@@ -79,6 +79,17 @@ export function useScreenData() {
     setMessages((m) => m.filter((x) => x.id !== id));
   }, []);
 
+  /** 非表示にされた投稿を、背景・待ち行列・スポットライト・流れている文字から取り除く */
+  const hidePost = useCallback(
+    (postId: string) => {
+      setCells((c) => c.map((x) => (x && x.postId === postId ? null : x)));
+      setQueue((q) => q.filter((x) => x.postId !== postId));
+      setSpotlight((s) => (s && s.postId === postId ? null : s));
+      retireMessage(`p:${postId}`);
+    },
+    [retireMessage],
+  );
+
   // ---- 投稿の購読 -------------------------------------------
   useEffect(() => {
     if (SCREEN_TAGS.length === 0) return;
@@ -110,6 +121,10 @@ export function useScreenData() {
               fresh.push(p);
             }
             if (!first) pushMessage(`p:${post.id}`, post.text, post.authorName, "post");
+          } else if (ch.type === "removed" && post.status === "hidden") {
+            // ★管理者が非表示にした投稿は、すでに映っている分も消す★（/api/admin/posts/visibility）
+            //   古くなって POST_WINDOW から外れただけの投稿も removed で届くので、status で見分ける。
+            hidePost(post.id);
           } else if (ch.type === "modified") {
             // 原本のアップロード完了で src が高画質に差し替わる
             const byId = new Map(photos.map((p) => [p.id, p.src]));
@@ -137,7 +152,7 @@ export function useScreenData() {
       },
       setError,
     );
-  }, [pushMessage]);
+  }, [pushMessage, hidePost]);
 
   // ---- コメントの購読（全投稿横断） --------------------------
   useEffect(() => {
@@ -161,6 +176,11 @@ export function useScreenData() {
           return;
         }
         for (const ch of snap.docChanges()) {
+          // 親の投稿を非表示にすると、コメントは visibleToTags が空になってクエリから外れる。流れている分も消す
+          if (ch.type === "removed" && ch.doc.data().hidden === true) {
+            retireMessage(`c:${ch.doc.id}`);
+            continue;
+          }
           if (ch.type !== "added") continue;
           const d = ch.doc.data();
           pushMessage(`c:${ch.doc.id}`, d.text ?? "", d.authorName ?? "ゲスト", "comment");
@@ -168,7 +188,7 @@ export function useScreenData() {
       },
       setError,
     );
-  }, [pushMessage]);
+  }, [pushMessage, retireMessage]);
 
   // ---- スポットライトの順送り --------------------------------
   useEffect(() => {

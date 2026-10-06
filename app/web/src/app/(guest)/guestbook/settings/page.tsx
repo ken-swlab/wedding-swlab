@@ -5,6 +5,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { GuestbookShell } from "@/components/guestbook/GuestbookShell";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { TagBadge } from "@/components/guestbook/TagBadge";
+import { useMyHiddenItems } from "@/hooks/useHiddenItems";
 import { postJson } from "@/lib/api-client";
 import { compressForIcon } from "@/lib/image";
 import { uploadThumb } from "@/lib/media";
@@ -34,6 +35,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const hiddenItems = useMyHiddenItems(user?.uid ?? null);
 
   const nicknameCount = countChars(nickname.trim());
   const bioCount = countChars(bio.trim());
@@ -223,6 +225,30 @@ export default function SettingsPage() {
         )}
         <p className="mt-2 text-xs leading-relaxed text-stone-500">所属は新郎新婦が設定します。変更はできません。</p>
       </section>
+
+      {/* 新郎新婦が非表示にした自分の投稿・コメント（Issue #68）。無ければ出さない */}
+      {(hiddenItems.posts.length > 0 || hiddenItems.comments.length > 0) && (
+        <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <h2 className="text-sm font-medium text-amber-900">非表示になった投稿・コメント</h2>
+          <p className="mt-1 text-xs leading-relaxed text-amber-800">
+            新郎新婦が非表示にしました。ほかのゲストと会場のスクリーンには表示されません。
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {hiddenItems.posts.map((p) => (
+              <li key={`p:${p.id}`} className="rounded-xl bg-white px-3 py-2 text-sm text-stone-700">
+                <span className="mr-1.5 text-[11px] text-stone-400">投稿</span>
+                <span className="line-clamp-2 break-words">{p.text || "（写真・動画のみ）"}</span>
+              </li>
+            ))}
+            {hiddenItems.comments.map((c) => (
+              <li key={`c:${c.id}`} className="rounded-xl bg-white px-3 py-2 text-sm text-stone-700">
+                <span className="mr-1.5 text-[11px] text-stone-400">コメント</span>
+                <span className="line-clamp-2 break-words">{c.text}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </GuestbookShell>
   );
 }
