@@ -8,6 +8,7 @@ import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import {
   MOTION_EASING,
+  SHEET_BACKDROP_FADE_MS,
   SHEET_COLLAPSE_MS,
   SHEET_EXPAND_MS,
   postPath,
@@ -75,6 +76,12 @@ function timelineCard(id: string): DOMRect | null {
  *   シート全体を clip-path でカードの位置・大きさに切り抜き、中身はカードの位置へずらした
  *   状態から始めて、両方を同時に全画面へ戻す。文字を拡大縮小しないので、展開中も滲まない。
  *   動かすのは clip-path と transform だけ（レイアウトを動かすと LINE 内ブラウザでカクつく）。
+ * ★カードから広がる間だけ、裏に白い幕（backdrop）を敷く★
+ *   切り抜きの外にタイムラインが透けると、画面が崩れたように見える。幕はシートの外（clip-path の
+ *   影響を受けない兄弟）に置き、展開の始めにすばやく不透明にして、終わったら外す（opacity 0）。
+ *   展開後も敷いたままにすると、右スワイプで戻るときに裏のタイムラインが見えず白い画面になる。
+ *   展開し終えたシートは bg-white の全画面なので、幕を外しても見た目は変わらない。
+ *   カードへ縮んで閉じるときは逆に幕を消していき、カードがタイムラインへ戻って見えるようにする。
  * ★閉じるのは「右スワイプ」「Esc」「端末の戻る操作」（と読み上げ用の見えない「閉じる」）★
  *   どれも履歴を1つ戻すだけで、シートは URL が /guestbook に戻ったときにページ側が外す。
  * シート（sheet）は縦並びの枠で、中のスクロールする箱（scroller）と下のコメント入力欄を持つ。
@@ -83,6 +90,7 @@ function timelineCard(id: string): DOMRect | null {
 export function PostDetailSheet({ id, user }: { id: string; user: User }) {
   const router = useRouter();
   const sheet = useRef<HTMLDivElement>(null);
+  const backdrop = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const closing = useRef(false);
@@ -114,6 +122,10 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
       return;
     }
     const to = detailCard(inner).getBoundingClientRect();
+    backdrop.current?.animate(
+      [{ opacity: 0 }, { opacity: 1, offset: Math.min(1, SHEET_BACKDROP_FADE_MS / SHEET_EXPAND_MS) }, { opacity: 1 }],
+      { duration: SHEET_EXPAND_MS, easing: "linear" },
+    );
     box.animate([{ clipPath: clipTo(from, box) }, { clipPath: CLIP_FULL }], timing);
     inner.animate(
       [
@@ -150,6 +162,7 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
       return;
     }
     const from = detailCard(inner).getBoundingClientRect();
+    backdrop.current?.animate([{ opacity: 1 }, { opacity: 0 }], timing);
     box.animate([{ clipPath: CLIP_FULL }, { clipPath: clipTo(to, box) }], timing).onfinish = back;
     inner.animate(
       [
@@ -184,16 +197,24 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
   useVisualViewportFrame(sheet);
 
   return (
-    <div
-      ref={sheet}
-      role="dialog"
-      aria-modal="true"
-      aria-label="投稿の詳細"
-      tabIndex={-1}
-      className="fixed inset-x-0 top-0 z-50 flex h-dvh flex-col bg-white outline-none"
-      style={{ touchAction: "pan-y" }}
-    >
-      <PostDetail id={id} user={user} onClose={close} scroller={scroller} content={content} />
-    </div>
+    <>
+      {/* 展開・収縮の間だけ見える白い幕（★参照）。DOM の順でシートより下に重なる */}
+      <div
+        ref={backdrop}
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-50 bg-white opacity-0"
+      />
+      <div
+        ref={sheet}
+        role="dialog"
+        aria-modal="true"
+        aria-label="投稿の詳細"
+        tabIndex={-1}
+        className="fixed inset-x-0 top-0 z-50 flex h-dvh flex-col bg-white outline-none"
+        style={{ touchAction: "pan-y" }}
+      >
+        <PostDetail id={id} user={user} onClose={close} scroller={scroller} content={content} />
+      </div>
+    </>
   );
 }

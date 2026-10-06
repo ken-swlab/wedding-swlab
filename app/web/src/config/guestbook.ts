@@ -91,6 +91,8 @@ export const PULL_REFRESH_TIMEOUT_MS = 8_000;
 /** 投稿カード ⇔ 詳細シートの展開・収縮にかける時間 (ms) */
 export const SHEET_EXPAND_MS = 320;
 export const SHEET_COLLAPSE_MS = 260;
+/** 展開の始めに、裏のタイムラインを白で覆いきるまでの時間 (ms)。SHEET_EXPAND_MS より短くする */
+export const SHEET_BACKDROP_FADE_MS = 90;
 
 /** 写真ビューアを開く・閉じる・写真を送るのにかける時間 (ms) */
 export const VIEWER_OPEN_MS = 260;
