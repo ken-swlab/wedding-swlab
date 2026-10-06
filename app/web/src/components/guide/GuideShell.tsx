@@ -6,8 +6,12 @@ import { usePathname } from "next/navigation";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
 
-const NAV: { key: string; label: string; icon: string; href: string | null }[] = [
-  { key: "home", label: "ご案内", icon: "✉", href: GUIDE_PATHS.home },
+/**
+ * also: タブには無いが、そのタブの中の画面として扱うパス（開いている間そのタブを濃くする）。
+ * アンケート（出欠・アレルギー）はご案内のトップから開く。
+ */
+const NAV: { key: string; label: string; icon: string; href: string | null; also?: string[] }[] = [
+  { key: "home", label: "ご案内", icon: "✉", href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire] },
   { key: "guests", label: "出席者・座席", icon: "◎", href: GUIDE_PATHS.guests },
   { key: "payment", label: "ご祝儀", icon: "¥", href: GUIDE_PATHS.payment },
   // まだ画面が無い。押せないタブとして「予定」を見せる
@@ -58,12 +62,14 @@ function GuideNav() {
               </li>
             );
           }
-          const on = pathname === item.href;
+          const on = pathname === item.href || (item.also?.includes(pathname) ?? false);
+          // 中の画面からタブを押したらトップへ戻れるよう、リンクは同じページのときだけ「表示中」にする
+          const here = pathname === item.href;
           return (
             <li key={item.key} className="flex-1">
               <Link
                 href={item.href}
-                aria-current={on ? "page" : undefined}
+                aria-current={here ? "page" : undefined}
                 className={`${tab} transition ${on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
               >
                 <span aria-hidden className="text-lg leading-none">{item.icon}</span>

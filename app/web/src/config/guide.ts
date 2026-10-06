@@ -4,6 +4,7 @@
  */
 export const GUIDE_PATHS = {
   home: "/guide",
+  questionnaire: "/guide/questionnaire",
   guests: "/guide/guests",
   payment: "/guide/payment",
 } as const;
