@@ -60,6 +60,7 @@ async function handle(req: Request) {
   if (body.nickname !== undefined && (typeof body.nickname !== "string" || body.nickname.length > 20)) return fail("ニックネームは20文字までです", 400);
   if (body.allergy !== undefined && (typeof body.allergy !== "string" || body.allergy.length > 500)) return fail("アレルギー情報は500文字までです", 400);
   if (body.aiMemo !== undefined && (typeof body.aiMemo !== "string" || body.aiMemo.length > 2000)) return fail("メモは2000文字までです", 400);
+  if (body.ackAnswerChange !== undefined && body.ackAnswerChange !== true) return fail("ackAnswerChange は true だけ指定できます", 400);
   for (const k of ["callNameGroom", "callNameBride"] as const) {
     const v = body[k];
     if (v !== undefined && (typeof v !== "string" || v.length > 20)) {
@@ -135,7 +136,7 @@ async function handle(req: Request) {
   const hasCallName =
     body.callNameGroom !== undefined || body.callNameBride !== undefined;
 
-  if (body.aiMemo !== undefined || hasFaceUrl || hasCallName) {
+  if (body.aiMemo !== undefined || hasFaceUrl || hasCallName || body.ackAnswerChange) {
     const adminPatch: Record<string, unknown> = { uid, updatedAt: FieldValue.serverTimestamp() };
     if (body.aiMemo !== undefined) adminPatch.aiMemo = body.aiMemo;
     // 呼び名は guestAdmin に置く（/guests は全ゲストが読めるため）
@@ -147,6 +148,13 @@ async function handle(req: Request) {
       adminPatch.referencePhotoPath = clearing ? "" : body.referencePhotoPath;
       adminPatch.faceIndexStatus = clearing ? "none" : "pending";
       adminPatch.referencePhotoUpdatedAt = FieldValue.serverTimestamp();
+    }
+    // ゲストによる回答の変更（answers-server の answerChangePatch）を確認済みにする
+    if (body.ackAnswerChange) {
+      adminPatch.answerChangeUnread = false;
+      adminPatch.answerChangeFields = FieldValue.delete();
+      adminPatch.attendanceBefore = FieldValue.delete();
+      adminPatch.answerChangeAckedAt = FieldValue.serverTimestamp();
     }
     batch.set(db.collection("guestAdmin").doc(uid), adminPatch, { merge: true });
   }

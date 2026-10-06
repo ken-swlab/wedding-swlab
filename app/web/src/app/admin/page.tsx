@@ -58,6 +58,9 @@ export default function AdminPage() {
   // パスコードを通っていないので isRegistered ではない。LINE ログインはしている
   const passcodeBlocked = useMemo(() => filtered.filter((r) => r.passcodeBlocked), [filtered]);
 
+  // ゲストが登録後に出欠・アレルギーを変えて、まだ確認していない人
+  const changedCount = useMemo(() => rows.filter((r) => r.isRegistered && r.isActive && r.answerChange).length, [rows]);
+
   const stats = useMemo(() => {
     const by: Record<string, number> = {};
     for (const r of rows) if (r.isRegistered && r.isApproved && r.isActive) by[r.attendance] = (by[r.attendance] ?? 0) + 1;
@@ -90,6 +93,7 @@ export default function AdminPage() {
             <Link href="/admin/faces" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">顔の名寄せ →</Link>
             <div className="ml-auto flex items-center gap-4 text-sm">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-sky-700">{pending.length}</p><p className="text-[11px] text-stone-400">承認待ち</p></div>
+              <div className="text-center"><p className={`tabular-nums text-lg font-semibold ${changedCount > 0 ? "text-rose-600" : "text-stone-300"}`}>{changedCount}</p><p className="text-[11px] text-stone-400">回答の変更</p></div>
               {ATTENDANCE_OPTIONS.map((o) => (
                 <div key={o.value} className="text-center"><p className="tabular-nums text-lg font-semibold text-stone-800">{stats[o.value as Attendance] ?? 0}</p><p className="text-[11px] text-stone-400">{o.label}</p></div>
               ))}

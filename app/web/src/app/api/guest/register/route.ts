@@ -4,6 +4,8 @@ import { admin } from "@/lib/firebase-admin";
 import { ATTENDANCE_OPTIONS } from "@/types/admin";
 import { withGuard } from "@/lib/route-guard";
 import { isPasscodeCleared } from "@/lib/passcode-server";
+import { answerChangePatch } from "@/lib/answers-server";
+import type { Attendance } from "@/types/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -110,6 +112,19 @@ async function handle(req: Request) {
   const batch = db.batch();
   batch.set(publicRef, publicPatch, { merge: true });
   batch.set(privateRef, privatePatch, { merge: true });
+
+  /**
+   * ★登録済みの人が送り直したときも、出欠・アレルギーの変更に印を付ける★
+   *   /onboarding の「入力内容を変更する」からもここへ来る。/guide/questionnaire と同じ印を付けないと、
+   *   こちらから直すだけで管理画面の「変更あり」を通り抜けてしまう（answerChangePatch の★参照）。
+   */
+  if (publicSnap.get("isRegistered") === true) {
+    const change = answerChangePatch(privateSnap, adminSnap, {
+      attendance: body.attendance as Attendance,
+      allergy,
+    });
+    if (change) batch.set(adminRef, { uid, ...change }, { merge: true });
+  }
   await batch.commit();
 
   return NextResponse.json({ ok: true, nickname });

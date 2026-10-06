@@ -102,6 +102,16 @@ export type GuestAdmin = {
   referencePhotoPath: string;
   /** パスコードを間違え続けて永久ロックされている（/api/guest/passcode が書く） */
   passcodeBlocked: boolean;
+  /**
+   * 登録後にゲストが出欠・アレルギーを変えた（管理者がまだ確認していない）。
+   * 書くのは /api/guest/questionnaire と /api/guest/register、消すのは update-guest の ackAnswerChange。
+   */
+  answerChange: {
+    fields: ("attendance" | "allergy")[];
+    at: Timestamp | null;
+    /** 確認済みにしてから最初に出欠が変わる前の値 */
+    attendanceBefore: Attendance | null;
+  } | null;
 };
 
 /** ダッシュボードの1行（3つを uid で結合したもの） */
@@ -133,4 +143,6 @@ export type UpdateGuestPayload = {
   /** false でアクセス停止。tags を空にし、リフレッシュトークンも失効させる */
   isActive?: boolean;
   bannedReason?: string;
+  /** true で「回答の変更」を確認済みにする（guestAdmin の answerChange* を消す） */
+  ackAnswerChange?: boolean;
 };

@@ -4,14 +4,38 @@ import { useMemo, useState } from "react";
 import { TagPicker } from "@/components/admin/TagPicker";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
-import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
+import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "nickname" | "tags" | "attendance" | "allergy" | "paymentStatus" | "aiMemo">>;
-export type GuestPatch = Draft & { isApproved?: boolean; isActive?: boolean };
+export type GuestPatch = Draft & { isApproved?: boolean; isActive?: boolean; ackAnswerChange?: boolean };
 type SaveState = "idle" | "saving" | "done" | "error";
 
 const ATTENDANCE_STYLE: Record<Attendance, string> = { unanswered: "bg-stone-100 text-stone-600", attending: "bg-emerald-50 text-emerald-700", declined: "bg-rose-50 text-rose-700" };
 const PAYMENT_STYLE: Record<PaymentStatus, string> = { none: "bg-stone-100 text-stone-600", remitted: "bg-amber-50 text-amber-700", confirmed: "bg-emerald-50 text-emerald-700" };
+/**
+ * ゲストが登録後に出欠・アレルギーを変えた印（useAdminGuests の answerChange）。
+ * 出欠の変更は座席と料理の数に関わるので、アレルギーより強い色で出す。
+ */
+function AnswerChangeBadge({ row, onAck, busy }: { row: GuestRow; onAck: () => void; busy: boolean }) {
+  const c = row.answerChange;
+  if (!c) return null;
+  const attendance = c.fields.includes("attendance");
+  const when = c.at ? c.at.toDate().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+  return (
+    <div className={`mb-1.5 rounded-md px-2 py-1.5 text-[11px] leading-snug ${attendance ? "bg-rose-100 text-rose-800" : "bg-amber-100 text-amber-800"}`}>
+      <p className="font-semibold">
+        {attendance ? "出欠の変更あり" : "アレルギーの変更あり"}
+        {attendance && c.fields.includes("allergy") && "・アレルギーも"}
+      </p>
+      {attendance && c.attendanceBefore && (
+        <p>{ATTENDANCE_LABEL[c.attendanceBefore]} → {ATTENDANCE_LABEL[row.attendance]}</p>
+      )}
+      {when && <p className="text-[10px] opacity-70">{when}</p>}
+      <button type="button" disabled={busy} onClick={onAck} className="mt-1 w-full rounded bg-white/80 px-2 py-0.5 text-[10px] font-medium hover:bg-white disabled:opacity-50">確認済みにする</button>
+    </div>
+  );
+}
+
 function sameTags(a: string[], b: string[]) { return a.length === b.length && a.every((t, i) => t === b[i]); }
 
 export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { mode: "pending" | "approved"; rows: GuestRow[]; preGuests?: GuestRow[]; onSave: (uid: string, patch: GuestPatch) => Promise<void>; onApprove?: (row: GuestRow, preUid: string) => Promise<void>; }) {
@@ -61,9 +85,10 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
           <tbody>
             {rows.map((row) => {
               const dirty = isDirty(row); const state = states[row.uid] ?? "idle"; const tags = field(row, "tags");
-              const bg = dirty ? "bg-amber-50" : mode === "pending" ? "bg-sky-50/60" : "bg-white";
+              const changed = row.answerChange !== null;
+              const bg = dirty ? "bg-amber-50" : changed ? "bg-rose-50" : mode === "pending" ? "bg-sky-50/60" : "bg-white";
               return (
-                <tr key={row.uid} className={`align-top ${dirty ? "bg-amber-50/60" : mode === "pending" ? "bg-sky-50/40" : "hover:bg-stone-50/60"}`}>
+                <tr key={row.uid} className={`align-top ${dirty ? "bg-amber-50/60" : changed ? "bg-rose-50/50" : mode === "pending" ? "bg-sky-50/40" : "hover:bg-stone-50/60"}`}>
                   <td className={`sticky left-0 z-10 border-b border-r border-stone-200 px-3 py-2 ${bg}`}>
                     <p className="truncate font-medium text-stone-900" title={adminName(row)}>{adminName(row)}</p>
                     {row.kana && <p className="truncate text-[10px] text-stone-400">{row.kana}</p>}
@@ -94,6 +119,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     )}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
+                    <AnswerChangeBadge row={row} busy={state === "saving"} onAck={() => void run(row, onSave(row.uid, { ackAnswerChange: true }))} />
                     <select value={field(row, "attendance")} onChange={(e) => patch(row.uid, { attendance: e.target.value as Attendance })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${ATTENDANCE_STYLE[field(row, "attendance")]}`}>{ATTENDANCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
