@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
+import { SpaceSwitch } from "./SpaceSwitch";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { useCompactChrome } from "@/hooks/useCompactChrome";
 import {
@@ -28,7 +29,7 @@ const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
     href: `${GUESTBOOK_PATHS.home}?${GUESTBOOK_VIEW_PARAM}=gallery`,
   },
   { key: "notifications", label: "通知", icon: "♡", href: GUESTBOOK_PATHS.notifications },
-  { key: "settings", label: "設定", icon: "⚙", href: GUESTBOOK_PATHS.settings },
+  { key: "settings", label: "マイページ", icon: "☺", href: GUESTBOOK_PATHS.settings },
 ];
 
 /** /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー） */
@@ -102,13 +103,21 @@ function Header({ compact }: { compact: boolean }) {
   const view = useGuestbookView();
   const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
+  const { running } = useGuestbookUpload();
   return (
     <header
       inert={compact}
       className={`sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
     >
       <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
-        <span aria-hidden className="font-serif text-lg tracking-wide text-stone-900">GB</span>
+        <SpaceSwitch
+          current="guestbook"
+          notice={
+            running
+              ? "高画質版を送信中です。ご案内へ移ると、いま送っている1枚のあとで送信が止まります。続きはゲストブックに戻ってから送れます。"
+              : undefined
+          }
+        />
         <SearchBar />
         {/* ギャラリーでだけ出す。押すと保存する写真を選ぶモードに入る（もう一度押すと抜ける） */}
         {gallery && (
