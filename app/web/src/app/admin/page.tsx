@@ -92,6 +92,7 @@ export default function AdminPage() {
             <Link href="/admin/episodes" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">エピソード管理 →</Link>
             <Link href="/admin/ai-test" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">AIシミュレーター →</Link>
             <Link href="/admin/faces" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">顔の名寄せ →</Link>
+            <Link href="/admin/invitation_test" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">招待状テスト →</Link>
             <div className="ml-auto flex items-center gap-4 text-sm">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-sky-700">{pending.length}</p><p className="text-[11px] text-stone-400">承認待ち</p></div>
               <div className="text-center"><p className={`tabular-nums text-lg font-semibold ${changedCount > 0 ? "text-rose-600" : "text-stone-300"}`}>{changedCount}</p><p className="text-[11px] text-stone-400">回答の変更</p></div>
