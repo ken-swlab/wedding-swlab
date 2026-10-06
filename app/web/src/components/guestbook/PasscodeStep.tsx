@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { postJson } from "@/lib/api-client";
 import { PASSCODE_LENGTH } from "@/config/passcode";
 
 /**
@@ -13,8 +12,11 @@ import { PASSCODE_LENGTH } from "@/config/passcode";
  *   見えない input を枠の全面に重ねておけば、どこをタップしても
  *   そのまま input が focus され、テンキーが出る。
  *   font-size を 16px 未満にすると iOS が画面を拡大するので 16px にしている。
+ *
+ * 送信の処理（API の呼び出し）は onSubmit で受け取る。通らなければ Error を投げ、
+ * その message を画面に出す（/admin/invitation_test はダミーを渡す）。
  */
-export function PasscodeStep({ onCleared }: { onCleared: () => void }) {
+export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Promise<void> }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +33,7 @@ export function PasscodeStep({ onCleared }: { onCleared: () => void }) {
     setBusy(true);
     setError(null);
     try {
-      await postJson("/api/guest/passcode", { passcode: code });
-      onCleared();
+      await onSubmit(code);
     } catch (e) {
       const message = e instanceof Error ? e.message : "確認できませんでした。もう一度お試しください";
       // サーバーはロック時に「上限」を含む文言を返す（api/guest/passcode）
