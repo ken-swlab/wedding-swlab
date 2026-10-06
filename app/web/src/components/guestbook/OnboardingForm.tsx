@@ -1,21 +1,33 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import type { User } from "firebase/auth";
-import { postJson } from "@/lib/api-client";
 import { ATTENDANCE_OPTIONS, type Attendance } from "@/types/admin";
+
+/** 出欠の回答。POST /api/guest/register の本文 */
+export type OnboardingAnswer = {
+  realName: string;
+  kana: string;
+  nickname: string;
+  attendance: Attendance;
+  allergy: string;
+};
 
 const inputClass =
   "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-[15px] text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
 
+/**
+ * 出欠の回答フォーム。送信の処理（API の呼び出しと送信後の遷移）は onSubmit で受け取る。
+ * 通らなければ Error を投げ、その message を画面に出す（/admin/invitation_test はダミーを渡す）。
+ */
 export function OnboardingForm({
-  user,
+  displayName,
   initialNickname,
-  onDone,
+  onSubmit: submit,
 }: {
-  user: User;
+  /** LINE の表示名。フォームの下に「〜として回答します」と出す */
+  displayName?: string | null;
   initialNickname?: string;
-  onDone: () => void;
+  onSubmit: (answer: OnboardingAnswer) => Promise<void>;
 }) {
   const [realName, setRealName] = useState("");
   const [kana, setKana] = useState("");
@@ -36,14 +48,13 @@ export function OnboardingForm({
     setBusy(true);
     setError(null);
     try {
-      await postJson("/api/guest/register", {
+      await submit({
         realName: realName.trim(),
         kana: kana.trim(),
         nickname: nickname.trim(),
         attendance,
         allergy,
       });
-      onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "送信に失敗しました");
     } finally {
@@ -111,7 +122,7 @@ export function OnboardingForm({
       </button>
 
       <p className="mt-3 text-center text-[11px] text-stone-400">
-        {user.displayName ? `${user.displayName} として回答します` : ""}
+        {displayName ? `${displayName} として回答します` : ""}
       </p>
     </form>
   );
