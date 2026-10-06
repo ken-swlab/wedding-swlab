@@ -21,6 +21,9 @@ updates:
     #   14 系は jwks-rsa 4 → ESM 専用の jose 6 を require() する。Vercel の関数ではこれが
     #   ERR_REQUIRE_ESM で落ち、firebase-admin を使う API（ログイン・アップロードなど）がすべて 500 になった。
     #   Vercel 上で動くことを確かめてから、手で上げる。
+    #   ただし脆弱性修正の PR では、この ignore があっても #40 で 14 系に上がり、再び 500 になった（PR #58）。
+    #   依存を変える PR では deps-runtime ワークフロー（Issue #59）が古い Node で require() を試すので、
+    #   そのチェックが赤い Dependabot の PR はマージしない。
     ignore:
       - dependency-name: firebase-admin
         update-types: ["version-update:semver-major"]

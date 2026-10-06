@@ -1,0 +1,57 @@
+# サーバーの依存の読み込み検査（Issue #59）
+#
+# 依存を変える PR（Dependabot の PR を含む）で、API ルートが使うパッケージを古い Node の
+# require() で読み込み、Vercel の関数で ERR_REQUIRE_ESM になって API がすべて 500 になる
+# 不具合（Issue #38・PR #58。firebase-admin 14 → jwks-rsa 4 → ESM 専用の jose 6）を先に見つける。
+# 読み込むパッケージの一覧と理由は app/web/scripts/check-server-require.mjs。
+#
+# ★本番デプロイ（Vercel の main 連携）とは独立している★
+#   Vercel は GitHub Actions の結果を待たずにデプロイするので、ここが失敗しても
+#   main のデプロイは止まらない。マージ前に PR 上で気づくためのもの。
+# ★サードパーティの Action はコミット SHA で固定する★（security.yml と同じ）
+name: deps-runtime
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - app/web/package.json
+      - app/web/package-lock.json
+      - app/web/scripts/check-server-require.mjs
+      - .github/workflows/deps-runtime.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deps-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-require:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ★ESM の require() に対応していない Node で検査する★
+      #   Node 22.12 以降と 20.19 以降は ESM の require() に対応していて、壊れた依存でも読み込めてしまう。
+      #   Vercel の関数の Node が対応した版になっていても、古い版で通るなら Vercel でも通るので、
+      #   安全側に倒して古い版に固定する（Vercel の Node を上げても、この版は下げたまま残す）。
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 20.18.0
+          cache: npm
+          cache-dependency-path: app/web/package-lock.json
+
+      # インストール時のスクリプトは動かさない（検査に要らない処理を減らす。sharp は環境ごとの版を
+      # optionalDependencies で入れるので、スクリプトなしで読み込める）。
+      # 読み込みで依存のコードは動くが、このジョブは読み取り権限だけで、秘密も渡していない。
+      - name: npm ci
+        working-directory: app/web
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: サーバーの依存を require() で読み込む
+        working-directory: app/web
+        run: node scripts/check-server-require.mjs
