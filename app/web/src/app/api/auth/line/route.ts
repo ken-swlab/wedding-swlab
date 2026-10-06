@@ -107,6 +107,14 @@ async function _POST(req: Request) {
   const batch = db.batch();
 
   /**
+   * ★本人が設定したアイコン（photoSource: "custom"）は LINE の画像で上書きしない★
+   *   設定画面（/api/guest/profile）で変えたアイコンが、次のログインで LINE の画像に戻ってしまう。
+   *   LINE の画像は上の Auth のユーザーには反映しているので、「LINE のアイコンに戻す」はそこから引く。
+   */
+  const customPhoto =
+    !isNew && (await db.collection("guests").doc(uid).get()).get("photoSource") === "custom";
+
+  /**
    * ★guests には表示名を書かない★
    *   LINE の表示名は本名を設定している人が多い。guests は
    *   サインイン済みゲストが list できるので、氏名は guestPrivate へ。
@@ -117,7 +125,7 @@ async function _POST(req: Request) {
     db.collection("guests").doc(uid),
     {
       uid,
-      ...(photoURL ? { photoURL } : {}),
+      ...(photoURL && !customPhoto ? { photoURL } : {}),
       ...(isNew
         ? { nickname: "", isRegistered: false, isApproved: false, createdAt: FieldValue.serverTimestamp() }
         : {}),

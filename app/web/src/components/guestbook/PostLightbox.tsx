@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useAuthorProfile } from "@/lib/profiles-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { toggleReaction } from "@/lib/posts";
@@ -92,6 +93,7 @@ export function PostLightbox({
   onNext: () => void;
   onClose: () => void;
 }) {
+  const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
   const { reacted, setReacted, loaded } = useMyReaction(post.id, user.uid, true);
   const [busy, setBusy] = useState(false);
 
@@ -150,12 +152,12 @@ export function PostLightbox({
           style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
         >
           <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full bg-stone-700">
-            {post.authorPhotoURL && (
-              <Image src={post.authorPhotoURL} alt="" fill sizes="32px" className="object-cover" />
+            {author.photoURL && (
+              <Image src={author.photoURL} alt="" fill sizes="32px" className="object-cover" />
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-white">{post.authorName}</p>
+            <p className="truncate text-sm font-medium text-white">{author.name}</p>
             <p className="text-[11px] text-white/40">{fullDate(post)}</p>
           </div>
           <button

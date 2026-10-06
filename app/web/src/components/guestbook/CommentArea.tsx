@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useState, type FormEvent } from "react";
 import type { User } from "firebase/auth";
 import { useComments } from "@/hooks/useComments";
@@ -8,6 +7,9 @@ import { createComment, deleteComment } from "@/lib/comments";
 import { countChars, MAX_COMMENT_LENGTH } from "@/lib/text";
 import { useAuthorName } from "./AuthorNameProvider";
 import { RichText } from "./RichText";
+import { AuthorAvatar } from "./AuthorAvatar";
+import { useGuestSessionContext } from "./GuestSessionContext";
+import { useAuthorProfile } from "@/lib/profiles-client";
 import type { Comment, Post } from "@/types";
 
 function shortTime(c: Comment): string {
@@ -22,18 +24,15 @@ function shortTime(c: Comment): string {
 
 function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid: string }) {
   const mine = comment.authorUid === uid;
+  const author = useAuthorProfile(comment.authorUid, { name: comment.authorName, photoURL: comment.authorPhotoURL });
 
   return (
     <li className="flex gap-2.5 py-2.5">
-      <div className="relative mt-0.5 h-7 w-7 shrink-0 overflow-hidden rounded-full bg-stone-200">
-        {comment.authorPhotoURL && (
-          <Image src={comment.authorPhotoURL} alt="" fill sizes="28px" className="object-cover" />
-        )}
-      </div>
+      <AuthorAvatar uid={comment.authorUid} profile={author} className="mt-0.5 h-7 w-7" sizes="28px" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-[13px] font-semibold text-stone-800">
-            {comment.authorName}
+            {author.name}
           </span>
           <time className="shrink-0 text-[11px] text-stone-400">{shortTime(comment)}</time>
           {mine && (
@@ -88,6 +87,8 @@ export function CommentList({
 /** コメントの入力と送信（文字数の上限・送信中・失敗の状態を持つ） */
 export function useCommentForm(post: Post, user: User, onSent?: () => void) {
   const authorName = useAuthorName();
+  // アイコンは本人が設定したもの（guests.photoURL）。Auth の photoURL は LINE の画像のまま
+  const authorPhotoURL = useGuestSessionContext().profile?.photoURL || user.photoURL;
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -109,7 +110,7 @@ export function useCommentForm(post: Post, user: User, onSent?: () => void) {
         postVisibleToTags: post.visibleToTags, // ★親と完全一致が必須★
         uid: user.uid,
         displayName: authorName,
-        photoURL: user.photoURL,
+        photoURL: authorPhotoURL,
         text,
       });
       setText("");

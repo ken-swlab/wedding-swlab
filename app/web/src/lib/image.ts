@@ -1,4 +1,5 @@
 import imageCompression from "browser-image-compression";
+import { ICON_MAX_EDGE, ICON_MAX_MB, ICON_QUALITY } from "@/config/profile";
 
 export const THUMB_MAX_EDGE = 1920;
 export const THUMB_QUALITY = 0.8;
@@ -44,6 +45,21 @@ export async function compressForTimeline(file: File): Promise<Compressed> {
 
   const { width, height } = await readDimensions(blob);
   return { blob, width, height };
+}
+
+/**
+ * プロフィールのアイコン用に小さくする（JPEG。canvas で再エンコードするので EXIF は落ちる）。
+ * 丸く切り抜くのは表示側（object-cover）なので、ここでは縦横比を変えない。
+ */
+export async function compressForIcon(file: File): Promise<Blob> {
+  return imageCompression(file, {
+    maxWidthOrHeight: ICON_MAX_EDGE,
+    initialQuality: ICON_QUALITY,
+    maxSizeMB: ICON_MAX_MB,
+    useWebWorker: true,
+    libURL: workerLibUrl(),
+    fileType: "image/jpeg",
+  });
 }
 
 async function readDimensions(blob: Blob): Promise<{ width: number; height: number }> {

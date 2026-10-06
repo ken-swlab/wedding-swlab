@@ -14,7 +14,7 @@ paths:
 ## コレクションと Rules（infra/firestore/firestore.rules）
 | コレクション | 読める人 | 書ける人 |
 |---|---|---|
-| `guests/{uid}` | 本人・管理者・タグを1つ以上持つ人 | サーバー（本人は `photoURL` / `bio` / `updatedAt` だけ） |
+| `guests/{uid}` | 本人・管理者・タグを1つ以上持つ人 | サーバー（本人のプロフィールは `/api/guest/profile` 経由。本人の直接の書き込みは不可） |
 | `guestPrivate/{uid}` | 本人・管理者 | サーバー |
 | `guestAdmin/{uid}` | 管理者 | サーバー |
 | `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる） | 作成は本人（`validPost()` かつ自分のタグの範囲）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
