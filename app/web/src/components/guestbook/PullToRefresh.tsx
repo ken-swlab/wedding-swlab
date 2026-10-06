@@ -55,6 +55,8 @@ const READY_POP_EASING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
  *   transform を持つ要素は中の position: fixed の基準と重なりの単位（stacking context）になる。
  *   付けっぱなしにすると、本文の中で開く詳細シートやライトボックスが画面に固定されず、
  *   ヘッダーやボトムナビ（z-40）の下に潜る。付いている間は本文のタップも止めて、開かせない。
+ *   スクロールを止めずに出し続ける fixed 要素（選択モードの操作バーなど）は、
+ *   引っ張り中も固定されるよう document.body へ Portal で出す（PhotoPicker 参照）。
  * ★曲線は transitionTimingFunction に単独で渡す★
  *   linear() を解釈できない古い Safari ではその指定だけが捨てられ、既定の ease で動く。
  *   transition の一括指定に混ぜると、動き自体が付かなくなる。

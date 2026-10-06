@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import type { Post } from "@/types";
 import { thumbSrc } from "@/lib/media-url";
 import {
@@ -28,6 +29,10 @@ import {
  * ★選べるのは画面に出ている写真だけ★
  *   顔・文字の絞り込みは解除しない（posts は絞り込み後の一覧を受け取る）。絞り込みを変えて
  *   見えなくなった写真は選択からも外す。過去の写真は下までスクロールすると自動で読み込む。
+ * ★下部の操作バーと保存ダイアログは document.body へ Portal で出す★
+ *   このコンポーネントは PullToRefresh の本文の中に描かれ、引っ張っている間は本文に transform と
+ *   pointer-events: none が付く（PullToRefresh の★参照）。中に置いたままだと fixed が画面に固定されず、
+ *   z-50 も本文の重なりの単位に閉じ込められてボトムナビ（z-40）の下に潜り、ボタンも押せなくなる。
  */
 export function PhotoPicker({
   posts,
@@ -79,6 +84,8 @@ export function PhotoPicker({
     io.observe(el);
     return () => io.disconnect();
   }, [hasMore, loadingMore, loadMore]);
+
+  const portalReady = useIsClient();
 
   const startSave = useCallback(() => {
     setSaving(photos.filter((p) => selected.has(p.key)));
@@ -157,40 +164,58 @@ export function PhotoPicker({
       </div>
 
       {/* 選択中の操作。ボトムナビの上に重ねる（選択モードの間はナビの代わり） */}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-xl items-center gap-2 px-4">
-          <button
-            type="button"
-            onClick={() => setSelected(allSelected ? new Set() : new Set(photos.map((p) => p.key)))}
-            disabled={photos.length === 0}
-            className="min-h-11 touch-manipulation rounded-full px-3 text-sm text-sky-700 transition hover:bg-sky-50 disabled:opacity-40"
-          >
-            {allSelected ? "すべて解除" : "すべて選択"}
-          </button>
-          <p className="flex-1 text-center text-sm tabular-nums text-stone-600" aria-live="polite">
-            {selected.size > 0 ? `${selected.size}枚を選択中` : "写真を選択"}
-          </p>
-          <button
-            type="button"
-            onClick={startSave}
-            disabled={selected.size === 0}
-            className="min-h-11 touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
-          >
-            保存
-          </button>
-        </div>
-      </div>
+      {portalReady &&
+        createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+            <div className="mx-auto flex h-16 max-w-xl items-center gap-2 px-4">
+              <button
+                type="button"
+                onClick={() => setSelected(allSelected ? new Set() : new Set(photos.map((p) => p.key)))}
+                disabled={photos.length === 0}
+                className="min-h-11 touch-manipulation rounded-full px-3 text-sm text-sky-700 transition hover:bg-sky-50 disabled:opacity-40"
+              >
+                {allSelected ? "すべて解除" : "すべて選択"}
+              </button>
+              <p className="flex-1 text-center text-sm tabular-nums text-stone-600" aria-live="polite">
+                {selected.size > 0 ? `${selected.size}枚を選択中` : "写真を選択"}
+              </p>
+              <button
+                type="button"
+                onClick={startSave}
+                disabled={selected.size === 0}
+                className="min-h-11 touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+              >
+                保存
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
 
-      {saving && (
-        <SaveDialog
-          photos={saving}
-          onClose={(done) => {
-            setSaving(null);
-            if (done) setSelected(new Set());
-          }}
-        />
-      )}
+      {saving &&
+        portalReady &&
+        createPortal(
+          <SaveDialog
+            photos={saving}
+            onClose={(done) => {
+              setSaving(null);
+              if (done) setSelected(new Set());
+            }}
+          />,
+          document.body,
+        )}
     </div>
+  );
+}
+
+const noopSubscribe = () => () => {};
+
+/** Portal の出し先（document.body）があるか。サーバーとハイドレーション中は false */
+function useIsClient(): boolean {
+  return useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
   );
 }
 
