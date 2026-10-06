@@ -71,6 +71,7 @@ function startsWithAscii(seg: Uint8Array, at: number, text: string): boolean {
 
 /**
  * ★APPn は残すものだけを決める（許可リスト）★
+ *   （app/web/scripts/scan-published-metadata.mjs が理由の分類に使うので export している）
  *   落とすものを列挙する方式だと、知らない APPn（APP3〜APP15）や COM に
  *   書かれたコメント・位置情報・機種固有の情報が素通りする。
  *   残すのは表示に必要なものだけ:
@@ -79,7 +80,7 @@ function startsWithAscii(seg: Uint8Array, at: number, text: string): boolean {
  *     APP14 Adobe（CMYK などの色変換に必要）
  *   APP1（Exif・XMP）は Orientation だけを拾って作り直す。
  */
-function keepJpegSegment(marker: number, seg: Uint8Array): boolean {
+export function keepJpegSegment(marker: number, seg: Uint8Array): boolean {
   if (marker === COM) return false;
   if (marker < APP0 || marker > 0xffef) return true; // DQT・SOF・DHT・DRI などの画像の本体
   if (marker === APP0) return startsWithAscii(seg, 4, "JFIF\0") || startsWithAscii(seg, 4, "JFXX\0");
@@ -239,7 +240,7 @@ function stripJpeg(b: Uint8Array): SanitizeResult {
  *   eXIf・tEXt・iTXt・zTXt・tIME や、アプリ独自のチャンクはすべて落とす。
  *   表示に要るもの（色・透過・解像度・APNG のアニメーション）だけを残す。
  */
-const PNG_KEEP = new Set([
+export const PNG_KEEP = new Set([
   "IHDR", "PLTE", "IDAT", "IEND",
   "tRNS", "cHRM", "gAMA", "iCCP", "sBIT", "sRGB", "cICP", "mDCv", "cLLi",
   "bKGD", "pHYs", "sPLT", "hIST",
@@ -294,7 +295,7 @@ function stripPng(b: Uint8Array): SanitizeResult {
 // ───────────────────────── WebP ─────────────────────────
 
 /** ★残すチャンクを決める（許可リスト）★ EXIF・XMP・独自チャンクは落とす */
-const WEBP_KEEP = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF", "ICCP"]);
+export const WEBP_KEEP = new Set(["VP8 ", "VP8L", "VP8X", "ALPH", "ANIM", "ANMF", "ICCP"]);
 
 function stripWebp(b: Uint8Array): SanitizeResult {
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
