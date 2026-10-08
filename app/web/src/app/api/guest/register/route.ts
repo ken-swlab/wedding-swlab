@@ -1,16 +1,24 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
-import { ATTENDANCE_OPTIONS } from "@/types/admin";
 import { withGuard } from "@/lib/route-guard";
 import { isPasscodeCleared } from "@/lib/passcode-server";
-import { answerChangePatch } from "@/lib/answers-server";
-import type { Attendance } from "@/types/admin";
+import { answerChangePatch, answersPrivatePatch, parseAnswers, type AnswersBody } from "@/lib/answers-server";
+import { DEFAULT_NICKNAME_PREFIX } from "@/config/answers";
+import { PROFILE_NICKNAME_MAX } from "@/config/profile";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
+/**
+ * ニックネームを空欄で送られたときの既定名（例: ゲスト0427）。uid から決めるので送り直しても変わらない。
+ * ★LINE の表示名を使わない★ guests は承認済みゲスト全員が読める。LINE 名は本名のことが多い（CLAUDE.md ルール5）。
+ */
+function defaultNickname(uid: string): string {
+  let h = 0;
+  for (const c of uid) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return `${DEFAULT_NICKNAME_PREFIX}${String(h % 10000).padStart(4, "0")}`;
+}
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -38,28 +46,19 @@ async function handle(req: Request) {
     return fail("ログインし直してください", 401);
   }
 
-  let body: {
-    realName?: unknown; kana?: unknown; nickname?: unknown;
-    attendance?: unknown; allergy?: unknown;
-  };
+  let body: AnswersBody & { nickname?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return fail("リクエストが不正です", 400);
   }
 
-  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
-  const realName = str(body.realName);
-  const nickname = str(body.nickname);
-  const kana = str(body.kana);
-  const allergy = str(body.allergy);
-
-  if (!realName || realName.length > 40) return fail("お名前は1〜40文字で入力してください", 400);
-  if (!nickname || nickname.length > 20) return fail("ニックネームは1〜20文字で入力してください", 400);
-  if (kana.length > 40) return fail("ふりがなは40文字までです", 400);
-  if (allergy.length > 500) return fail("アレルギー情報は500文字までです", 400);
-  if (typeof body.attendance !== "string" || !ATTENDANCE_VALUES.has(body.attendance)) {
-    return fail("出欠の選択が不正です", 400);
+  const parsed = parseAnswers(body);
+  if ("error" in parsed) return fail(parsed.error, 400);
+  const { answers } = parsed;
+  const nicknameInput = typeof body.nickname === "string" ? body.nickname.trim() : "";
+  if (nicknameInput.length > PROFILE_NICKNAME_MAX) {
+    return fail(`ニックネームは${PROFILE_NICKNAME_MAX}文字までです`, 400);
   }
 
   const publicRef = db.collection("guests").doc(uid);
@@ -96,16 +95,20 @@ async function handle(req: Request) {
    *   guests はサインイン済みのゲストなら list できる領域。
    *   本名とふりがなは guestPrivate（本人と管理者だけ）に置く。
    */
+  // 空欄なら、すでに付いているニックネーム（送り直し）か既定名
+  const existingNickname = publicSnap.get("nickname");
+  const nickname = nicknameInput
+    || (typeof existingNickname === "string" && existingNickname.trim() ? existingNickname : defaultNickname(uid));
+
   const publicPatch: Record<string, unknown> = {
     nickname, isRegistered: true, updatedAt: FieldValue.serverTimestamp(),
   };
   if (publicSnap.get("isApproved") === undefined) publicPatch.isApproved = false;
 
   const privatePatch: Record<string, unknown> = {
-    uid, realName, attendance: body.attendance, allergy,
+    uid, ...answersPrivatePatch(answers),
     submittedAt: FieldValue.serverTimestamp(),
   };
-  if (kana) privatePatch.kana = kana;
   if (privateSnap.get("paymentStatus") === undefined) privatePatch.paymentStatus = "none";
   if (privateSnap.get("isActive") === undefined) privatePatch.isActive = true;
 
@@ -119,10 +122,7 @@ async function handle(req: Request) {
    *   こちらから直すだけで管理画面の「変更あり」を通り抜けてしまう（answerChangePatch の★参照）。
    */
   if (publicSnap.get("isRegistered") === true) {
-    const change = answerChangePatch(privateSnap, adminSnap, {
-      attendance: body.attendance as Attendance,
-      allergy,
-    });
+    const change = answerChangePatch(privateSnap, adminSnap, answers);
     if (change) batch.set(adminRef, { uid, ...change }, { merge: true });
   }
   await batch.commit();

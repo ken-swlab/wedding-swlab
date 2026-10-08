@@ -4,13 +4,13 @@ import { useMemo, useState } from "react";
 import { TagPicker } from "@/components/admin/TagPicker";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
+import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "nickname" | "tags" | "attendance" | "allergy" | "paymentStatus" | "aiMemo">>;
 export type GuestPatch = Draft & { isApproved?: boolean; isActive?: boolean; ackAnswerChange?: boolean };
 type SaveState = "idle" | "saving" | "done" | "error";
 
-const ATTENDANCE_STYLE: Record<Attendance, string> = { unanswered: "bg-stone-100 text-stone-600", attending: "bg-emerald-50 text-emerald-700", declined: "bg-rose-50 text-rose-700" };
+const ATTENDANCE_STYLE: Record<Attendance, string> = { unanswered: "bg-stone-100 text-stone-600", both: "bg-emerald-50 text-emerald-700", first_only: "bg-teal-50 text-teal-700", second_only: "bg-sky-50 text-sky-700", declined: "bg-rose-50 text-rose-700" };
 const PAYMENT_STYLE: Record<PaymentStatus, string> = { none: "bg-stone-100 text-stone-600", remitted: "bg-amber-50 text-amber-700", confirmed: "bg-emerald-50 text-emerald-700" };
 /**
  * ゲストが登録後に出欠・アレルギーを変えた印（useAdminGuests の answerChange）。
@@ -121,9 +121,12 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                   <td className="border-b border-stone-200 px-2 py-2">
                     <AnswerChangeBadge row={row} busy={state === "saving"} onAck={() => void run(row, onSave(row.uid, { ackAnswerChange: true }))} />
                     <select value={field(row, "attendance")} onChange={(e) => patch(row.uid, { attendance: e.target.value as Attendance })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${ATTENDANCE_STYLE[field(row, "attendance")]}`}>{ATTENDANCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+                    {row.ceremony && <p className="mt-1 text-[10px] text-stone-500">{CEREMONY_LABEL[row.ceremony]}</p>}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     <textarea value={field(row, "allergy")} onChange={(e) => patch(row.uid, { allergy: e.target.value })} rows={2} maxLength={500} placeholder="—" className="w-full resize-y rounded border border-transparent bg-transparent px-1.5 py-1 text-xs leading-relaxed text-stone-700 placeholder:text-stone-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none" />
+                    {/* 備考はゲスト本人が書く欄。管理画面からは編集しない */}
+                    {row.note && <p className="mt-1 whitespace-pre-wrap break-words text-[10px] leading-relaxed text-stone-500">備考: {row.note}</p>}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     <select value={field(row, "paymentStatus")} onChange={(e) => patch(row.uid, { paymentStatus: e.target.value as PaymentStatus })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${PAYMENT_STYLE[field(row, "paymentStatus")]}`}>{PAYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>

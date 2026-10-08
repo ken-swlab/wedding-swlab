@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
 import { InvitationView } from "@/components/guestbook/InvitationView";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -12,7 +12,7 @@ import type { InvitationContent } from "@/types/invitation";
  *   entrance … 入り口と LINE ログイン（個人の情報なし）
  *   passcode … パスコード入力（個人の情報なし）
  *   teaser   … パスコードを通った直後のティザー動画（全画面）
- *   open     … 招待状の本文と出欠の回答
+ *   open     … 招待状の本文と、その下に出欠の回答フォーム（1ページの縦スクロール。Issue #74）
  */
 export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
@@ -30,8 +30,8 @@ export type InvitationFlowProps = {
   onPasscodeSubmit: (passcode: string) => Promise<void>;
   /** ティザー動画が終わった・スキップされた */
   onTeaserEnd: () => void;
-  /** 「出欠を回答する」 */
-  onRsvp: () => void;
+  /** open の段階で開催概要の下に出す出欠の回答フォーム（送信の処理は親が持つ） */
+  rsvp: ReactNode;
   /** エラー画面の「もう一度読み込む」 */
   onRetry: () => void;
   /** ティザー動画の URL（同一オリジン・blob: か R2）。無ければ代わりの画面を出す */
@@ -45,7 +45,7 @@ export type InvitationFlowProps = {
  *   招待状の URL は外に出回る前提。名前などは open の invitation（API がパスコードを
  *   通った人にだけ返す）からだけ描く。ここに定数として書かない。
  */
-export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onTeaserEnd, onRsvp, onRetry, teaserSrc }: InvitationFlowProps) {
+export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onTeaserEnd, rsvp, onRetry, teaserSrc }: InvitationFlowProps) {
   switch (step.kind) {
     case "loading":
       return <SplashScreen phase="booting" />;
@@ -75,15 +75,11 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onTeaserEnd, o
     case "open":
       return (
         <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
-          <div className="mx-auto w-full max-w-[26rem] px-6 pb-36 pt-12">
+          <div className="mx-auto w-full max-w-[26rem] px-6 pt-12" style={{ paddingBottom: "max(3rem, env(safe-area-inset-bottom))" }}>
             <InvitationView invitation={step.invitation} />
-          </div>
-          <div className="fixed inset-x-0 bottom-0 border-t border-stone-200/80 bg-[#faf9f7]/95 backdrop-blur" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
-            <div className="mx-auto w-full max-w-[26rem] px-6 pt-4">
-              <button type="button" onClick={onRsvp} className="flex h-14 w-full touch-manipulation items-center justify-center rounded-2xl bg-stone-900 text-[15px] font-medium text-white shadow-sm transition hover:bg-stone-700 active:brightness-95">
-                出欠を回答する
-              </button>
-            </div>
+            <section aria-label="出欠のご回答" className="mt-8">
+              {rsvp}
+            </section>
           </div>
         </main>
       );

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
-import { GuestShell } from "@/components/guestbook/GuestShell";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
 import type { InvitationContent } from "@/types/invitation";
 
@@ -30,17 +29,13 @@ const WRONG_PASSCODE = "0000";
 /** 出欠フォームの下に出す LINE の表示名（ダミー） */
 const DUMMY_DISPLAY_NAME = "LINE の表示名";
 
-/** InvitationFlow の段階に、本番では別ページ（/onboarding）の出欠回答を足したもの */
-type TestStep = InvitationStep | { kind: "rsvp" };
-
-const STEP_LABEL: Record<TestStep["kind"], string> = {
+const STEP_LABEL: Record<InvitationStep["kind"], string> = {
   entrance: "1-2. 入り口・LINE ログイン",
   loading: "読み込み中",
   passcode: "3. パスコード",
   teaser: "4. ティザー動画",
-  open: "5. 招待状・出欠",
+  open: "5. 招待状・出欠の回答",
   error: "エラー",
-  rsvp: "6. 出欠回答（/onboarding）",
 };
 
 /**
@@ -52,7 +47,7 @@ const STEP_LABEL: Record<TestStep["kind"], string> = {
  */
 export default function InvitationTestPage() {
   const { user, isAdmin, loading } = useGuestSession();
-  const [step, setStep] = useState<TestStep>({ kind: "entrance", busy: false, message: null });
+  const [step, setStep] = useState<InvitationStep>({ kind: "entrance", busy: false, message: null });
   const [note, setNote] = useState<string | null>(null);
   const [teaserSrc, setTeaserSrc] = useState<string | undefined>(undefined);
 
@@ -84,12 +79,6 @@ export default function InvitationTestPage() {
   const onTeaserEnd = useCallback(() => {
     console.log("[invitation_test] ティザー動画が終了");
     setStep({ kind: "open", invitation: DUMMY_INVITATION });
-  }, []);
-
-  const onRsvp = useCallback(() => {
-    console.log("[invitation_test] 出欠を回答する（ダミー）");
-    setNote(null);
-    setStep({ kind: "rsvp" });
   }, []);
 
   // ★回答の中身（本名・アレルギー）をログに出さない★ ダミーでも本物を入れて試すことがあるため
@@ -144,22 +133,16 @@ export default function InvitationTestPage() {
         {note && <p className="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sky-800">{note}</p>}
       </aside>
 
-      {step.kind === "rsvp" ? (
-        // 本番の /onboarding と同じ組み合わせ（GuestShell + OnboardingForm）
-        <GuestShell>
-          <OnboardingForm displayName={DUMMY_DISPLAY_NAME} onSubmit={onRsvpSubmit} />
-        </GuestShell>
-      ) : (
-        <InvitationFlow
-          step={step}
-          onLogin={onLogin}
-          onPasscodeSubmit={onPasscodeSubmit}
-          onTeaserEnd={onTeaserEnd}
-          onRsvp={onRsvp}
-          onRetry={restart}
-          teaserSrc={teaserSrc}
-        />
-      )}
+      {/* 本番の /invitation と同じ組み合わせ（開催概要の下に OnboardingForm） */}
+      <InvitationFlow
+        step={step}
+        onLogin={onLogin}
+        onPasscodeSubmit={onPasscodeSubmit}
+        onTeaserEnd={onTeaserEnd}
+        rsvp={<OnboardingForm displayName={DUMMY_DISPLAY_NAME} onSubmit={onRsvpSubmit} />}
+        onRetry={restart}
+        teaserSrc={teaserSrc}
+      />
     </>
   );
 }
