@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
-import { answerChangePatch, parseAnswers } from "@/lib/answers-server";
+import { answerChangePatch, answersPrivatePatch, parseAnswers, type AnswersBody } from "@/lib/answers-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,7 +22,7 @@ async function _POST(req: Request) {
 }
 
 /**
- * 招待状で答えた内容（本名・ふりがな・出欠・アレルギー）を、案内モード（/guide/questionnaire）から直す。
+ * 招待状で答えた内容（本名・ふりがな・出欠・挙式・アレルギー・備考）を、案内モード（/guide/questionnaire）から直す。
  *
  * ★登録済みのゲストだけ★ 初回の回答は /api/guest/register（パスコードの確認つき）で行う。
  * ★出欠・アレルギーが変わったら guestAdmin に印を付ける★（answerChangePatch の★参照）
@@ -42,7 +42,7 @@ async function handle(req: Request) {
     return fail("ログインし直してください", 401);
   }
 
-  let body: { realName?: unknown; kana?: unknown; attendance?: unknown; allergy?: unknown };
+  let body: AnswersBody;
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -71,13 +71,7 @@ async function handle(req: Request) {
   const batch = db.batch();
   batch.set(
     privateRef,
-    {
-      realName: answers.realName,
-      kana: answers.kana,
-      attendance: answers.attendance,
-      allergy: answers.allergy,
-      updatedAt: FieldValue.serverTimestamp(),
-    },
+    { ...answersPrivatePatch(answers), updatedAt: FieldValue.serverTimestamp() },
     { merge: true },
   );
   const change = answerChangePatch(privateSnap, adminSnap, answers);

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
 import { getJson, postJson } from "@/lib/api-client";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
+import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import type { InvitationContent, InvitationStatus } from "@/types/invitation";
 
 type View =
@@ -13,7 +14,7 @@ type View =
   | { kind: "error"; message: string };
 
 /**
- * 招待状。未ログイン → LINE ログイン → パスコード → 招待状 → 出欠の回答（/onboarding）。
+ * 招待状。未ログイン → LINE ログイン → パスコード → 招待状と出欠の回答（同じページの開催概要の下）。
  *
  * ★ログインしてパスコードを通るまで、新郎新婦の名前・写真・会場を出さない★
  *   中身はこのファイルにもバンドルにも無く、GET /api/guest/invitation が
@@ -54,7 +55,7 @@ export default function InvitationPage() {
   }, []);
 
   useEffect(() => {
-    router.prefetch("/onboarding");
+    router.prefetch("/guestbook");
   }, [router]);
 
   const passcodeSubmit = useCallback(
@@ -80,7 +81,16 @@ export default function InvitationPage() {
       onLogin={login}
       onPasscodeSubmit={passcodeSubmit}
       onTeaserEnd={reload}
-      onRsvp={() => router.push("/onboarding")}
+      rsvp={
+        <OnboardingForm
+          displayName={user?.displayName}
+          onSubmit={async (answer) => {
+            await postJson("/api/guest/register", answer);
+            // 承認待ちなら (guest)/layout が /pending に振り分ける（/onboarding と同じ）
+            router.replace("/guestbook");
+          }}
+        />
+      }
       onRetry={reload}
     />
   );

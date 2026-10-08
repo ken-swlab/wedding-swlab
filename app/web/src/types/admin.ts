@@ -1,11 +1,32 @@
 import type { Timestamp } from "firebase/firestore";
 
+/**
+ * 出欠。label は管理画面の短い表記、formLabel は回答フォームの表記（Issue #74 で4択に変更）。
+ * 1次会 = 披露宴（パーティー）、2次会 = 二次会。
+ */
 export const ATTENDANCE_OPTIONS = [
-  { value: "unanswered", label: "未回答" },
-  { value: "attending",  label: "出席" },
-  { value: "declined",   label: "欠席" },
+  { value: "unanswered",  label: "未回答",    formLabel: "未回答" },
+  { value: "both",        label: "両方参加",  formLabel: "1次会・2次会 両方参加" },
+  { value: "first_only",  label: "1次会のみ", formLabel: "1次会のみ参加" },
+  { value: "second_only", label: "2次会のみ", formLabel: "2次会のみ参加" },
+  { value: "declined",    label: "欠席",      formLabel: "欠席" },
 ] as const;
 export type Attendance = (typeof ATTENDANCE_OPTIONS)[number]["value"];
+
+/**
+ * 挙式へのご参加。出欠が「欠席」以外のときだけ聞く（欠席・未回答なら空文字）。
+ * 挙式は自由参加。時刻は回答フォームの説明文にも出している（CEREMONY_NOTE）。
+ */
+export const CEREMONY_OPTIONS = [
+  { value: "ceremony", label: "挙式から",       formLabel: "挙式（15:00〜）から参加する" },
+  { value: "party",    label: "パーティーから", formLabel: "パーティーから参加する" },
+] as const;
+export type Ceremony = (typeof CEREMONY_OPTIONS)[number]["value"];
+export const CEREMONY_NOTE = "15:00からの挙式は自由参加となっております。";
+
+export const CEREMONY_LABEL = Object.fromEntries(
+  CEREMONY_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<Ceremony, string>;
 
 export const PAYMENT_OPTIONS = [
   { value: "none",      label: "未" },
@@ -48,8 +69,14 @@ export type GuestPublic = {
 export type GuestPrivate = {
   uid: string;
   attendance: Attendance;
+  /** 挙式から出るか。出欠が欠席・未回答なら "" */
+  ceremony: Ceremony | "";
+  /** 食物アレルギーの有無。false なら allergy は空。未回答（登録前・名簿のみ）は null */
+  hasAllergy: boolean | null;
   /** ★健康情報★ 公開プロフィールには絶対に置かない */
   allergy: string;
+  /** 備考・連絡事項（ゲスト本人が書く。健康情報が混じりうるので allergy と同じ扱い） */
+  note: string;
   paymentStatus: PaymentStatus;
   submittedAt: Timestamp | null;
   /**
@@ -67,7 +94,8 @@ export type GuestPrivate = {
   /**
    * ★氏名系は全部ここ★
    *   displayName      名簿（CSV取込・管理画面）で管理者が入れる氏名
-   *   realName         ゲスト本人が登録フォームで入力した本名
+   *   realName         ゲスト本人が登録フォームで入力した本名（「姓 名」をつないだもの）
+   *   lastName / firstName / lastKana / firstKana  フォームの姓・名と、そのふりがな（Issue #74）
    *   kana             ふりがな（本名の読みなので本名と同じ扱い）
    *   lineDisplayName  LINE の表示名。本名を設定している人が多い
    *
@@ -77,6 +105,10 @@ export type GuestPrivate = {
   displayName: string;
   realName: string;
   kana: string;
+  lastName: string;
+  firstName: string;
+  lastKana: string;
+  firstKana: string;
   lineDisplayName: string;
 };
 

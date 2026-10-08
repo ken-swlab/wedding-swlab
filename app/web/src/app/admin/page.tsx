@@ -9,7 +9,7 @@ import { HiddenPosts } from "@/components/admin/HiddenPosts";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
+import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
 
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
@@ -69,8 +69,8 @@ export default function AdminPage() {
   }, [rows]);
 
   function exportCsv() {
-    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "アレルギー", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.allergy, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "アレルギー", "備考", "送金", "タグ", "メモ"];
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));

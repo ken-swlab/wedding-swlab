@@ -8,16 +8,43 @@ import { db } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
 import { GuideShell } from "@/components/guide/GuideShell";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, type Attendance } from "@/types/admin";
+import {
+  AnswerFields,
+  answerDraftReady,
+  answerPayload,
+  type AnswerDraft,
+} from "@/components/guestbook/AnswerFields";
+import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
 
-const inputClass =
-  "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-base text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
+const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
+const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
 
-type Answers = { realName: string; kana: string; attendance: Attendance; allergy: string };
+/** guestPrivate の値をフォームの初期値にする。姓・名が無い古い形は「姓 名」を最初の空白で分ける */
+function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
+  const s = (v: unknown) => (typeof v === "string" ? v : "");
+  const split = (full: string): [string, string] => {
+    const m = full.trim().split(/[\s　]+/);
+    return [m[0] ?? "", m.slice(1).join(" ")];
+  };
+  const [lastName, firstName] = d.lastName || d.firstName ? [s(d.lastName), s(d.firstName)] : split(s(d.realName));
+  const [lastKana, firstKana] = d.lastKana || d.firstKana ? [s(d.lastKana), s(d.firstKana)] : split(s(d.kana));
+  const allergy = s(d.allergy);
+  return {
+    lastName,
+    firstName,
+    lastKana,
+    firstKana,
+    attendance: (typeof d.attendance === "string" && ATTENDANCE_VALUES.has(d.attendance) ? d.attendance : "unanswered") as Attendance,
+    ceremony: (typeof d.ceremony === "string" && CEREMONY_VALUES.has(d.ceremony) ? d.ceremony : "") as Ceremony | "",
+    hasAllergy: typeof d.hasAllergy === "boolean" ? d.hasAllergy : allergy.trim() ? true : null,
+    allergy,
+    note: s(d.note),
+  };
+}
 
 /**
- * 出欠・アンケート。招待状（/invitation → /onboarding）で答えた内容を確かめ、直す。
+ * 出欠・アンケート。招待状（/invitation）で答えた内容を確かめ、直す。項目は招待状と同じ（AnswerFields）。
  *
  * ★初期値は自分の guestPrivate から読む★ 本名・アレルギーは guests（全員が読める）には無い。
  *   Rules で本人は get できる。書き込みは /api/guest/questionnaire（Admin SDK）だけ。
@@ -27,8 +54,8 @@ type Answers = { realName: string; kana: string; attendance: Attendance; allergy
  */
 export default function GuideQuestionnairePage() {
   const { user } = useGuestSessionContext();
-  const [saved, setSaved] = useState<Answers | null>(null);
-  const [form, setForm] = useState<Answers | null>(null);
+  const [saved, setSaved] = useState<AnswerDraft | null>(null);
+  const [form, setForm] = useState<AnswerDraft | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,13 +68,7 @@ export default function GuideQuestionnairePage() {
     getDoc(doc(db, "guestPrivate", user.uid))
       .then((snap) => {
         if (!alive) return;
-        const d = snap.data() ?? {};
-        const a: Answers = {
-          realName: typeof d.realName === "string" ? d.realName : "",
-          kana: typeof d.kana === "string" ? d.kana : "",
-          attendance: (d.attendance ?? "unanswered") as Attendance,
-          allergy: typeof d.allergy === "string" ? d.allergy : "",
-        };
+        const a = draftFromPrivate(snap.data() ?? {});
         setSaved(a);
         setForm(a);
       })
@@ -60,27 +81,15 @@ export default function GuideQuestionnairePage() {
     };
   }, [user]);
 
-  function update(p: Partial<Answers>) {
+  function update(p: Partial<AnswerDraft>) {
     setForm((f) => (f ? { ...f, ...p } : f));
     setMessage(null);
   }
 
-  const trimmed = form && {
-    realName: form.realName.trim(),
-    kana: form.kana.trim(),
-    attendance: form.attendance,
-    allergy: form.allergy.trim(),
-  };
-  const changed =
-    !!trimmed &&
-    !!saved &&
-    (trimmed.realName !== saved.realName ||
-      trimmed.kana !== saved.kana ||
-      trimmed.attendance !== saved.attendance ||
-      trimmed.allergy !== saved.allergy.trim());
-  const attendanceChanged = !!trimmed && !!saved && trimmed.attendance !== saved.attendance;
-  const valid = !!trimmed && trimmed.realName.length > 0 && trimmed.attendance !== "unanswered";
-  const canSave = changed && valid && !busy;
+  // 比べるのは送る形（前後の空白や、隠れた項目に残った値の違いで「変更あり」にしない）
+  const changed = !!form && !!saved && JSON.stringify(answerPayload(form)) !== JSON.stringify(answerPayload(saved));
+  const attendanceChanged = !!form && !!saved && form.attendance !== saved.attendance;
+  const canSave = changed && !!form && answerDraftReady(form) && !busy;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -90,15 +99,17 @@ export default function GuideQuestionnairePage() {
   }
 
   async function save() {
-    if (!trimmed) return;
+    if (!form) return;
+    const payload = answerPayload(form);
     setConfirming(false);
     setBusy(true);
     setMessage(null);
     setError(null);
     try {
-      await postJson("/api/guest/questionnaire", trimmed);
-      setSaved(trimmed);
-      setForm(trimmed);
+      await postJson("/api/guest/questionnaire", payload);
+      const next: AnswerDraft = { ...payload };
+      setSaved(next);
+      setForm(next);
       setMessage("保存しました");
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存できませんでした");
@@ -118,69 +129,21 @@ export default function GuideQuestionnairePage() {
       ) : !form ? (
         <div className="h-80 animate-pulse rounded-2xl bg-stone-200/60" />
       ) : (
-        <form onSubmit={onSubmit} className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
-          <p className="text-sm leading-relaxed text-stone-500">
-            招待状でご回答いただいた内容です。変更があればこちらから直せます。
-          </p>
+        <form onSubmit={onSubmit} className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
+          <AnswerFields
+            value={form}
+            onChange={update}
+            attendanceHint={
+              attendanceChanged &&
+              saved && (
+                <p className="mt-1.5 text-xs text-amber-700">
+                  {ATTENDANCE_LABEL[saved.attendance]} から {ATTENDANCE_LABEL[form.attendance]} に変更します（保存前に確認します）
+                </p>
+              )
+            }
+          />
 
-          <fieldset className="mt-5">
-            <legend className="text-xs font-medium text-stone-600">ご出欠</legend>
-            <div className="mt-1.5 grid grid-cols-2 gap-2">
-              {ATTENDANCE_OPTIONS.filter((o) => o.value !== "unanswered").map((o) => {
-                const on = form.attendance === o.value;
-                return (
-                  <button
-                    key={o.value}
-                    type="button"
-                    onClick={() => update({ attendance: o.value })}
-                    aria-pressed={on}
-                    className={`min-h-11 touch-manipulation rounded-xl border px-4 py-3 text-sm font-medium transition ${
-                      on ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-600 hover:bg-stone-50"
-                    }`}
-                  >
-                    {o.label}
-                  </button>
-                );
-              })}
-            </div>
-            {attendanceChanged && saved && (
-              <p className="mt-1.5 text-xs text-amber-700">
-                {ATTENDANCE_LABEL[saved.attendance]} から {ATTENDANCE_LABEL[form.attendance]} に変更します（保存前に確認します）
-              </p>
-            )}
-          </fieldset>
-
-          <label className="mt-5 block">
-            <span className="text-xs font-medium text-stone-600">食物アレルギー・苦手なもの（任意）</span>
-            <textarea
-              value={form.allergy}
-              onChange={(e) => update({ allergy: e.target.value })}
-              rows={3}
-              maxLength={500}
-              placeholder="例）えび・かに、そば"
-              className={`${inputClass} resize-none leading-relaxed`}
-            />
-            <span className="mt-1 block text-[11px] text-stone-400">この内容は新郎新婦とご本人だけが見られます。</span>
-          </label>
-
-          <label className="mt-4 block">
-            <span className="text-xs font-medium text-stone-600">お名前（本名）</span>
-            <input
-              value={form.realName}
-              onChange={(e) => update({ realName: e.target.value })}
-              maxLength={40}
-              required
-              className={inputClass}
-            />
-            <span className="mt-1 block text-[11px] text-stone-400">席次表のご用意に使います。他のゲストには表示されません。</span>
-          </label>
-
-          <label className="mt-4 block">
-            <span className="text-xs font-medium text-stone-600">ふりがな（任意）</span>
-            <input value={form.kana} onChange={(e) => update({ kana: e.target.value })} maxLength={40} className={inputClass} />
-          </label>
-
-          <p className="mt-4 text-[11px] leading-relaxed text-stone-400">
+          <p className="mt-6 text-[11px] leading-relaxed text-stone-400">
             ゲストブックに表示するニックネームは、ゲストブックのマイページで変更できます。
           </p>
 
@@ -198,7 +161,7 @@ export default function GuideQuestionnairePage() {
           <button
             type="submit"
             disabled={!canSave}
-            className="mt-5 min-h-11 w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+            className="mt-6 min-h-11 w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
           >
             {busy ? "保存中…" : "保存する"}
           </button>

@@ -6,7 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type {
-  Attendance, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
+  Attendance, Ceremony, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
 } from "@/types/admin";
 
 const PAGE = 500;
@@ -61,7 +61,10 @@ export function useAdminGuests(enabled: boolean) {
         next[d.id] = {
           uid: d.id,
           attendance: (v.attendance ?? "unanswered") as Attendance,
+          ceremony: (v.ceremony ?? "") as Ceremony | "",
+          hasAllergy: typeof v.hasAllergy === "boolean" ? v.hasAllergy : null,
           allergy: v.allergy ?? "",
+          note: v.note ?? "",
           paymentStatus: (v.paymentStatus ?? "none") as PaymentStatus,
           submittedAt: v.submittedAt ?? null,
           // 未設定は有効。明示的に false のときだけ停止扱い
@@ -70,6 +73,10 @@ export function useAdminGuests(enabled: boolean) {
           displayName: v.displayName ?? "",
           realName: v.realName ?? "",
           kana: v.kana ?? "",
+          lastName: v.lastName ?? "",
+          firstName: v.firstName ?? "",
+          lastKana: v.lastKana ?? "",
+          firstKana: v.firstKana ?? "",
           lineDisplayName: v.lineDisplayName ?? "",
         };
       }
@@ -123,7 +130,10 @@ export function useAdminGuests(enabled: boolean) {
           return {
             ...p,
             attendance: v?.attendance ?? "unanswered",
+            ceremony: v?.ceremony ?? "",
+            hasAllergy: v?.hasAllergy ?? null,
             allergy: v?.allergy ?? "",
+            note: v?.note ?? "",
             paymentStatus: v?.paymentStatus ?? "none",
             submittedAt: v?.submittedAt ?? null,
             /**
@@ -140,6 +150,10 @@ export function useAdminGuests(enabled: boolean) {
             displayName: v?.displayName ?? "",
             realName: v?.realName ?? "",
             kana: v?.kana ?? "",
+            lastName: v?.lastName ?? "",
+            firstName: v?.firstName ?? "",
+            lastKana: v?.lastKana ?? "",
+            firstKana: v?.firstKana ?? "",
             lineDisplayName: v?.lineDisplayName ?? "",
             lineUserId: a?.lineUserId ?? "",
             inviteCode: a?.inviteCode ?? "",
