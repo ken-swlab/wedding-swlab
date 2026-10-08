@@ -72,7 +72,7 @@ export default function SettingsPage() {
     setError(null);
     try {
       const blob = await compressForIcon(file);
-      const { key } = await uploadThumb(blob, "image/jpeg", "thumb", "jpg");
+      const { key } = await uploadThumb(blob);
       await postJson(PROFILE_API, { iconKey: key });
       setMessage("アイコンを変更しました");
     } catch (err) {

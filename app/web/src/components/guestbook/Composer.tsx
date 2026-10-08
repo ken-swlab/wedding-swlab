@@ -7,9 +7,10 @@ import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb,
+  reserveOriginalKey, uploadThumb, uploadVideo,
 } from "@/lib/media";
 import { createPost } from "@/lib/posts";
+import type { ReencodedJpeg } from "@/lib/thumb-guard";
 import { postJson } from "@/lib/api-client";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import { useAuthorName } from "./AuthorNameProvider";
@@ -23,7 +24,7 @@ type Picked = {
   isVideo: boolean;
   compressing: boolean;
   error?: string;
-  compressed?: Blob;
+  compressed?: ReencodedJpeg;
   width?: number;
   height?: number;
 };
@@ -167,18 +168,19 @@ export function Composer({
 
         if (p.isVideo) {
           // 動画は圧縮せず1段階で公開バケットへ送る（従来どおり）
-          const v = await uploadThumb(
-            p.file,
-            p.file.type || "video/mp4",
-            "thumb",
-            ext,
-          );
+          const v = await uploadVideo(p.file, ext);
           media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name });
           continue;
         }
 
+        // ★軽量版は必ず canvas で作り直したものだけを送る★
+        //   元の写真（p.file）は GPS 入りのことがあり、公開バケットは Worker を通らない。
+        //   圧縮できていない写真は、投稿の条件に関わらずここで止める（Issue #66）。
+        if (!p.compressed) {
+          throw new Error("写真の準備ができていません。写真を選び直してください");
+        }
         // ★キーもバケットもサーバーが決める★ クライアントはパスを指定できない
-        const t = await uploadThumb(p.compressed ?? p.file, "image/jpeg");
+        const t = await uploadThumb(p.compressed);
         // 原本は後日、非公開バケットへ送る。ここではキーだけ確保する
         // （署名は寿命が短いので保存しない）
         const originalKey = await reserveOriginalKey(ext, p.file.type || "image/jpeg");

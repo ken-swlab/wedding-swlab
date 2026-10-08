@@ -1,6 +1,7 @@
 import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
+import { assertSafeThumb, type ReencodedJpeg } from "@/lib/thumb-guard";
 import type { MediaItem } from "@/types";
 
 export const MAX_MEDIA_PER_POST = 4;
@@ -53,17 +54,34 @@ async function putSimple(signedUrl: string, blob: Blob, contentType: string) {
 }
 
 /**
- * 第1段: 軽量版。投稿を即座に成立させるため待って上げる。
+ * 第1段: 軽量版（写真・アイコン）。投稿を即座に成立させるため待って上げる。
  * 公開バケットに入り、カスタムドメインで配信される。
- * 動画もここを通す（圧縮せず1段階）。
+ *
+ * ★軽量版は必ず canvas で作り直したものだけを送る★
+ *   公開バケットの軽量版は Worker（exif-stripper）を通らない。元の写真を渡すと
+ *   GPS ごと公開されるので、型で image.ts の圧縮結果（ReencodedJpeg）だけを受け取り、
+ *   送る直前にも assertSafeThumb で確かめる（Issue #66）。
  */
-export async function uploadThumb(
+export async function uploadThumb(image: ReencodedJpeg): Promise<{ url: string; key: string }> {
+  await assertSafeThumb(image);
+  return putPublic(image, "image/jpeg", "jpg");
+}
+
+/** 動画は圧縮せず1段階で公開バケットへ送る。写真をここから送らない */
+export async function uploadVideo(file: File, ext: string): Promise<{ url: string; key: string }> {
+  const contentType = file.type || "video/mp4";
+  if (!contentType.startsWith("video/")) {
+    throw new Error("動画として送れない形式です");
+  }
+  return putPublic(file, contentType, ext);
+}
+
+async function putPublic(
   blob: Blob,
-  contentType = "image/jpeg",
-  kind: "thumb" | "original" = "thumb",
-  ext = "jpg",
+  contentType: string,
+  ext: string,
 ): Promise<{ url: string; key: string }> {
-  const r = await presign({ kind, contentType, bytes: blob.size, ext });
+  const r = await presign({ kind: "thumb", contentType, bytes: blob.size, ext });
   if (!r.url) throw new Error("署名付き URL を取得できませんでした");
   if (!r.publicUrl) throw new Error("公開 URL を取得できませんでした");
   await putSimple(r.url, blob, contentType);

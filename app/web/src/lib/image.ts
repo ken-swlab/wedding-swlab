@@ -1,5 +1,6 @@
 import imageCompression from "browser-image-compression";
 import { ICON_MAX_EDGE, ICON_MAX_MB, ICON_QUALITY } from "@/config/profile";
+import { markReencoded, type ReencodedJpeg } from "@/lib/thumb-guard";
 
 export const THUMB_MAX_EDGE = 1920;
 export const THUMB_QUALITY = 0.8;
@@ -21,7 +22,7 @@ function workerLibUrl(): string | undefined {
 }
 
 export type Compressed = {
-  blob: Blob;
+  blob: ReencodedJpeg;
   width: number;
   height: number;
 };
@@ -34,7 +35,7 @@ export type Compressed = {
  * 原本アップロード側にも処理を足すこと。
  */
 export async function compressForTimeline(file: File): Promise<Compressed> {
-  const blob = await imageCompression(file, {
+  const out = await imageCompression(file, {
     maxWidthOrHeight: THUMB_MAX_EDGE,
     initialQuality: THUMB_QUALITY,
     maxSizeMB: THUMB_MAX_MB,
@@ -43,6 +44,7 @@ export async function compressForTimeline(file: File): Promise<Compressed> {
     fileType: "image/jpeg",
   });
 
+  const blob = markReencoded(out);
   const { width, height } = await readDimensions(blob);
   return { blob, width, height };
 }
@@ -51,8 +53,8 @@ export async function compressForTimeline(file: File): Promise<Compressed> {
  * プロフィールのアイコン用に小さくする（JPEG。canvas で再エンコードするので EXIF は落ちる）。
  * 丸く切り抜くのは表示側（object-cover）なので、ここでは縦横比を変えない。
  */
-export async function compressForIcon(file: File): Promise<Blob> {
-  return imageCompression(file, {
+export async function compressForIcon(file: File): Promise<ReencodedJpeg> {
+  const out = await imageCompression(file, {
     maxWidthOrHeight: ICON_MAX_EDGE,
     initialQuality: ICON_QUALITY,
     maxSizeMB: ICON_MAX_MB,
@@ -60,6 +62,7 @@ export async function compressForIcon(file: File): Promise<Blob> {
     libURL: workerLibUrl(),
     fileType: "image/jpeg",
   });
+  return markReencoded(out);
 }
 
 async function readDimensions(blob: Blob): Promise<{ width: number; height: number }> {
