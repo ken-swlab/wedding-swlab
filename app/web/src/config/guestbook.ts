@@ -99,6 +99,12 @@ export const VIEWER_OPEN_MS = 260;
 export const VIEWER_CLOSE_MS = 220;
 export const VIEWER_PAGE_MS = 220;
 
+/**
+ * コメント欄にフォーカスしたあと、キーボードが開いたこと（visualViewport の resize）を待つ上限 (ms)。
+ * 外付けキーボードなどで画面が縮まないときは、この時間で入力欄を元の位置に戻す（CommentBar の★参照）
+ */
+export const KEYBOARD_OPEN_WAIT_MS = 800;
+
 /** 展開・収縮の動きの曲線（初速が速く、最後にゆっくり止まる） */
 export const MOTION_EASING = "cubic-bezier(0.2, 0, 0, 1)";
 
