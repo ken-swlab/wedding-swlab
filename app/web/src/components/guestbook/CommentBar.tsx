@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { User } from "firebase/auth";
-import { COMMENT_INPUT_ID } from "@/config/guestbook";
+import { COMMENT_INPUT_ID, KEYBOARD_OPEN_WAIT_MS } from "@/config/guestbook";
 import { CharCount, useCommentForm } from "./CommentArea";
 import type { Post } from "@/types";
 
@@ -18,6 +18,13 @@ import type { Post } from "@/types";
  *   キーボードが上がるのと同時に欄の高さや余白が変わると、OS のアニメーションと
  *   枠の位置合わせ（useVisualViewportFrame）が重なって画面がガタつく（Issue #78）。
  *   送信ボタンは常に出しておき、広げるのは文字を入れ始めてから（キーボードが上がりきった後）にする。
+ * ★フォーカスしたら、キーボードが開くまで textarea を画面の上の外へ逃がす（keepScreenStill）★
+ *   iOS は、キーボードに隠れる位置の入力欄にフォーカスすると、画面全体（visual viewport）を
+ *   キーボードの分だけ上へずらす。投稿がキーボードと一緒に押し上げられ、ずれた下に裏の背景
+ *   （ダークモードでは黒）が見える。フォーカスした時点で入力欄が画面の上にあれば iOS はずらさないので、
+ *   キーボードが開いて枠が縮む（visualViewport の resize）まで transform で上へ逃がし、それから戻す。
+ *   逃がしている間、欄があった場所はせり上がるキーボードに隠れるので、見た目には出ない。
+ *   投稿の「💬」ボタンからのフォーカスも同じ onFocus を通る。
  * ★背景は不透明の白にし、欄の下にも白を伸ばす★
  *   キーボードが開くと枠はキーボードの上までに縮み、枠の下（キーボードと iOS の「^ v 完了」バーの裏）には
  *   裏の画面（タイムラインなど）が残る。バーは半透明なので、そのままだと写真や文字が透けて崩れて見える。
@@ -28,6 +35,25 @@ import type { Post } from "@/types";
  * ★文字の大きさは 16px 以上★ それより小さいと iOS がフォーカス時に画面を拡大し、
  *   枠の位置合わせ（visualViewport）が拡大中の扱いになって崩れる。
  */
+function keepScreenStill(el: HTMLElement) {
+  const vv = window.visualViewport;
+  // マウスの環境ではキーボードが出ず、画面もずれない
+  if (!vv || !window.matchMedia("(pointer: coarse)").matches) return;
+  el.style.transform = `translate3d(0, ${-2 * window.innerHeight}px, 0)`;
+  const timer = window.setTimeout(restore, KEYBOARD_OPEN_WAIT_MS);
+  vv.addEventListener("resize", restore);
+  el.addEventListener("blur", restore);
+  function restore() {
+    window.clearTimeout(timer);
+    vv?.removeEventListener("resize", restore);
+    el.removeEventListener("blur", restore);
+    // 枠を縮める処理（useVisualViewportFrame）も次の描画の前に動くので、同じ描画で戻す
+    requestAnimationFrame(() => {
+      el.style.transform = "";
+    });
+  }
+}
+
 export function CommentBar({ post, user, onSent }: { post: Post; user: User; onSent?: () => void }) {
   const input = useRef<HTMLTextAreaElement>(null);
   const { text, setText, busy, formError, count, over, near, canSend, onSubmit } = useCommentForm(
@@ -56,6 +82,7 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
             id={COMMENT_INPUT_ID}
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onFocus={(e) => keepScreenStill(e.currentTarget)}
             rows={expanded ? 3 : 1}
             aria-label="コメント"
             placeholder="コメントを追加…"
