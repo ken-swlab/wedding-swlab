@@ -12,6 +12,11 @@ Ken/
 # ---- 依存・ビルド成果物 ----
 node_modules/
 .next/
+# Firebase エミュレーターのデータとログ（開発用ログイン。Issue #83）
+.firebase-emulator/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
 out/
 build/
 .vercel/

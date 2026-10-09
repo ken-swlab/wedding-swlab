@@ -12,6 +12,8 @@ import {
 } from "firebase-admin/app";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { EMULATOR_PROJECT_ID } from "@/config/emulator";
+import { usingEmulator } from "@/lib/emulator";
 
 const APP_NAME = "wedding-admin";
 
@@ -38,6 +40,19 @@ function readServiceAccount(): ServiceAccountJson | null {
 }
 
 function createApp(): App {
+  /**
+   * ★エミュレーターでは本番の資格情報を読まない★（Issue #83）
+   *   .env.local のサービスアカウントで初期化すると、*_EMULATOR_HOST が欠けたときに本番へつながる。
+   *   資格情報なし・demo- のプロジェクトにしておけば、どこへ向いても本番には書き込めない。
+   *   firebase-admin は FIREBASE_AUTH_EMULATOR_HOST・FIRESTORE_EMULATOR_HOST を見て接続先を変える。
+   */
+  if (usingEmulator) {
+    if (!process.env.FIREBASE_AUTH_EMULATOR_HOST || !process.env.FIRESTORE_EMULATOR_HOST) {
+      throw new Error("エミュレーターの接続先がありません。npm run dev:emulator で起動してください");
+    }
+    return initializeApp({ projectId: EMULATOR_PROJECT_ID }, APP_NAME);
+  }
+
   const sa = readServiceAccount();
 
   if (sa) {

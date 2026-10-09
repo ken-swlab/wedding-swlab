@@ -1,0 +1,20 @@
+[
+  {
+    "key": "guest",
+    "uid": "dev:guest",
+    "label": "ゲスト（承認済み）",
+    "nickname": "テストゲスト",
+    "tags": ["all", "friends_groom", "guest"],
+    "admin": false,
+    "home": "/guestbook"
+  },
+  {
+    "key": "admin",
+    "uid": "dev:admin",
+    "label": "管理者",
+    "nickname": "テスト管理者",
+    "tags": ["all", "couple", "guest"],
+    "admin": true,
+    "home": "/admin"
+  }
+]

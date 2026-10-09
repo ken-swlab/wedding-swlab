@@ -40,7 +40,10 @@ cd app/web && npm run lint       # ESLint（自分の変更で新しいエラー
 cd app/web && npm run build      # 本番ビルド（変更したら必ず）
 cd infra/workers/exif-stripper && npm run typecheck   # Worker を触ったとき
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
+cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
 ```
+
+- 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。
 
 - テストランナーは無い。型チェックとビルドの通過が最低ライン。
 - 読み取りだけの運用: `node scripts/ops.mjs audit|ratelimit`（app/web で）、`scripts/csp-reports.py`、`scripts/pii-access-report.py`。GCP の前に `bash scripts/ensure-gcloud-auth.sh`。
@@ -57,7 +60,7 @@ python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認�
 ### データと権限（Firestore）
 5. 個人情報の置き場所: `guests` は承認済みゲスト全員が読める（公開名・アイコン・タグだけ）。本名・出欠・アレルギーは `guestPrivate`（本人と管理者）、運営情報は `guestAdmin`（管理者のみ）。本名や LINE 表示名を `guests` / `posts` に書かない。
 6. 見える範囲はタグで決まる（Custom Claims の `tags` と `visibleToTags` が重なれば見える）。Rules はフィルタではないので、クライアントのクエリに `visibleToTags` の条件と Rules の上限以下の `limit()` を必ず付ける。
-7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → `revokeRefreshTokens`）で変える。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。
+7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → `revokeRefreshTokens`）で変える。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。例外はエミュレーターの初期データ（`app/web/scripts/emulator-seed.mjs`。`demo-` のプロジェクトとエミュレーターの接続先が無いと動かない）だけ。
 8. Rules・複合インデックス・TTL の反映は `terraform apply` だけ（`firebase deploy` 禁止）。
 
 ### 画像・メディア
