@@ -84,4 +84,4 @@ async function handle(req: Request) {
 
 // ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
 //   _POST の中の本人確認（失効チェック付き）はそのまま残している。二重の関所になる。
-export const POST = withGuard({ name: "admin.faces.retry", auth: "admin", rateLimit: { key: "uid", limit: 10, windowSec: 60 }, audit: { action: "face.retry" } }, _POST);
+export const POST = withGuard({ name: "admin.faces.retry", external: true, auth: "admin", rateLimit: { key: "uid", limit: 10, windowSec: 60 }, audit: { action: "face.retry" } }, _POST);

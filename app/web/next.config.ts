@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs/config";
+import { EMULATOR_AUTH_PATHS, EMULATOR_FIRESTORE_PATHS } from "./src/config/emulator";
 
 /**
  * ★本番では Sentry の DSN を必須にする★
@@ -40,6 +41,32 @@ const SECURITY_HEADERS = [
  */
 const API_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
 
+/**
+ * ★開発用ログイン（npm run dev:emulator）のときだけ、ブラウザの通信をエミュレーターへ中継する★（Issue #83）
+ *   ブラウザの Firebase SDK はページと同じオリジンへ要求を送る（src/lib/firebase.ts の★参照）。
+ *   本番・プレビューのビルドでは NODE_ENV が production なので、何も足さない。
+ */
+function emulatorRewrites() {
+  const authHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const firestoreHost = process.env.FIRESTORE_EMULATOR_HOST;
+  if (
+    process.env.NODE_ENV !== "development" ||
+    process.env.NEXT_PUBLIC_FIREBASE_EMULATOR !== "1" ||
+    process.env.VERCEL_ENV ||
+    !authHost ||
+    !firestoreHost
+  ) {
+    return [];
+  }
+  return [
+    ...EMULATOR_AUTH_PATHS.map((p) => ({ source: `${p}/:path*`, destination: `http://${authHost}${p}/:path*` })),
+    ...EMULATOR_FIRESTORE_PATHS.map((p) => ({
+      source: `${p}/:path*`,
+      destination: `http://${firestoreHost}${p}/:path*`,
+    })),
+  ];
+}
+
 const nextConfig: NextConfig = {
   /**
    * ★画像最適化（/_next/image）は使わない★
@@ -58,6 +85,9 @@ const nextConfig: NextConfig = {
     unoptimized: true,
     remotePatterns: [],
     localPatterns: [{ pathname: "/__image-optimizer-disabled__", search: "" }],
+  },
+  async rewrites() {
+    return emulatorRewrites();
   },
   async headers() {
     return [

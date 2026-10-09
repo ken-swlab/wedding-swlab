@@ -7,6 +7,7 @@ import { admin } from "@/lib/firebase-admin";
 import { checkRateLimit, type RateLimitRule } from "@/lib/rate-limit";
 import { auditBegin, auditEnd, bodyFields, hashIp, type ActorRole } from "@/lib/audit";
 import { runtimeConfig } from "@/lib/runtime-config";
+import { usingEmulator } from "@/lib/emulator";
 
 /**
  * ★全 API ルートの共通の入口★
@@ -50,6 +51,18 @@ export type GuardOptions = {
   maintenanceExempt?: boolean;
   /** 本文の上限。Content-Length が付いているときだけ検査する */
   maxBodyBytes?: number;
+  /**
+   * 本番の外部サービス（R2・Rekognition・Vertex AI・Modal）を呼ぶルート。
+   * ★エミュレーターで動かしている間は 503 で断る★（Issue #83）
+   *   エミュレーターでも .env.local の本物の資格情報が読み込まれるので、そのまま通すと
+   *   テストの写真が本番の公開バケットに入り、利用料もかかる。
+   */
+  external?: true;
+  /**
+   * false を返したら、何もせず（レート制限・監査ログも書かず）404 を返す。
+   * 開発用ログイン（/api/auth/dev）を、本番では存在しないルートとして扱うのに使う。
+   */
+  available?: () => boolean;
 };
 
 type Handler = (req: Request) => Response | Promise<Response>;
@@ -111,6 +124,14 @@ export function withGuard(opts: GuardOptions, handler: Handler) {
       scope.setTag("route", opts.name);
       scope.setTag("request_id", requestId);
       scope.setTag("method", req.method);
+
+      // ---- 0. 使えないルート・エミュレーターでの外部サービス ------------
+      if (opts.available && !opts.available()) {
+        return reply(404, "Not Found", requestId);
+      }
+      if (opts.external && usingEmulator) {
+        return reply(503, "開発用ログイン（エミュレーター）では使えない機能です", requestId);
+      }
 
       // ---- 1. 本文の大きさ ----------------------------------------------
       const len = Number(req.headers.get("content-length") ?? "0");
