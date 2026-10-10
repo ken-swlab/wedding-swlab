@@ -23,7 +23,8 @@ function relativeTime(post: Post): string {
   if (min < 1) return "たった今";
   if (min < 60) return `${min}分前`;
   if (min < 1440) return `${Math.floor(min / 60)}時間前`;
-  return d.toLocaleDateString("ja-JP", { month: "long", day: "numeric" });
+  // 「10/9 18:25」「1/2 9:05」。月・日・時はゼロ埋めせず、分だけ 2 桁にする（Issue #79）
+  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 /** カードのタップで詳細へ行かない要素。ここに当たったタップはその要素自身の操作 */
@@ -135,10 +136,10 @@ export function PostCard({
           <div className="flex items-baseline gap-2">
             <p className="truncate text-sm font-semibold text-stone-900">{author.name}</p>
             {detail ? (
-              <time className="shrink-0 text-xs text-stone-400">{relativeTime(post)}</time>
+              <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{relativeTime(post)}</time>
             ) : (
               // キーボードや読み上げでも詳細へ行けるよう、時刻をリンクにしておく
-              <Link href={href} onClick={onLinkClick} className="shrink-0 text-xs text-stone-400 hover:underline">
+              <Link href={href} onClick={onLinkClick} className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400 hover:underline">
                 <time>{relativeTime(post)}</time>
               </Link>
             )}
