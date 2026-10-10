@@ -1,6 +1,6 @@
 "use client";
 
-import type { RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import type { User } from "firebase/auth";
 import { usePost } from "@/hooks/usePost";
 import { useComments } from "@/hooks/useComments";
@@ -10,6 +10,7 @@ import { PostCard } from "./PostCard";
 import { PlaceholderPanel } from "./GuestbookShell";
 import { CommentList } from "./CommentArea";
 import { CommentBar } from "./CommentBar";
+import { COMMENT_HASH_PREFIX } from "@/config/mentions";
 
 /**
  * 投稿の詳細（全画面。戻るボタンは出さない）。
@@ -48,6 +49,20 @@ export function PostDetail({
   const loading = !cached && remote.loading;
 
   const thread = useComments(id, !!post);
+
+  // 通知から開いたとき（URL が #c-{コメントの ID}）は、そのコメントまで1回だけ送る。
+  // コメントは購読で届くので、届いて行が描かれてから探す
+  const jumped = useRef(false);
+  const commentCount = thread.comments.length;
+  useEffect(() => {
+    if (jumped.current || commentCount === 0) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash.startsWith(COMMENT_HASH_PREFIX)) return;
+    const el = document.getElementById(hash);
+    if (!el || !scroller.current?.contains(el)) return;
+    jumped.current = true;
+    el.scrollIntoView({ block: "center" });
+  }, [commentCount, scroller]);
 
   function showLatest() {
     // コメントは古い順なので、いま送ったものは一番下。描き直しを待ってから送る

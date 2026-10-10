@@ -13,7 +13,10 @@ import { createPost } from "@/lib/posts";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
 import { postJson } from "@/lib/api-client";
 import type { EnqueueItem } from "@/hooks/useUpload";
+import { useMentionInput } from "@/hooks/useMentionInput";
+import { MENTION_NOTIFY_API } from "@/config/mentions";
 import { useAuthorName } from "./AuthorNameProvider";
+import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import type { MediaItem } from "@/types";
 
@@ -75,6 +78,10 @@ export function Composer({
   const [selected, setSelected] = useState<string[]>(() =>
     tags.includes("all") ? ["all"] : tags.slice(0, 1),
   );
+
+  // @メンションの候補は、選んでいる公開範囲が見える人だけ（範囲を変えると候補も変わる）
+  const textInput = useRef<HTMLTextAreaElement>(null);
+  const mention = useMentionInput({ text, setText, input: textInput, selfUid: user.uid, visibleToTags: selected });
 
   const storageReady = isStorageConfigured();
   const name = useAuthorName();
@@ -206,6 +213,7 @@ export function Composer({
       }
 
       // --- 第2段: タイムラインへの投稿（これが本体）---
+      const mentioned = mention.mentioned;
       const postRef = await createPost({
         uid: user.uid,
         displayName: name,
@@ -213,7 +221,14 @@ export function Composer({
         text: finalText,
         media,
         visibleToTags: selected,
+        mentioned,
       });
+
+      // --- メンションの通知。★待たない★ 失敗しても投稿は成立している（/api/notifications/mention）---
+      //   相手に投稿が見えるか（公開範囲を変えたあとも）は、サーバーが保存済みの投稿で確かめる。
+      if (mentioned.length > 0) {
+        void postJson(MENTION_NOTIFY_API, { postId: postRef.id }).catch((e) => console.error(e));
+      }
 
       // --- 顔検出の発火。★絶対に await しない★ ---
       void (async () => {
@@ -247,6 +262,7 @@ export function Composer({
         : null;
 
       setText("");
+      mention.reset();
       setPicked([]);
       setEpisodeOn(false);
       setTheme("");
@@ -275,14 +291,27 @@ export function Composer({
 
   return (
     <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={episodeOn ? 5 : 3}
-        maxLength={2000}
-        placeholder={placeholder}
-        className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
-      />
+      <div className="relative">
+        <textarea
+          ref={textInput}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            mention.track(e.currentTarget);
+          }}
+          onSelect={(e) => mention.track(e.currentTarget)}
+          onFocus={(e) => mention.track(e.currentTarget)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") mention.suggestions.close();
+          }}
+          rows={episodeOn ? 5 : 3}
+          maxLength={2000}
+          placeholder={placeholder}
+          className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-[15px] leading-relaxed text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
+        />
+        {/* 投稿欄はページの上のほうにあるので、候補は入力欄のすぐ下に重ねる（キーボードには隠れない） */}
+        <MentionSuggestions state={mention.suggestions} className="top-full" />
+      </div>
 
       {picked.length > 0 && (
         <div className="mt-3 grid grid-cols-4 gap-2">

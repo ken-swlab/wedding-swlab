@@ -20,6 +20,7 @@ paths:
 | `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる） | 作成は本人（`validPost()` かつ自分のタグの範囲）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
 | `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
 | `posts/{id}/reactions/{uid}` | サインイン済み | 本人の1件だけ |
+| `notifications/{uid}/items/{id}` | 本人 | 作成はサーバー（`/api/notifications/mention`）。本人の更新は `read` を `true` にするだけ |
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
 | `tags` | サインイン済み | サーバー |
@@ -32,12 +33,13 @@ paths:
 
 ## クライアントのクエリ
 - Rules はフィルタではない。条件と `limit()` が Rules と合わないクエリは全体が拒否される。
-- `limit()` の上限: posts 50 / comments 100 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
+- `limit()` の上限: posts 50 / comments 100 / notifications の items 50 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
 - posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。`/screen` は `SCREEN_TAGS`（既定 `all`）だけを出す。
 - コメントの横断購読（`collectionGroup("comments")`）は `match /{path=**}/comments/{id}` のルールが別に要る。
 
 ## 書き込み
 - `createPost` のフィールドは `validPost()` の `hasAll` / `hasOnly` と一致させる（片方だけ変えると全投稿が失敗する）。`createdAt` は `serverTimestamp()`。
+- `mentionUids`（@メンションの相手の uid、最大 10）は posts / comments の任意のキー。相手がいるときだけ付け、通知は `/api/notifications/mention` が作る（クライアントから `notifications` へ書かない）。
 - `media` 配列の更新はトランザクションで行う（同時に終わると書き負ける）。原本の状態を `published` / `skipped` から戻さない。
 - カウンタ（`reactionCount` / `commentCount`）は `increment(±1)` と `updatedAt` だけを更新する。
 

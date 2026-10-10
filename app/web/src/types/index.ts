@@ -53,7 +53,10 @@ export type Post = {
   visibleToTags: string[];
   /** 正規化済み（NFKC + 小文字）のタグ。表示用の生文字列は text 側にある */
   hashtags: string[];
+  /** 本文の @メンション。候補から選んだ相手はニックネームそのまま、手で打った分は寄せた形（lib/text.ts） */
   mentions: string[];
+  /** 候補から選んだメンションの相手の uid（最大 10）。通知はこれで届ける（Issue #92） */
+  mentionUids: string[];
   status: "visible" | "hidden";
   reactionCount: number;
   commentCount: number;
@@ -77,7 +80,10 @@ export type Comment = {
   authorPhotoURL?: string;
   text: string;
   hashtags: string[];
+  /** 本文の @メンション。候補から選んだ相手はニックネームそのまま、手で打った分は寄せた形（lib/text.ts） */
   mentions: string[];
+  /** 候補から選んだメンションの相手の uid（最大 10）。通知はこれで届ける（Issue #92） */
+  mentionUids: string[];
   /** 親投稿からのコピー。Rules が一致を検証する（親を非表示にすると空になる） */
   visibleToTags: string[];
   createdAt: Timestamp | null;
@@ -91,4 +97,19 @@ export type Guest = {
   photoURL?: string;
   bio?: string;
   tags: string[];
+};
+
+/** 通知（notifications/{受け取る人の uid}/items/{id}）。作るのはサーバーだけ（/api/notifications/mention） */
+export type AppNotification = {
+  id: string;
+  type: "mention";
+  /** 送った人 */
+  fromUid: string;
+  /** 送った人のニックネーム（通知を作った時点の値） */
+  fromName: string;
+  postId: string;
+  /** コメントでのメンションのときだけ */
+  commentId?: string;
+  createdAt: Timestamp | null;
+  read: boolean;
 };

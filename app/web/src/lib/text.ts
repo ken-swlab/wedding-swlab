@@ -24,13 +24,32 @@ function normalizeToken(body: string): string {
   return body.normalize("NFKC").toLowerCase();
 }
 
-export function tokenizeText(text: string): TextToken[] {
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+/** 選んで入れたメンションの前に来てよい文字。日本語は語を空白で区切らないので、半角英数字の直後だけを除く */
+function isNameBoundary(prev: string | undefined): boolean {
+  return prev === undefined || !/[A-Za-z0-9]/.test(prev);
+}
+
+/**
+ * 本文を、地の文・#ハッシュタグ・@メンション に分ける。
+ *
+ * mentionNames: 候補から選んで入れたメンションのニックネーム（投稿・コメントの mentions に保存した値）。
+ * ★ニックネームは空白や記号を含められる★ ので、TOKEN_RE（文字・数字・_ だけ）では途中で切れる。
+ *   渡された名前は `@名前` の形でそのまま探し、1つのメンションとして扱う（長い名前を先に試す）。
+ */
+export function tokenizeText(text: string, mentionNames: readonly string[] = []): TextToken[] {
   const tokens: TextToken[] = [];
   let last = 0;
 
-  for (const m of text.matchAll(TOKEN_RE)) {
+  const names = [...new Set(mentionNames.filter((n) => n.trim()))].sort((a, b) => b.length - a.length);
+  const re = names.length
+    ? new RegExp(`(?<named>[@＠](?:${names.map(escapeRe).join("|")}))|${TOKEN_RE.source}`, "gu")
+    : TOKEN_RE;
+
+  for (const m of text.matchAll(re)) {
     const start = m.index ?? 0;
-    if (!isBoundary(text[start - 1])) continue;
+    if (m.groups?.named ? !isNameBoundary(text[start - 1]) : !isBoundary(text[start - 1])) continue;
 
     if (start > last) {
       tokens.push({ kind: "text", value: text.slice(last, start) });
@@ -55,14 +74,25 @@ export function tokenizeText(text: string): TextToken[] {
   return tokens;
 }
 
-/** Firestore に保存する hashtags / mentions を取り出す */
-export function extractTags(text: string): { hashtags: string[]; mentions: string[] } {
+/**
+ * Firestore に保存する hashtags / mentions を取り出す。
+ *
+ * mentionNames: 候補から選んで入れた相手のニックネーム。
+ * ★選んだ相手のニックネームは、打ったままの形で mentions の先頭に入れる★
+ *   表示（RichText）がこれを tokenizeText に渡し、空白や記号を含む名前も1つのメンションとして色を付ける。
+ *   手で打っただけの @文字 は、従来どおり寄せた形（NFKC・小文字）で入る。
+ */
+export function extractTags(
+  text: string,
+  mentionNames: readonly string[] = [],
+): { hashtags: string[]; mentions: string[] } {
   const hashtags = new Set<string>();
-  const mentions = new Set<string>();
+  const mentions = new Set<string>(mentionNames);
+  const picked = new Set(mentionNames.map(normalizeToken));
 
-  for (const t of tokenizeText(text)) {
+  for (const t of tokenizeText(text, mentionNames)) {
     if (t.kind === "hashtag") hashtags.add(t.key);
-    else if (t.kind === "mention") mentions.add(t.key);
+    else if (t.kind === "mention" && !picked.has(t.key)) mentions.add(t.key);
   }
 
   return {
