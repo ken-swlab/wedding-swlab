@@ -67,7 +67,7 @@ export const CHROME_MOTION =
  */
 
 /**
- * /guestbook 以下で共通の枠: 上に検索バーと「＋」、下に固定のタブ。
+ * /guestbook 以下で共通の枠: 上に検索バー（通知・マイページでは出さない）と「＋」、下に固定のタブ。
  * 下へ読み進めている間はヘッダーの検索欄と背景を上へ隠して左上のロゴと右上のボタンだけを残し、
  * ボトムナビを左下の丸いボタンに縮める（全画面表示）。
  * 少しでも上へ戻すと元に戻る（判定は useCompactChrome）。
@@ -114,6 +114,8 @@ function Header({ compact }: { compact: boolean }) {
   const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   const { running } = useGuestbookUpload();
+  // 通知とマイページには検索欄を出さない（探す対象の一覧が無い）。空いた分でロゴを左、＋を右に寄せる
+  const searchable = pathname !== GUESTBOOK_PATHS.notifications && pathname !== GUESTBOOK_PATHS.settings;
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] group-data-[chrome=compact]/chrome:pointer-events-none">
       <div
@@ -136,12 +138,16 @@ function Header({ compact }: { compact: boolean }) {
             }
           />
         </div>
-        <div
-          inert={compact}
-          className={`flex min-w-0 flex-1 ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-[calc(100%+1rem+env(safe-area-inset-top))] group-data-[chrome=compact]/chrome:opacity-0`}
-        >
-          <SearchBar />
-        </div>
+        {searchable ? (
+          <div
+            inert={compact}
+            className={`flex min-w-0 flex-1 ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-[calc(100%+1rem+env(safe-area-inset-top))] group-data-[chrome=compact]/chrome:opacity-0`}
+          >
+            <SearchBar />
+          </div>
+        ) : (
+          <div aria-hidden className="flex-1" />
+        )}
         {/* ギャラリーでだけ出す。押すと保存する写真を選ぶモードに入る（もう一度押すと抜ける） */}
         {gallery && (
           <Link
