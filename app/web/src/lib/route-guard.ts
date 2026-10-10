@@ -44,8 +44,11 @@ export type GuardOptions = {
   /** 設定したメソッドだけ監査ログを書く（更新系にだけ付ける） */
   audit?: {
     action: string | ((body: Json) => string);
-    /** 操作対象の ID。本文から取り出す。自分自身が対象なら actorUid を返す */
-    target?: (body: Json, actorUid: string | null) => unknown;
+    /**
+     * 操作対象の ID。本文から取り出す。自分自身が対象なら actorUid を返す。
+     * 対象が URL のパスにあるルート（/api/posts/[id]）は、第3引数のリクエストから取り出す。
+     */
+    target?: (body: Json, actorUid: string | null, req: Request) => unknown;
   };
   /** メンテナンス中でも通す（ログインと Worker の webhook） */
   maintenanceExempt?: boolean;
@@ -214,7 +217,7 @@ export function withGuard(opts: GuardOptions, handler: Handler) {
         const actorUid = identity?.uid ?? null;
         const action =
           typeof opts.audit.action === "function" ? opts.audit.action(body) : opts.audit.action;
-        const rawTarget = opts.audit.target?.(body, actorUid);
+        const rawTarget = opts.audit.target?.(body, actorUid, req);
         try {
           await auditBegin({
             requestId,

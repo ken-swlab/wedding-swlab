@@ -58,6 +58,11 @@ export type Post = {
   /** 候補から選んだメンションの相手の uid（最大 10）。通知はこれで届ける（Issue #92） */
   mentionUids: string[];
   status: "visible" | "hidden";
+  /**
+   * 本人が本文か写真を編集した時刻（/api/posts/[id]。Issue #94）。あれば「（編集済）」と出す。
+   * ★updatedAt では判定しない★ updatedAt はいいね・コメント・高画質版の状態でも動く。
+   */
+  editedAt?: Timestamp | null;
   reactionCount: number;
   commentCount: number;
   createdAt: Timestamp | null;

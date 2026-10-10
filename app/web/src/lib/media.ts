@@ -1,4 +1,4 @@
-import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, runTransaction, serverTimestamp, type FirestoreError } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
 import { assertSafeThumb, type ReencodedJpeg } from "@/lib/thumb-guard";
@@ -240,6 +240,24 @@ export async function attachOriginal(
       ? {}
       : { originalStatus: "uploaded" as const }),
   }));
+}
+
+/**
+ * その原本を、まだ送る意味があるか（投稿が残っていて、その写真が外されていないか）。
+ * 投稿の削除・編集で写真が外れたあとは false（Issue #94）。送信キューが、送る前にこれで確かめる。
+ * 読めなかったとき（圏外など）は true を返し、これまでどおり送信を試みる（勝手に捨てない）。
+ * ★permission-denied は「もう無い」として扱う★ Rules は存在しない投稿の get を拒否する（resource != null）。
+ *   自分の投稿は、あれば必ず読めるので、拒否されたなら消えている。
+ */
+export async function originalStillWanted(postId: string, thumbPath: string): Promise<boolean> {
+  try {
+    const snap = await getDoc(doc(db, "posts", postId));
+    if (!snap.exists()) return false;
+    const media = (snap.data().media ?? []) as MediaItem[];
+    return media.some((m) => m.storagePath === thumbPath);
+  } catch (e) {
+    return (e as FirestoreError).code !== "permission-denied";
+  }
 }
 
 export async function markOriginalFailed(postId: string, thumbPath: string) {

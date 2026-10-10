@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { User } from "firebase/auth";
 import type { Post } from "@/types";
 import { toggleReaction } from "@/lib/posts";
@@ -47,11 +47,14 @@ export function PostCard({
   user,
   variant = "timeline",
   openAs = "sheet",
+  actions,
 }: {
   post: Post;
   user: User;
   variant?: "timeline" | "detail";
   openAs?: "sheet" | "page";
+  /** カードの右上に置く操作（マイページの「⋯」。Issue #94）。タイムライン・詳細では渡さない */
+  actions?: ReactNode;
 }) {
   const router = useRouter();
   const card = useRef<HTMLElement>(null);
@@ -152,11 +155,14 @@ export function PostCard({
                 <time>{relativeTime(post)}</time>
               </Link>
             )}
+            {/* 本人が本文か写真を編集した投稿。日時・回数・理由は出さない（Issue #94） */}
+            {post.editedAt && <span className="shrink-0 whitespace-nowrap text-xs text-stone-400">（編集済）</span>}
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
             {post.visibleToTags.map((t) => <TagBadge key={t} id={t} />)}
           </div>
         </div>
+        {actions}
       </header>
 
       {post.text && (

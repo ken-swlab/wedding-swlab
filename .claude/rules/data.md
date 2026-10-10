@@ -42,6 +42,7 @@ paths:
 - `createPost` のフィールドは `validPost()` の `hasAll` / `hasOnly` と一致させる（片方だけ変えると全投稿が失敗する）。`createdAt` は `serverTimestamp()`。
 - `mentionUids`（@メンションの相手の uid、最大 10）は posts / comments の任意のキー。相手がいるときだけ付け、通知は `/api/notifications/mention` が作る（クライアントから `notifications` へ書かない）。
 - `media` 配列の更新はトランザクションで行う（同時に終わると書き負ける）。原本の状態を `published` / `skipped` から戻さない。
+- 本人による投稿の編集（本文・写真）と削除は `/api/posts/[id]`（PATCH / DELETE）だけで行う。クライアントから `posts` の本文を書き換えたり `deleteDoc` したりしない（削除はコメント・いいね・faces をまとめて消す。R2 のオブジェクトは消さない）。編集した投稿には `editedAt` が付く（「編集済」の判定に `updatedAt` を使わない）。
 - カウンタ（`reactionCount` / `commentCount`）は `increment(±1)` と `updatedAt` だけを更新する。
 
 ## インデックスと TTL
