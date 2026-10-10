@@ -33,10 +33,10 @@ export function GuestbookDataProvider({ children }: { children: ReactNode }) {
   const upload = useUpload(user?.uid);
   const [personUid, setPersonUid] = useState("");
 
-  const { posts: list, loading, loadingMore, hasMore, loadMore, refresh, error } = posts;
+  const { posts: list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error } = posts;
   const value = useMemo<GuestbookData>(
-    () => ({ posts: list, loading, loadingMore, hasMore, loadMore, refresh, error, personUid, setPersonUid }),
-    [list, loading, loadingMore, hasMore, loadMore, refresh, error, personUid],
+    () => ({ posts: list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error, personUid, setPersonUid }),
+    [list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error, personUid],
   );
 
   return (

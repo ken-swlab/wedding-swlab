@@ -44,6 +44,26 @@ function photosOf(post: Post): ScreenPhoto[] {
     }));
 }
 
+/**
+ * removed で届いたドキュメントが、「新しいものに押し出されて購読の窓（createdAt の新しい順に limit 件）から
+ * 外れただけ」か。そうでなければ、削除された・条件から外れた（非表示など）ということ。
+ *
+ * ★窓から押し出されるのは、いつも残っているどれよりも古いもの★
+ *   残っている中に自分より古いものが1件でもあれば、押し出されたのではなく消えている。
+ *   窓が埋まっていない（残りが limit 件に満たない）ときも、押し出しは起きないので消えている。
+ *   removed の時点では status などの中身は消える前のままなので、中身では削除を見分けられない。
+ */
+function pushedOut(
+  removed: QueryDocumentSnapshot<DocumentData>,
+  remaining: readonly QueryDocumentSnapshot<DocumentData>[],
+  windowSize: number,
+): boolean {
+  const at = (d: QueryDocumentSnapshot<DocumentData>) =>
+    (d.data().createdAt as { toMillis?: () => number } | null)?.toMillis?.() ?? Number.MAX_SAFE_INTEGER;
+  const mine = at(removed);
+  return remaining.length >= windowSize && remaining.every((d) => at(d) >= mine);
+}
+
 export function useScreenData() {
   const [cells, setCells] = useState<(ScreenPhoto | null)[]>(() =>
     Array(MOSAIC_SIZE).fill(null),
@@ -121,16 +141,21 @@ export function useScreenData() {
               fresh.push(p);
             }
             if (!first) pushMessage(`p:${post.id}`, post.text, post.authorName, "post");
-          } else if (ch.type === "removed" && post.status === "hidden") {
-            // ★管理者が非表示にした投稿は、すでに映っている分も消す★（/api/admin/posts/visibility）
-            //   古くなって POST_WINDOW から外れただけの投稿も removed で届くので、status で見分ける。
+          } else if (ch.type === "removed" && (post.status === "hidden" || !pushedOut(ch.doc, snap.docs, POST_WINDOW))) {
+            // ★管理者が非表示にした投稿・本人が削除した投稿は、すでに映っている分も消す★
+            //   （/api/admin/posts/visibility、/api/posts/[id]。Issue #94）
+            //   古くなって POST_WINDOW から外れただけの投稿も removed で届くので、見分ける（pushedOut の★参照）。
             hidePost(post.id);
           } else if (ch.type === "modified") {
             // 原本のアップロード完了で src が高画質に差し替わる
             const byId = new Map(photos.map((p) => [p.id, p.src]));
+            // ★本人が編集で外した写真は、すでに映っている分も消す★（Issue #94）
+            const gone = (x: ScreenPhoto | null) => !!x && x.postId === post.id && !byId.has(x.id);
             setCells((c) =>
-              c.map((x) => (x && byId.has(x.id) ? { ...x, src: byId.get(x.id)! } : x)),
+              c.map((x) => (gone(x) ? null : x && byId.has(x.id) ? { ...x, src: byId.get(x.id)! } : x)),
             );
+            setQueue((q0) => q0.filter((x) => !gone(x)));
+            setSpotlight((sp) => (gone(sp) ? null : sp));
           }
         }
 
@@ -177,7 +202,8 @@ export function useScreenData() {
         }
         for (const ch of snap.docChanges()) {
           // 親の投稿を非表示にすると、コメントは visibleToTags が空になってクエリから外れる。流れている分も消す
-          if (ch.type === "removed" && ch.doc.data().hidden === true) {
+          // 投稿ごと削除されたコメントも同じ（Issue #94）。古くなって窓から外れただけのものは流したままにする
+          if (ch.type === "removed" && (ch.doc.data().hidden === true || !pushedOut(ch.doc, snap.docs, COMMENT_WINDOW))) {
             retireMessage(`c:${ch.doc.id}`);
             continue;
           }

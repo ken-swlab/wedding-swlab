@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  collection, getDocs, limit, onSnapshot, orderBy, query, startAfter, where,
-  type FirestoreError,
+  collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, startAfter, where,
+  type DocumentData, type FirestoreError, type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { toPost } from "@/lib/posts";
@@ -176,7 +176,28 @@ export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
     }
   }, [exhausted, key, ready, scope, pageSize, posts]);
 
-  return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, refresh, error };
+  /**
+   * 編集・削除した投稿を、遡って読み込んだ分（older）にも反映する（Issue #94）。
+   * 直近の分は購読しているので自動で変わるが、loadMore() で読んだ分は読んだ時点のまま残る。
+   * 1件を読み直し、無ければ（削除された・読めなくなった）一覧から外す。
+   */
+  const syncPost = useCallback(async (id: string) => {
+    let fresh: Post | null = null;
+    try {
+      const snap = await getDoc(doc(db, "posts", id));
+      fresh = snap.exists() ? toPost(snap as QueryDocumentSnapshot<DocumentData>) : null;
+    } catch {
+      // 存在しない投稿の get は Rules が拒否する。消えたものとして扱う
+      fresh = null;
+    }
+    setOlder((o) =>
+      o && o.posts.some((p) => p.id === id)
+        ? { ...o, posts: o.posts.flatMap((p) => (p.id !== id ? [p] : fresh && fresh.status === "visible" ? [fresh] : [])) }
+        : o,
+    );
+  }, []);
+
+  return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, refresh, syncPost, error };
 }
 
 const EMPTY: Post[] = [];

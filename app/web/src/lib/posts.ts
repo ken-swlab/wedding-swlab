@@ -6,6 +6,8 @@ import { db } from "@/lib/firebase";
 import { extractTags } from "@/lib/text";
 import type { MentionPerson } from "@/lib/mentions";
 import { MAX_MENTIONS } from "@/config/mentions";
+import { postApiPath } from "@/config/post-edit";
+import { deleteJson, patchJson } from "@/lib/api-client";
 import type { MediaItem, Post } from "@/types";
 
 /** snapshot -> Post。欠損フィールドをここで吸収する。 */
@@ -23,6 +25,7 @@ export function toPost(snap: QueryDocumentSnapshot<DocumentData>): Post {
     mentions: Array.isArray(d.mentions) ? d.mentions : [],
     mentionUids: Array.isArray(d.mentionUids) ? d.mentionUids : [],
     status: d.status ?? "visible",
+    editedAt: d.editedAt ?? null,
     reactionCount: d.reactionCount ?? 0,
     commentCount: d.commentCount ?? 0,
     // serverTimestamp() 反映前のローカル書き込みでは null になる
@@ -70,6 +73,27 @@ export async function createPost(params: {
     commentCount: 0,
     createdAt: serverTimestamp(),
   });
+}
+
+/** 編集で送るメディア1件。残す写真は storagePath だけで足りる（サーバーが保存済みの要素をそのまま使う） */
+export type EditedMedia = Pick<MediaItem, "type" | "storagePath"> &
+  Partial<Pick<MediaItem, "width" | "height" | "alt" | "originalPath">>;
+
+/**
+ * 自分の投稿の本文と写真を編集する。
+ * ★posts を直接書き換えず、API（/api/posts/[id]）を通す★ Rules は本人に本文・写真の更新を許していない。
+ *   サーバーがキーの持ち主を確かめ、url を組み立て、hashtags・mentions・editedAt を付ける。
+ */
+export function updatePost(id: string, patch: { text: string; media: EditedMedia[] }) {
+  return patchJson<{ changed?: boolean; detectFaces?: boolean }>(postApiPath(id), patch);
+}
+
+/**
+ * 自分の投稿を削除する（コメント・いいねも消える。元に戻せない）。
+ * ★クライアントから deleteDoc しない★ 投稿だけが消えて、コメントといいねが孤児として残る。
+ */
+export function deletePost(id: string) {
+  return deleteJson(postApiPath(id));
 }
 
 /**

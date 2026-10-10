@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { attachOriginal, markOriginalFailed, uploadOriginal } from "@/lib/media";
+import { attachOriginal, markOriginalFailed, originalStillWanted, uploadOriginal } from "@/lib/media";
 import {
   addJobs,
   deleteJob,
@@ -182,6 +182,14 @@ export function useUpload(uid?: string) {
           const next = list.find((j) => j.status === "queued");
           if (!next) break;
 
+          // ★投稿が削除された・編集で写真が外された原本は、送らずにキューから取り除く★（Issue #94）
+          //   別の端末で消された場合も、ここで気づける。
+          if (!(await originalStillWanted(next.postId, next.thumbPath))) {
+            await deleteJob(next.id);
+            await refresh();
+            continue;
+          }
+
           await updateJob(next.id, { status: "uploading", error: undefined });
           progressRef.current[next.id] = 0;
           await refresh();
@@ -239,6 +247,33 @@ export function useUpload(uid?: string) {
   }, [refresh, start]);
 
   /**
+   * 投稿の削除・編集で要らなくなった原本を、送信待ちから取り除く（Issue #94）。
+   * thumbPaths を省くとその投稿の分をすべて、渡すとその写真の分だけ。
+   * ★送信中の1枚には触らない★ 送り終えたあとの紐付け（attachOriginal）は、投稿や写真が無ければ何もしない。
+   * ★IndexedDB の DB_VERSION は上げない★（上げると、ゲストの端末に残った未送信の原本がすべて消える）
+   */
+  const discard = useCallback(
+    async (postId: string, thumbPaths?: readonly string[]) => {
+      const u = uidRef.current;
+      if (!u) return;
+      try {
+        const list = await listJobs(u);
+        for (const j of list) {
+          if (j.postId !== postId || j.status === "uploading") continue;
+          if (thumbPaths && !thumbPaths.includes(j.thumbPath)) continue;
+          delete progressRef.current[j.id];
+          await deleteJob(j.id);
+        }
+        await refresh();
+      } catch (e) {
+        // 取り除けなくても、送信の前に originalStillWanted が弾く
+        console.error(e);
+      }
+    },
+    [refresh],
+  );
+
+  /**
    * ★アンマウントで送信ループを止める★
    *   /guestbook 以下から出ていくのは、左上のロゴ（SpaceSwitch）で案内モード（/guide）へ移ったときと、
    *   承認の取り消しや停止で (guest)/layout.tsx に送り出されたとき。そこで裏の送信を続けると
@@ -288,6 +323,7 @@ export function useUpload(uid?: string) {
     enqueue,
     start,
     retryFailed,
+    discard,
     refresh,
   };
 }

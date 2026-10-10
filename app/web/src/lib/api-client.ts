@@ -12,7 +12,7 @@ type ApiResult = { ok?: boolean; message?: string };
  */
 async function request<T = Record<string, unknown>>(
   path: string,
-  method: "GET" | "POST" | "PUT" | "DELETE",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   body?: unknown,
 ): Promise<T & ApiResult> {
   const current = auth.currentUser;
@@ -58,4 +58,10 @@ export function postJson<T = Record<string, unknown>>(path: string, body: unknow
 }
 export function putJson<T = Record<string, unknown>>(path: string, body: unknown) {
   return request<T>(path, "PUT", body);
+}
+export function patchJson<T = Record<string, unknown>>(path: string, body: unknown) {
+  return request<T>(path, "PATCH", body);
+}
+export function deleteJson<T = Record<string, unknown>>(path: string) {
+  return request<T>(path, "DELETE");
 }

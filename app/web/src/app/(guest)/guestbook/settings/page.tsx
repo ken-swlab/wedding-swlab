@@ -5,13 +5,17 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "r
 import { GuestbookShell } from "@/components/guestbook/GuestbookShell";
 import { IconCropper } from "@/components/guestbook/IconCropper";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
+import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { PostCard } from "@/components/guestbook/PostCard";
+import { PostEditor } from "@/components/guestbook/PostEditor";
+import { PostOwnerMenu } from "@/components/guestbook/PostOwnerMenu";
 import { TagBadge } from "@/components/guestbook/TagBadge";
 import { useMyPosts } from "@/hooks/useMyPosts";
 import { postJson } from "@/lib/api-client";
 import { cropForIcon, loadIconSource, type IconCrop, type IconSource } from "@/lib/image";
 import { uploadThumb } from "@/lib/media";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
+import type { Post } from "@/types";
 import { publicName } from "@/lib/names";
 import { countChars } from "@/lib/text";
 import { PROFILE_BIO_MAX, PROFILE_NICKNAME_MAX } from "@/config/profile";
@@ -36,6 +40,9 @@ type PendingIcon = { kind: "custom"; blob: ReencodedJpeg; url: string } | { kind
  * ★タグは読み取り専用★ 付けるのは管理者（新郎新婦）。
  * ★新郎新婦が非表示にした自分の投稿は、その位置に「非表示にしました。」の1行だけを出す★
  *   本文・写真・日時・理由は出さず、開けもしない。非表示のコメントの一覧はどこにも出さない。
+ * ★自分の投稿の編集・削除の入口は、ここ（自分の投稿一覧の「⋯」）だけ★（Issue #94）
+ *   非表示にされた投稿には出さない。編集・削除のあとは、タイムライン側で遡って読んだ分も読み直す
+ *   （購読していない分は、読んだ時点のまま残るため）。
  */
 export default function SettingsPage() {
   const { user, profile, tags } = useGuestSessionContext();
@@ -59,6 +66,15 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const mine = useMyPosts(user?.uid ?? null);
+  const timeline = useGuestbookData();
+  const upload = useGuestbookUpload();
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+
+  /** 編集・削除した投稿を、マイページとタイムラインの両方の一覧に反映する */
+  function syncPost(id: string) {
+    void mine.syncPost(id);
+    void timeline.syncPost(id);
+  }
 
   const nicknameCount = countChars(nickname.trim());
   const bioCount = countChars(bio.trim());
@@ -394,7 +410,25 @@ export default function SettingsPage() {
                 </p>
               ) : (
                 // ★openAs="page"★ 詳細シートを出せるのは /guestbook だけ（PostCard の★参照）
-                user && <PostCard key={p.id} post={p} user={user} openAs="page" />
+                user && (
+                  <PostCard
+                    key={p.id}
+                    post={p}
+                    user={user}
+                    openAs="page"
+                    actions={
+                      <PostOwnerMenu
+                        post={p}
+                        onEdit={() => setEditingPost(p)}
+                        onDeleted={() => {
+                          // 送信待ちに残っている高画質版は、もう送らない
+                          void upload.discard(p.id);
+                          syncPost(p.id);
+                        }}
+                      />
+                    }
+                  />
+                )
               ),
             )}
             {mine.hasMore && (
@@ -410,6 +444,15 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+      {editingPost && user && (
+        <PostEditor
+          key={editingPost.id}
+          post={editingPost}
+          user={user}
+          onClose={() => setEditingPost(null)}
+          onSaved={() => syncPost(editingPost.id)}
+        />
+      )}
       {cropSource && (
         <IconCropper source={cropSource} onCancel={closeCropper} onDone={(crop) => void onCropDone(crop)} />
       )}

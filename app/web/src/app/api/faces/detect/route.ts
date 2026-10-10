@@ -54,11 +54,20 @@ async function processPost(postId: string): Promise<{ faces: number; auto: numbe
   const { faceCount } = await ensureCollection();
   const canSearch = faceCount > 0;
 
+  /**
+   * ★すでに顔を記録してある写真は検出し直さない★（投稿の編集で写真を足したあとの再検出。Issue #94）
+   *   検出し直すと、管理者が手で付けた紐付け（matchedGuestId）や「無視」を自動照合の結果で上書きしてしまう。
+   *   編集の API（/api/posts/[id]）が、外した写真の分を消し、位置がずれた分の mediaIndex を付け替えてある。
+   */
+  const existing = await db.collection("faces").where("postId", "==", postId).get();
+  const detected = new Set(existing.docs.map((d) => d.get("mediaIndex") as number));
+
   const batch = db.batch();
-  let total = 0;
+  let total = existing.size;
   let auto = 0;
 
   for (const { m, i } of images) {
+    if (detected.has(i)) continue;
     // ★キーがあればキーから組む★
     //   保存済み url は旧ドメインのことがある。取得先と faces.imageUrl の
     //   両方をここで揃えておかないと、SSRF 許可リストと食い違って落ちる。
