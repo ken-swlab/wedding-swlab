@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import { TAG_DEFS, tagDef } from "@/config/tags";
+import { COUPLE_TAG, TAG_DEFS, tagDef } from "@/config/tags";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
 import {
@@ -65,14 +65,20 @@ export function Composer({
   const [error, setError] = useState<string | null>(null);
   /** 投稿は成功したが副次処理が失敗したときの控えめな知らせ */
   const [notice, setNotice] = useState<string | null>(null);
+  /** 新郎新婦あての投稿が届いたことの知らせ（notice は高画質版・エピソードの知らせで上書きされるので分ける） */
+  const [sentNote, setSentNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---
   const [episodeOn, setEpisodeOn] = useState(false);
   const [theme, setTheme] = useState<string>("");
 
+  /**
+   * ★「新郎新婦」は、自分がそのタグを持っていなくても選べる★（新郎新婦あての投稿。Issue #97）
+   *   ほかのタグは、自分が持っているものだけ（Rules の tagsInMyScope と同じ）。
+   */
   const available = useMemo(
-    () => TAG_DEFS.filter((t) => t.selectable && tags.includes(t.id)),
+    () => TAG_DEFS.filter((t) => t.selectable && (tags.includes(t.id) || t.id === COUPLE_TAG)),
     [tags],
   );
   const [selected, setSelected] = useState<string[]>(() =>
@@ -140,9 +146,18 @@ export function Composer({
     });
   }
 
+  /**
+   * ★「新郎新婦」は単独でだけ選べる★ 選ぶとほかのタグが外れ、ほかのタグを選ぶと「新郎新婦」が外れる。
+   *   混ぜると、そのタグの人にも見えてしまう。Rules も ['couple'] ちょうどでない組み合わせを拒む。
+   */
   function toggleTag(id: string) {
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+    setSelected((s) => {
+      if (id === COUPLE_TAG) return s.includes(id) ? [] : [COUPLE_TAG];
+      const rest = s.filter((x) => x !== COUPLE_TAG);
+      return rest.includes(id) ? rest.filter((x) => x !== id) : [...rest, id];
+    });
   }
+  const coupleOnly = selected.length === 1 && selected[0] === COUPLE_TAG;
 
   const preparing = picked.some((p) => p.compressing);
   const hasError = picked.some((p) => p.error);
@@ -159,6 +174,7 @@ export function Composer({
     setBusy(true);
     setError(null);
     setNotice(null);
+    setSentNote(null);
 
     try {
       // お題を選んでいればハッシュタグを付ける。
@@ -214,6 +230,7 @@ export function Composer({
 
       // --- 第2段: タイムラインへの投稿（これが本体）---
       const mentioned = mention.mentioned;
+      const toCouple = coupleOnly;
       const postRef = await createPost({
         uid: user.uid,
         displayName: name,
@@ -229,6 +246,10 @@ export function Composer({
       if (mentioned.length > 0) {
         void postJson(MENTION_NOTIFY_API, { postId: postRef.id }).catch((e) => console.error(e));
       }
+
+      // 新郎新婦あての投稿は、投稿者のタイムラインには出ない（所属タグと重ならない）。
+      // 消えたように見えないよう、届いたことと、見られる場所を知らせる
+      setSentNote(toCouple ? "新郎新婦にだけ届きました。マイページで確認できます。" : null);
 
       // --- 顔検出の発火。★絶対に await しない★ ---
       void (async () => {
@@ -426,9 +447,11 @@ export function Composer({
         <p className="mb-1.5 text-xs font-medium text-stone-500">
           公開範囲
           <span className="ml-1.5 font-normal text-stone-400">
-            {selected.length > 0
-              ? `${selected.map((t) => tagDef(t).label).join("・")} に表示されます`
-              : "1つ以上選んでください"}
+            {coupleOnly
+              ? "あなたと新郎新婦だけに表示されます"
+              : selected.length > 0
+                ? `${selected.map((t) => tagDef(t).label).join("・")} に表示されます`
+                : "1つ以上選んでください"}
           </span>
         </p>
         <div className="flex flex-wrap gap-1.5">
@@ -457,6 +480,11 @@ export function Composer({
       </div>
 
       {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+      {sentNote && (
+        <p role="status" className="mt-3 rounded-lg bg-pink-50 px-3 py-2 text-xs leading-relaxed text-pink-800">
+          {sentNote}
+        </p>
+      )}
       {notice && (
         <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs leading-relaxed text-emerald-800">
           {notice}

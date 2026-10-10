@@ -36,7 +36,8 @@ async function _POST(req: Request) {
  *   - 投稿が表示中であること（非表示の投稿からは通知しない）
  *   - 相手が実在し、本登録・承認済みで、利用停止でないこと
  *   - 相手にその投稿が見えること（見えない人に、投稿の存在を知らせない）。Rules の canSee と同じく、
- *     所属タグが公開範囲（visibleToTags）と重なるか、管理者（新郎新婦。Custom Claims の admin）であること
+ *     所属タグが公開範囲（visibleToTags）と重なるか、管理者（新郎新婦。Custom Claims の admin）であるか、
+ *     その投稿の作者であること（新郎新婦あての投稿に付いた返事。作者は couple タグを持たないが、自分の投稿は読める）
  *   - 相手が自分自身でないこと
  * ★通知の ID は mention_{コメントまたは投稿の ID}、書き込みは create()★
  *   同じ操作で2回呼ばれても1件のまま。既読にした通知が未読に戻ることもない。
@@ -117,6 +118,7 @@ async function handle(req: Request) {
   // 送った人のニックネームは、通知を書く時点の guests の値（本名は guests に無い）
   const fromName = publicName({ nickname: senderSnap.get("nickname") });
   const notificationId = mentionNotificationId(commentId ?? postId);
+  const postAuthorUid: unknown = postSnap.get("authorUid");
 
   const targetSnaps = await Promise.all(
     targets.flatMap((t) => [db.collection("guests").doc(t).get(), db.collection("guestPrivate").doc(t).get()]),
@@ -137,7 +139,7 @@ async function handle(req: Request) {
         return;
       }
       const tags: unknown = guest.get("tags");
-      if (!Array.isArray(tags) || !tags.some((t) => visibleToTags.has(t))) {
+      if (target !== postAuthorUid && (!Array.isArray(tags) || !tags.some((t) => visibleToTags.has(t)))) {
         // ★タグが重ならない相手は、管理者のときだけ通す★ guests のタグ（couple）ではなく Custom Claims で確かめる。
         //   Rules が全投稿を読ませるのは admin クレームを持つ人だけなので、それと同じ条件にする。
         const claims = (await auth.getUser(target).catch(() => null))?.customClaims;

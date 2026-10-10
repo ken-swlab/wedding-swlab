@@ -112,8 +112,15 @@ export function useCommentForm(
   const [formError, setFormError] = useState<string | null>(null);
   const ownInput = useRef<HTMLTextAreaElement>(null);
   const input = inputRef ?? ownInput;
-  // 候補は親の投稿が見える人だけ（コメントの公開範囲は親と同じ）
-  const mention = useMentionInput({ text, setText, input, selfUid: user.uid, visibleToTags: post.visibleToTags });
+  // 候補は親の投稿が見える人だけ（コメントの公開範囲は親と同じ）。投稿の作者は、タグが重ならなくても読める
+  const mention = useMentionInput({
+    text,
+    setText,
+    input,
+    selfUid: user.uid,
+    visibleToTags: post.visibleToTags,
+    alwaysUids: [post.authorUid],
+  });
 
   const count = countChars(text);
   const over = count > MAX_COMMENT_LENGTH;

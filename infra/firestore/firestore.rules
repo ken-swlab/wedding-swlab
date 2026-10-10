@@ -8,9 +8,14 @@ service cloud.firestore {
     function myTags() { return signedIn() && 'tags' in request.auth.token ? request.auth.token.tags : []; }
     function isAdmin() { return signedIn() && 'admin' in request.auth.token && request.auth.token.admin == true; }
     function canSee(data) { return isAdmin() || data.visibleToTags.hasAny(myTags()); }
+    // ★公開範囲は「自分が持っているタグ」か、「新郎新婦あて」（['couple'] ちょうど）のどちらか★（Issue #97）
+    //   新郎新婦あての投稿は、誰でも作れる。見えるのは投稿者本人（canRead の authorUid）と新郎新婦（管理者）だけ。
+    //   couple をほかのタグと混ぜることは許さない（混ぜると、そのタグの人にも見えてしまう）。
     function tagsInMyScope(data) {
       return isAdmin() || (
-        data.visibleToTags is list && data.visibleToTags.size() >= 1 && data.visibleToTags.size() <= 20 && data.visibleToTags.hasOnly(myTags())
+        data.visibleToTags is list && data.visibleToTags.size() >= 1 && data.visibleToTags.size() <= 20
+        && (data.visibleToTags == ['couple']
+            || (data.visibleToTags.hasOnly(myTags()) && !data.visibleToTags.hasAny(['couple'])))
       );
     }
 
@@ -113,11 +118,14 @@ service cloud.firestore {
         function validComment(d, parent) { return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','mentionUids','visibleToTags','createdAt']) && validMentionUids(d) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
         // ★非表示にした投稿のコメントは visibleToTags が空になる（/api/admin/posts/visibility の★）★
         //   canSee() では誰にも見えなくなるので、書いた本人だけは読めるようにする（「非表示になりました」を出すため）。
-        allow get:  if signedIn() && resource != null && (canSee(resource.data) || resource.data.authorUid == myUid());
+        //   親の投稿の作者も読める（新郎新婦あての投稿に新郎新婦が付けた返事。投稿者は couple タグを持たない。Issue #97）。
+        allow get:  if signedIn() && resource != null
+          && (canSee(resource.data) || resource.data.authorUid == myUid() || parentPost().authorUid == myUid());
         allow list: if signedIn() && request.query.limit <= 100 && canRead(parentPost());
         // 非表示の投稿にはコメントできない（隠したあとに付いたコメントが、投稿の範囲を写して見えてしまうため）
+        // 自分の投稿には、タグが重ならなくてもコメントできる（新郎新婦あての投稿でのやり取り。Issue #97）
         allow create: if signedIn() && request.resource.data.authorUid == myUid()
-          && parentPost().status == 'visible' && canSee(parentPost())
+          && parentPost().status == 'visible' && (canSee(parentPost()) || parentPost().authorUid == myUid())
           && validComment(request.resource.data, parentPost());
         allow update: if false;
         allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == myUid());
