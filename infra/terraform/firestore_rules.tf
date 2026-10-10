@@ -59,6 +59,26 @@ resource "google_firestore_index" "posts_timeline" {
   }
 }
 
+# 管理者（新郎新婦）のタイムライン・ギャラリー（Issue #97）。usePosts() の管理者用のクエリ:
+#   where status == 'visible'
+#   orderBy createdAt desc
+# 管理者は公開範囲に関係なく全投稿を読める（Rules の canRead）ので、タグの条件を付けない。
+resource "google_firestore_index" "posts_timeline_admin" {
+  provider   = google-beta
+  project    = var.project_id
+  database   = google_firestore_database.default.name
+  collection = "posts"
+
+  fields {
+    field_path = "status"
+    order      = "ASCENDING"
+  }
+  fields {
+    field_path = "createdAt"
+    order      = "DESCENDING"
+  }
+}
+
 # --- 匿名サインイン ------------------------------------------
 # 招待コードでタグを配る設計にするため、ゲストにアカウント作成を強いない。
 # 既に Firebase Console で Auth を初期化済みなら import が必要:

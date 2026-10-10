@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
-import { TAG_DEFS } from "@/config/tags";
+import { COUPLE_TAG, TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT } from "@/config/episodes";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
@@ -76,9 +76,11 @@ async function handle(req: Request) {
 
   let uid: string;
   let myTags: string[];
+  let isAdmin: boolean;
   try {
     const decoded = await auth.verifyIdToken(idToken, true);
     uid = decoded.uid;
+    isAdmin = decoded.admin === true;
     myTags = Array.isArray(decoded.tags) ? (decoded.tags as string[]) : [];
   } catch {
     return fail("ログインし直してください", 401);
@@ -126,7 +128,13 @@ async function handle(req: Request) {
   if (visibleToTags.some((t) => !KNOWN_TAGS.has(t))) {
     return fail("公開範囲のタグが不正です", 400);
   }
-  if (visibleToTags.some((t) => !myTags.includes(t))) {
+  // ★「新郎新婦あて」（['couple'] ちょうど）は誰でも選べる★ posts の tagsInMyScope() と同じ（Issue #97）。
+  //   couple をほかのタグと混ぜることは、管理者以外には許さない。
+  const coupleOnly = visibleToTags.length === 1 && visibleToTags[0] === COUPLE_TAG;
+  if (!isAdmin && !coupleOnly && visibleToTags.includes(COUPLE_TAG)) {
+    return fail("「新郎新婦」は、ほかの公開範囲と一緒には選べません", 400);
+  }
+  if (!coupleOnly && visibleToTags.some((t) => !myTags.includes(t))) {
     return fail("ご自身が属していない公開範囲は選べません", 403);
   }
 

@@ -28,8 +28,8 @@ const GuestbookUploadContext = createContext<UploadApi | null>(null);
  *   離脱警告が消え、戻ったときに同じ原本を二重に送るおそれがある。
  */
 export function GuestbookDataProvider({ children }: { children: ReactNode }) {
-  const { user, tags } = useGuestSessionContext();
-  const posts = usePosts(tags);
+  const { user, tags, isAdmin } = useGuestSessionContext();
+  const posts = usePosts(tags, isAdmin);
   const upload = useUpload(user?.uid);
   const [personUid, setPersonUid] = useState("");
 

@@ -26,16 +26,34 @@ function byNewest(a: Post, b: Post) {
  *   自分に見えない投稿が1件でもヒットした時点でクエリ全体が
  *   permission-denied になる。この where 句は「性能」ではなく「成立条件」。
  *
+ * ★管理者（新郎新婦）にはタグの条件を付けず、表示中の全投稿を出す★（Issue #97）
+ *   Rules は管理者に全投稿を読ませている（canRead の isAdmin）。タグで絞ると、新郎新婦が持っていない
+ *   タグだけの投稿が一覧から抜ける。このクエリには複合インデックス posts(status, createdAt) が要る
+ *   （infra/terraform/firestore_rules.tf の posts_timeline_admin）。
+ *   管理者でない人がこの形で問い合わせると、Rules が全体を拒否する。
+ *
  * 直近 pageSize 件はリアルタイム購読、それ以前は loadMore() で
  * 単発取得して継ぎ足す。ギャラリーで過去を遡るための構成で、
  * タイムラインとギャラリーは同じ配列を共有する（タブ切替で再取得しない）。
  */
-export function usePosts(tags: string[], pageSize = 50) {
+export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
   // tags は毎レンダリング新しい配列になり得るので、内容で購読キーを作る
-  const key = useMemo(() => [...tags].sort().join("|"), [tags]);
+  const tagKey = useMemo(() => [...tags].sort().join("|"), [tags]);
   const myTags = useMemo(
-    () => (key ? key.split("|").slice(0, TAG_QUERY_LIMIT) : []),
-    [key],
+    () => (tagKey ? tagKey.split("|").slice(0, TAG_QUERY_LIMIT) : []),
+    [tagKey],
+  );
+  // 管理者かどうかが変わったら（クレームの取り直し）、別の一覧として読み直す
+  const key = isAdmin ? `admin:${tagKey}` : tagKey;
+  // 読める状態か（管理者はタグが無くても読める）
+  const ready = isAdmin || myTags.length > 0;
+  /** 一覧のクエリの条件。管理者はタグで絞らない（上の★参照） */
+  const scope = useMemo(
+    () => [
+      where("status", "==", "visible"),
+      ...(isAdmin ? [] : [where("visibleToTags", "array-contains-any", myTags)]),
+    ],
+    [isAdmin, myTags],
   );
 
   /**
@@ -57,7 +75,7 @@ export function usePosts(tags: string[], pageSize = 50) {
   const waiters = useRef<{ nonce: number; resolve: () => void }[]>([]);
 
   useEffect(() => {
-    if (myTags.length === 0) return;
+    if (!ready) return;
 
     // この購読の最初の結果が届いたら、それを待っている refresh() を終える
     const settle = () => {
@@ -70,8 +88,7 @@ export function usePosts(tags: string[], pageSize = 50) {
 
     const q = query(
       collection(db, "posts"),
-      where("status", "==", "visible"),
-      where("visibleToTags", "array-contains-any", myTags),
+      ...scope,
       orderBy("createdAt", "desc"),
       limit(pageSize), // Rules の request.query.limit <= 50 と整合させること
     );
@@ -90,7 +107,7 @@ export function usePosts(tags: string[], pageSize = 50) {
         settle();
       },
     );
-  }, [key, myTags, pageSize, nonce]);
+  }, [key, ready, scope, pageSize, nonce]);
 
   /**
    * 引っ張って更新。購読を張り直して最新の pageSize 件から読み直し、遡り分は捨てる。
@@ -99,7 +116,7 @@ export function usePosts(tags: string[], pageSize = 50) {
    * 戻り値の Promise は、新しい購読の最初の結果が届いたら（または時間切れで）終わる。
    */
   const refresh = useCallback((): Promise<void> => {
-    if (myTags.length === 0) return Promise.resolve();
+    if (!ready) return Promise.resolve();
     const now = Date.now();
     if (now - lastRefreshAt.current < PULL_REFRESH_COOLDOWN_MS) return Promise.resolve();
     lastRefreshAt.current = now;
@@ -111,12 +128,12 @@ export function usePosts(tags: string[], pageSize = 50) {
       waiters.current.push({ nonce: next, resolve });
       setTimeout(resolve, PULL_REFRESH_TIMEOUT_MS);
     });
-  }, [myTags.length]);
+  }, [ready]);
 
   const livePosts = live?.key === key ? live.posts : EMPTY;
   const olderPosts = older?.key === key ? older.posts : EMPTY;
   const exhausted = older?.key === key && older.exhausted;
-  const loading = myTags.length > 0 && live?.key !== key;
+  const loading = ready && live?.key !== key;
   const error = errorState?.key === key ? errorState.error : null;
 
   const posts = useMemo(() => {
@@ -127,7 +144,7 @@ export function usePosts(tags: string[], pageSize = 50) {
   }, [livePosts, olderPosts]);
 
   const loadMore = useCallback(async () => {
-    if (busy.current || exhausted || myTags.length === 0) return;
+    if (busy.current || exhausted || !ready) return;
 
     const last = posts[posts.length - 1];
     if (!last?.createdAt) return;
@@ -138,8 +155,7 @@ export function usePosts(tags: string[], pageSize = 50) {
       const snap = await getDocs(
         query(
           collection(db, "posts"),
-          where("status", "==", "visible"),
-          where("visibleToTags", "array-contains-any", myTags),
+          ...scope,
           orderBy("createdAt", "desc"),
           startAfter(last.createdAt),
           limit(pageSize),
@@ -158,7 +174,7 @@ export function usePosts(tags: string[], pageSize = 50) {
       busy.current = false;
       setLoadingMore(false);
     }
-  }, [exhausted, key, myTags, pageSize, posts]);
+  }, [exhausted, key, ready, scope, pageSize, posts]);
 
   return { posts, loading, loadingMore, hasMore: !exhausted, loadMore, refresh, error };
 }

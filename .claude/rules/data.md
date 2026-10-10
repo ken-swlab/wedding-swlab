@@ -17,7 +17,7 @@ paths:
 | `guests/{uid}` | 本人・管理者・タグを1つ以上持つ人 | サーバー（本人のプロフィールは `/api/guest/profile` 経由。本人の直接の書き込みは不可） |
 | `guestPrivate/{uid}` | 本人・管理者 | サーバー |
 | `guestAdmin/{uid}` | 管理者 | サーバー |
-| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる） | 作成は本人（`validPost()` かつ自分のタグの範囲）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
+| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
 | `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
 | `posts/{id}/reactions/{uid}` | サインイン済み | 本人の1件だけ |
 | `notifications/{uid}/items/{id}` | 本人 | 作成はサーバー（`/api/notifications/mention`）。本人の更新は `read` を `true` にするだけ |
@@ -34,7 +34,8 @@ paths:
 ## クライアントのクエリ
 - Rules はフィルタではない。条件と `limit()` が Rules と合わないクエリは全体が拒否される。
 - `limit()` の上限: posts 50 / comments 100 / notifications の items 50 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
-- posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。`/screen` は `SCREEN_TAGS`（既定 `all`）だけを出す。
+- posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。管理者（新郎新婦）の一覧だけはタグの条件を付けず、全投稿を出す（`usePosts`。インデックス `posts_timeline_admin`）。
+- 「新郎新婦あて」の投稿は `visibleToTags: ["couple"]` だけ（ほかのタグと混ぜない。Rules が拒否する）。誰でも作れ、見えるのは投稿者本人と新郎新婦だけ。投稿者のタイムラインには出さず、マイページ（`useMyPosts`）にだけ出す。`/screen` は `SCREEN_TAGS`（既定 `all`）だけを出す。
 - コメントの横断購読（`collectionGroup("comments")`）は `match /{path=**}/comments/{id}` のルールが別に要る。
 
 ## 書き込み

@@ -35,12 +35,15 @@ export function useMentionInput({
   input,
   selfUid,
   visibleToTags,
+  alwaysUids,
 }: {
   text: string;
   setText: (value: string) => void;
   input: RefObject<HTMLTextAreaElement | null>;
   selfUid: string;
   visibleToTags: readonly string[];
+  /** タグが重ならなくても候補に出す人（コメント欄での、親の投稿の作者。自分の投稿は必ず読める） */
+  alwaysUids?: readonly string[];
 }) {
   const [armed, setArmed] = useState(false);
   const [caret, setCaret] = useState(0);
@@ -52,12 +55,14 @@ export function useMentionInput({
 
   const directory = useGuestDirectory(armed);
   const tagKey = [...visibleToTags].sort().join("|");
+  const alwaysKey = [...(alwaysUids ?? [])].sort().join("|");
   const candidates = useMemo<MentionPerson[]>(() => {
     const scope = new Set(tagKey ? tagKey.split("|") : []);
+    const always = new Set(alwaysKey ? alwaysKey.split("|") : []);
     return directory.people
-      .filter((p) => p.uid !== selfUid && (isCouple(p) || p.tags.some((t) => scope.has(t))))
+      .filter((p) => p.uid !== selfUid && (isCouple(p) || always.has(p.uid) || p.tags.some((t) => scope.has(t))))
       .map((p) => ({ uid: p.uid, name: p.name }));
-  }, [directory.people, selfUid, tagKey]);
+  }, [directory.people, selfUid, tagKey, alwaysKey]);
 
   const mentioned = useMemo(() => {
     const chosen = activeMentions(text, picked);
