@@ -126,6 +126,20 @@ export const CHROME_COMPACT_AFTER_PX = 24;
 /** 上へこの距離スクロールしたら戻す (px)。「少しでも上へ」で戻すため小さく取る */
 export const CHROME_EXPAND_AFTER_PX = 4;
 
+/**
+ * ダブルタップでいいね（Issue #96）。
+ * 前のタップからこの時間以内 (ms)・この距離以内 (px) の2回目を、ダブルタップとして扱う。
+ * ★1回タップの動作（写真ビューアを開く・文字情報の切り替え）は、この時間だけ待ってから行う★
+ *   長くすると1回タップがもたつき、短くするとダブルタップが取りこぼされる。
+ */
+export const DOUBLE_TAP_MS = 280;
+export const DOUBLE_TAP_SLOP_PX = 32;
+/** ハートの演出の長さ (ms) と大きさ (px) */
+export const HEART_BURST_MS = 900;
+export const HEART_BURST_SIZE_PX = 96;
+/** 「いいねできませんでした」を出しておく時間 (ms) */
+export const LIKE_ERROR_MS = 2500;
+
 /** スワイプ: 縦横どちらの操作かを決めるまでの遊び (px) */
 export const SWIPE_SLOP_PX = 10;
 /** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */

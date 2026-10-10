@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, doc, increment, runTransaction,
+  addDoc, collection, doc, getDoc, increment, runTransaction,
   serverTimestamp, type DocumentData, type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -73,6 +73,35 @@ export async function createPost(params: {
     commentCount: 0,
     createdAt: serverTimestamp(),
   });
+}
+
+/**
+ * いいねを「付ける」だけ（写真のダブルタップ。Issue #96）。取り消しはしない。
+ * すでに付いていれば何も書かず false、新しく付けたら true を返す。
+ *
+ * ★自分のいいねの有無は、トランザクションの中で読む★
+ *   タイムラインは「いいね済みか」を読まずに白ハートから始める（useMyReaction の★参照）ので、
+ *   画面の状態を信じて toggleReaction を呼ぶと、付いているいいねを外してしまう。
+ *   何度続けて呼んでも、いいねは1つしか付かない。
+ * 書き込みの形は toggleReaction と同じ（Rules の「自分のリアクションの作成と同時に +1」を通る）。
+ */
+export async function likePost(postId: string, uid: string, emoji = "❤️"): Promise<boolean> {
+  const postRef = doc(db, "posts", postId);
+  const reactionRef = doc(db, "posts", postId, "reactions", uid);
+
+  try {
+    return await runTransaction(db, async (tx) => {
+      if ((await tx.get(reactionRef)).exists()) return false;
+      tx.set(reactionRef, { emoji, uid, createdAt: serverTimestamp() });
+      tx.update(postRef, { reactionCount: increment(1), updatedAt: serverTimestamp() });
+      return true;
+    });
+  } catch (e) {
+    // 別の端末・別のタブと同時に付けたときは、あとから届いた側を Rules が拒否する
+    // （「自分のリアクションが無い状態からの作成」ではなくなるため）。付いていれば成功として扱う
+    if ((await getDoc(reactionRef).catch(() => null))?.exists()) return false;
+    throw e;
+  }
 }
 
 /** 編集で送るメディア1件。残す写真は storagePath だけで足りる（サーバーが保存済みの要素をそのまま使う） */

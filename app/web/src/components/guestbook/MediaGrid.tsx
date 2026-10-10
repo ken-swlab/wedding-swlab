@@ -6,6 +6,8 @@ import type { OriginalStatus, Post } from "@/types";
 import { MediaLightbox, measureMedia, type MediaSize } from "./MediaLightbox";
 import { displayStatus } from "@/lib/original-status";
 import { thumbSrc } from "@/lib/media-url";
+import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
+import { useHeartBursts } from "./HeartBurst";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
 function cellClass(count: number, i: number) {
@@ -35,8 +37,20 @@ const BADGE: Record<OriginalStatus, Badge> = {
   unavailable: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
 };
 
-export function MediaGrid({ post }: { post: Post }) {
+/**
+ * 投稿の写真・動画のマス。
+ *
+ * ★写真のマスは、1回タップを少し待ってからビューアを開く★（DOUBLE_TAP_MS。Issue #96）
+ *   ダブルタップ（いいね）と見分けるため。2回目が来たらビューアを開かず、マスの上にハートを出す。
+ *   動画のマスは待たずに開く（ダブルタップのいいねは無い）。
+ * ★ビューアが広がる元になるマスの大きさ（measureMedia）は、1回目のタップの時点で測る★
+ *   待ったあとではイベントの要素（currentTarget）が読めない。
+ * onLike: いいねを付ける（PostCard が渡す）。戻り値は成功したか。
+ */
+export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise<boolean> }) {
   const media = post.media;
+  const doubleTap = useDoubleTap();
+  const hearts = useHeartBursts();
   // ビューアはタップしたマスから広がり、閉じるときは今の写真のマスへ戻る
   const cells = useRef<(HTMLButtonElement | null)[]>([]);
   const [open, setOpen] = useState<{ index: number; size: MediaSize | null } | null>(null);
@@ -44,10 +58,18 @@ export function MediaGrid({ post }: { post: Post }) {
 
   const items = media.slice(0, 4);
 
+  /** ダブルタップ: ハートは書き込みを待たずに出し、失敗したら知らせる */
+  function like(point: TapPoint) {
+    hearts.show(point);
+    void onLike?.().then((ok) => {
+      if (!ok) hearts.fail();
+    });
+  }
+
   return (
     <>
       <div
-        className={`mt-3 grid grid-cols-2 gap-1 overflow-hidden rounded-xl ${
+        className={`relative mt-3 grid grid-cols-2 gap-1 overflow-hidden rounded-xl ${
           items.length === 3 ? "grid-rows-2" : ""
         }`}
       >
@@ -58,8 +80,13 @@ export function MediaGrid({ post }: { post: Post }) {
             ref={(el) => {
               cells.current[i] = el;
             }}
-            onClick={(e) => setOpen({ index: i, size: measureMedia(e.currentTarget, m) })}
-            className={`group relative overflow-hidden bg-stone-100 ${cellClass(items.length, i)}`}
+            onClick={(e) => {
+              const next = { index: i, size: measureMedia(e.currentTarget, m) };
+              if (m.type === "video" || !onLike) setOpen(next);
+              else doubleTap.tap(e, like, () => setOpen(next));
+            }}
+            // touch-manipulation: iOS のダブルタップでの拡大を止める
+            className={`group relative touch-manipulation overflow-hidden bg-stone-100 ${cellClass(items.length, i)}`}
           >
             {m.type === "video" ? (
               <>
@@ -90,6 +117,7 @@ export function MediaGrid({ post }: { post: Post }) {
             )}
           </button>
         ))}
+        {hearts.layer}
       </div>
 
       {open !== null && (
@@ -99,6 +127,7 @@ export function MediaGrid({ post }: { post: Post }) {
           startIndex={open.index}
           startSize={open.size}
           thumbRect={(i) => cells.current[i]?.getBoundingClientRect() ?? null}
+          onLike={onLike}
           onClose={() => setOpen(null)}
         />
       )}

@@ -4,7 +4,9 @@ import Image from "next/image";
 import { useAuthorProfile } from "@/lib/profiles-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import { toggleReaction } from "@/lib/posts";
+import { likePost, toggleReaction } from "@/lib/posts";
+import { useDoubleTap } from "@/hooks/useDoubleTap";
+import { useHeartBursts } from "./HeartBurst";
 import { useMyReaction } from "@/hooks/useMyReaction";
 import { RichText } from "./RichText";
 import { TagBadge } from "./TagBadge";
@@ -19,10 +21,17 @@ function fullDate(post: Post) {
   });
 }
 
-/** 横スクロール + scroll-snap。ライブラリ無しでネイティブな指ざわりになる */
-function MediaCarousel({ post }: { post: Post }) {
+/**
+ * 横スクロール + scroll-snap。ライブラリ無しでネイティブな指ざわりになる。
+ *
+ * ★写真のダブルタップでいいね（Issue #96）★ 1回タップの動作は無いので、待ち時間は入れない。
+ *   動画の上のタップは数えない（再生の操作）。横スワイプはスクロールで、click にならない。
+ */
+function MediaCarousel({ post, onLike }: { post: Post; onLike: () => Promise<boolean> }) {
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const doubleTap = useDoubleTap();
+  const hearts = useHeartBursts();
 
   function onScroll() {
     const el = ref.current;
@@ -35,7 +44,18 @@ function MediaCarousel({ post }: { post: Post }) {
       <div
         ref={ref}
         onScroll={onScroll}
-        className="flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
+        onClick={(e) => {
+          if ((e.target as Element).closest("video")) return;
+          doubleTap.tap(e, (point) => {
+            // ハートは書き込みを待たずに出し、失敗したら知らせる
+            hearts.show(point);
+            void onLike().then((ok) => {
+              if (!ok) hearts.fail();
+            });
+          });
+        }}
+        // touch-manipulation: 横のスクロールは残し、iOS のダブルタップでの拡大だけ止める
+        className="flex touch-manipulation snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
         style={{ scrollbarWidth: "none" }}
       >
         {post.media.map((m, i) => (
@@ -59,6 +79,8 @@ function MediaCarousel({ post }: { post: Post }) {
           </div>
         ))}
       </div>
+
+      {hearts.layer}
 
       {post.media.length > 1 && (
         <div className="absolute bottom-2.5 left-1/2 flex -translate-x-1/2 gap-1.5">
@@ -130,6 +152,32 @@ export function PostLightbox({
     };
   }, [onKey]);
 
+  /**
+   * 写真のダブルタップ。いいねを付けるだけで、取り消さない（Issue #96）。戻り値は成功したか。
+   * 書き込みは1回だけ（続けてタップされても、送信中の1回を使い回す）。付けたら下のハートのボタンも赤にする。
+   */
+  const liking = useRef<Promise<boolean> | null>(null);
+  function onDoubleTapLike(): Promise<boolean> {
+    if (reacted) return Promise.resolve(true);
+    if (liking.current) return liking.current;
+    const run = likePost(post.id, user.uid)
+      .then(
+        () => {
+          setReacted(true);
+          return true;
+        },
+        (e) => {
+          console.error(e);
+          return false;
+        },
+      )
+      .finally(() => {
+        liking.current = null;
+      });
+    liking.current = run;
+    return run;
+  }
+
   async function onLike() {
     if (busy || !loaded) return;
     setBusy(true);
@@ -172,7 +220,7 @@ export function PostLightbox({
         </header>
 
         <div className="relative flex-1 overflow-y-auto overscroll-contain">
-          <MediaCarousel post={post} />
+          <MediaCarousel post={post} onLike={onDoubleTapLike} />
 
           <div className="min-h-full bg-stone-50 px-4 pb-10 pt-3">
             <div className="flex items-center gap-3">

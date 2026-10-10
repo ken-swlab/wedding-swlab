@@ -13,6 +13,8 @@ import {
   useSwipe,
   type SwipeState,
 } from "@/hooks/useSwipe";
+import { useDoubleTap } from "@/hooks/useDoubleTap";
+import { useHeartBursts } from "./HeartBurst";
 import {
   MOTION_EASING,
   SWIPE_DISMISS_RATIO,
@@ -100,7 +102,11 @@ type DragMode = "dismiss" | "page";
  *   消えないよう、タップは下の文字情報の表示・非表示の切り替えだけにする。
  *   閉じるのは、はっきり下（1枚目なら右）へスワイプしたときと Esc だけ。
  *   ×ボタンは画面に出さない（Issue #31）。読み上げ利用者向けに見えない「閉じる」だけ残す。
- * ★重なり順を明示する★ 写真は z-0、文字情報は z-20、見えない閉じるボタンは z-30。
+ * ★ダブルタップでいいね（Issue #96）★ 文字情報が出ていても隠れていても同じ。ビューアは閉じず、
+ *   文字情報も切り替えない。見分けるため、1回タップの切り替えは DOUBLE_TAP_MS 待ってから行う。
+ *   スワイプ直後・動画・ボタンやリンクの上のタップは数えない。ピンチ（2本指）は click にならない。
+ *   いいねのボタンや件数はここには置かない（閉じたあとの投稿の表示に反映される）。
+ * ★重なり順を明示する★ 写真は z-0、ハートの演出は z-10、文字情報は z-20、見えない閉じるボタンは z-30。
  *   position の付いた写真の箱は、z-index が無いと DOM 順で後ろの操作系を覆ってしまう。
  * ★body 直下に portal で出す★ 詳細シートの展開中は親に transform が付き、
  *   その中の fixed は画面ではなくシートに固定されてしまう。
@@ -111,6 +117,7 @@ export function MediaLightbox({
   startIndex,
   startSize,
   thumbRect,
+  onLike,
   onClose,
 }: {
   post: Post;
@@ -119,8 +126,12 @@ export function MediaLightbox({
   startSize: MediaSize | null;
   /** 一覧のマスの位置。開くときはここから広がり、閉じるときはここへ戻る */
   thumbRect: (index: number) => DOMRect | null;
+  /** いいねを付ける（PostCard のもの）。戻り値は成功したか。無ければダブルタップは何もしない */
+  onLike?: () => Promise<boolean>;
   onClose: () => void;
 }) {
+  const doubleTap = useDoubleTap();
+  const hearts = useHeartBursts();
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
   const [index, setIndex] = useState(startIndex);
   const [sizes, setSizes] = useState<(MediaSize | null)[]>(() =>
@@ -331,10 +342,28 @@ export function MediaLightbox({
   });
 
   function onTap(e: MouseEvent) {
-    if (wasSwiping() || busy.current) return;
+    if (wasSwiping() || busy.current) {
+      // スワイプの前後のタップを、ダブルタップとしてつなげない
+      doubleTap.cancel();
+      return;
+    }
     // 動画の操作ボタンや、文字情報の中のボタンのタップはそれ自身の操作
     if ((e.target as Element).closest("video, button, a")) return;
-    setShowInfo((v) => !v);
+    if (!onLike) {
+      setShowInfo((v) => !v);
+      return;
+    }
+    doubleTap.tap(
+      e,
+      (point) => {
+        // ハートは書き込みを待たずに出し、失敗したら知らせる
+        hearts.show(point);
+        void onLike().then((ok) => {
+          if (!ok) hearts.fail();
+        });
+      },
+      () => setShowInfo((v) => !v),
+    );
   }
 
   function rememberSize(i: number, el: HTMLImageElement | HTMLVideoElement) {
@@ -414,6 +443,9 @@ export function MediaLightbox({
           })}
         </div>
       </div>
+
+      {/* --- ダブルタップのハート（写真の上、文字情報の下。タップは通す） --- */}
+      {hearts.layer}
 
       {/* --- 文字情報（タップのたびに表示・非表示） --- */}
       <div

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, type MouseEvent, type ReactNode } from "react";
 import type { User } from "firebase/auth";
 import type { Post } from "@/types";
-import { toggleReaction } from "@/lib/posts";
+import { likePost, toggleReaction } from "@/lib/posts";
 import { useMyReaction } from "@/hooks/useMyReaction";
 import { COMMENT_INPUT_ID, postPath } from "@/config/guestbook";
 import { MediaGrid } from "./MediaGrid";
@@ -97,6 +97,35 @@ export function PostCard({
     openDetail();
   }
 
+  /**
+   * 写真のダブルタップ（MediaGrid・MediaLightbox から呼ぶ。Issue #96）。いいねを付けるだけで、取り消さない。
+   * 戻り値は「付いている状態にできたか」。失敗の知らせは、ハートを出した側（写真の上）が出す。
+   * ★書き込みは1回だけ★ 続けてタップされても、送信中の1回を使い回す。
+   *   すでに付いているかは likePost がトランザクションの中で読む（タイムラインは白ハートから始まるため、
+   *   画面の状態では分からない）。付けたら、下のハートのボタンも「いいね済み」にそろえる。
+   */
+  const liking = useRef<Promise<boolean> | null>(null);
+  function onLike(): Promise<boolean> {
+    if (reacted) return Promise.resolve(true);
+    if (liking.current) return liking.current;
+    const run = likePost(post.id, user.uid)
+      .then(
+        () => {
+          setReacted(true);
+          return true;
+        },
+        (e) => {
+          console.error(e);
+          return false;
+        },
+      )
+      .finally(() => {
+        liking.current = null;
+      });
+    liking.current = run;
+    return run;
+  }
+
   async function onReact() {
     if (busy || (detail && !mine.loaded)) return;
     setBusy(true);
@@ -180,7 +209,7 @@ export function PostCard({
           操作（閉じる・送る）までカードのクリックになり、詳細画面へ飛んでしまう。
       */}
       <div onClick={(e) => e.stopPropagation()}>
-        <MediaGrid post={post} />
+        <MediaGrid post={post} onLike={onLike} />
       </div>
 
       <footer className="mt-3 border-t border-stone-100 pt-2">
