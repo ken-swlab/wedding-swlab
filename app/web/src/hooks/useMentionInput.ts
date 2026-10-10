@@ -6,18 +6,24 @@ import {
   activeMentions,
   findMentionDraft,
   suggestMentions,
+  typedMentions,
   type MentionPerson,
 } from "@/lib/mentions";
+import { isCouple } from "@/lib/visibility";
 import { MAX_MENTIONS } from "@/config/mentions";
 
 /**
  * 入力欄の @メンション（Issue #92）。`@` を打つと候補を出し、選ぶと `@ニックネーム ` を入れる。
  *
  * visibleToTags: その投稿・コメントが見える所属タグ（投稿は選んでいる公開範囲、コメントは親の投稿の範囲）。
- *   候補はこのタグを1つ以上持つ人だけにする（見えない人をメンションしても通知は届かない）。
+ *   候補はこのタグを1つ以上持つ人と、新郎新婦（couple タグ）にする。
+ *   新郎新婦は管理者で、公開範囲に関係なくすべての投稿が見える（Rules の canRead）ので、いつも候補に出す。
+ *   それ以外の、投稿が見えない人は出さない（メンションしても通知は届かない）。
  *
  * ★選んだ相手は uid で持つ★ ニックネームは重複でき、空白や記号も入るので、本文の文字列だけでは相手を特定できない。
  *   送るのは、本文に `@ニックネーム` が残っている人だけ（mentioned）。
+ * ★候補から選ばずに手で打った `@ニックネーム` も、相手が1人に決まるときだけ拾う★（lib/mentions.ts の typedMentions）
+ *   同じニックネームが2人以上いるときは拾わない（候補から選んだ人だけに届く）。
  * ★ゲストの一覧は、入力欄に初めてフォーカスしたときから購読する★（useGuestDirectory。最大 200 件）
  *   入力のたびに Firestore へ問い合わせない。同じクエリの購読は SDK が1本にまとめる。
  * ★候補のボタンは pointerdown を preventDefault する★（呼び出し側の MentionSuggestions）
@@ -49,11 +55,17 @@ export function useMentionInput({
   const candidates = useMemo<MentionPerson[]>(() => {
     const scope = new Set(tagKey ? tagKey.split("|") : []);
     return directory.people
-      .filter((p) => p.uid !== selfUid && p.tags.some((t) => scope.has(t)))
+      .filter((p) => p.uid !== selfUid && (isCouple(p) || p.tags.some((t) => scope.has(t))))
       .map((p) => ({ uid: p.uid, name: p.name }));
   }, [directory.people, selfUid, tagKey]);
 
-  const mentioned = useMemo(() => activeMentions(text, picked), [text, picked]);
+  const mentioned = useMemo(() => {
+    const chosen = activeMentions(text, picked);
+    const uids = new Set(chosen.map((m) => m.uid));
+    // 選んだ人を先に数え、残りの枠に手で打った分を入れる
+    const typed = typedMentions(text, candidates).filter((m) => !uids.has(m.uid));
+    return [...chosen, ...typed].slice(0, MAX_MENTIONS);
+  }, [text, picked, candidates]);
   const full = mentioned.length >= MAX_MENTIONS;
 
   const draft = armed ? findMentionDraft(text, Math.min(caret, text.length), picked) : null;

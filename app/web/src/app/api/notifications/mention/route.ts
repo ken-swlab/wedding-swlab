@@ -35,7 +35,8 @@ async function _POST(req: Request) {
  *   - 呼び出した人が、その投稿（コメントのときはそのコメント）の作者であること
  *   - 投稿が表示中であること（非表示の投稿からは通知しない）
  *   - 相手が実在し、本登録・承認済みで、利用停止でないこと
- *   - 相手の所属タグが投稿の公開範囲（visibleToTags）と重なること（見えない人に、投稿の存在を知らせない）
+ *   - 相手にその投稿が見えること（見えない人に、投稿の存在を知らせない）。Rules の canSee と同じく、
+ *     所属タグが公開範囲（visibleToTags）と重なるか、管理者（新郎新婦。Custom Claims の admin）であること
  *   - 相手が自分自身でないこと
  * ★通知の ID は mention_{コメントまたは投稿の ID}、書き込みは create()★
  *   同じ操作で2回呼ばれても1件のまま。既読にした通知が未読に戻ることもない。
@@ -136,7 +137,12 @@ async function handle(req: Request) {
         return;
       }
       const tags: unknown = guest.get("tags");
-      if (!Array.isArray(tags) || !tags.some((t) => visibleToTags.has(t))) return;
+      if (!Array.isArray(tags) || !tags.some((t) => visibleToTags.has(t))) {
+        // ★タグが重ならない相手は、管理者のときだけ通す★ guests のタグ（couple）ではなく Custom Claims で確かめる。
+        //   Rules が全投稿を読ませるのは admin クレームを持つ人だけなので、それと同じ条件にする。
+        const claims = (await auth.getUser(target).catch(() => null))?.customClaims;
+        if (claims?.admin !== true) return;
+      }
 
       try {
         await db

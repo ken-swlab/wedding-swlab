@@ -53,6 +53,44 @@ export function suggestMentions(people: readonly MentionPerson[], query: string)
   return hit.slice(0, MENTION_SUGGEST_MAX);
 }
 
+/**
+ * 手で打った `@ニックネーム`（候補から選んでいないもの）の相手を探す。
+ *
+ * ★相手が1人に決まるときだけ拾う★ 間違った人に通知が届くより、届かないほうがまし。
+ *   - ニックネームの全体が一致すること（大文字小文字・全角半角・ひらがなとカタカナの違いは無視）
+ *   - その名前の候補が1人だけであること（同じニックネームが2人以上いたら拾わない。候補から選んでもらう）
+ *   - 名前のすぐあとに文字や数字が続かないこと（「@たろう」で「たろうまる」さんを、
+ *     「@Kenji」で「Ken」さんを拾わない。「@たろうさん」も拾わないので、空白か記号で区切る）
+ *   - `@` の前が半角英数字でないこと（メールアドレスなど）
+ * 返す name は本文に打たれたままの形（表示の色付けがその形で探すため）。
+ */
+export function typedMentions(text: string, candidates: readonly MentionPerson[]): MentionPerson[] {
+  if (candidates.length === 0) return [];
+  const folded = candidates.map((p) => ({ person: p, key: foldForMatch(p.name) })).filter((c) => c.key);
+  const byLength = [...folded].sort((a, b) => b.person.name.length - a.person.name.length);
+  const out: MentionPerson[] = [];
+  const seen = new Set<string>();
+
+  for (let at = 0; at < text.length; at++) {
+    if (text[at] !== "@" && text[at] !== "＠") continue;
+    if (at > 0 && /[A-Za-z0-9]/.test(text[at - 1])) continue;
+
+    for (const c of byLength) {
+      const raw = text.slice(at + 1, at + 1 + c.person.name.length);
+      if (foldForMatch(raw) !== c.key) continue;
+      const next = text[at + 1 + raw.length];
+      const openEnded = /[\p{L}\p{N}_]$/u.test(raw) && next !== undefined && /[\p{L}\p{N}_]/u.test(next);
+      // いちばん長く一致した名前で決める（短い名前へは落とさない）
+      if (!openEnded && folded.filter((f) => f.key === c.key).length === 1 && !seen.has(c.person.uid)) {
+        seen.add(c.person.uid);
+        out.push({ uid: c.person.uid, name: raw });
+      }
+      break;
+    }
+  }
+  return out;
+}
+
 /** 本文に `@ニックネーム` がいくつ残っているか */
 function countMentions(text: string, name: string): number {
   return text.split(`@${name}`).length - 1 + (text.split(`＠${name}`).length - 1);
