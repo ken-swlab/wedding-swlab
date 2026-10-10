@@ -49,19 +49,104 @@ export async function compressForTimeline(file: File): Promise<Compressed> {
   return { blob, width, height };
 }
 
+/** アイコンにする写真を、向きを直して読み込んだもの。使い終わったら close() する */
+export type IconSource = {
+  image: ImageBitmap | HTMLImageElement;
+  /** 向きを直したあとの画素数 */
+  width: number;
+  height: number;
+  close: () => void;
+};
+
+/** 切り取る範囲（正方形）。向きを直したあとの写真の画素で表す */
+export type IconCrop = { x: number; y: number; size: number };
+
 /**
- * プロフィールのアイコン用に小さくする（JPEG。canvas で再エンコードするので EXIF は落ちる）。
- * 丸く切り抜くのは表示側（object-cover）なので、ここでは縦横比を変えない。
+ * アイコンにする写真を読み込む。読めない形式（ブラウザが HEIC を扱えないときなど）は投げる。
+ *
+ * ★向きは EXIF から直して読む★（imageOrientation: "from-image"）
+ *   直さないと、iPhone の縦写真が切り取り画面で横向きになる。
+ *   options を受け付けない古い Safari では <img> で読む（<img> は既定で向きを直す）。
+ * ★ここでは読むだけで、EXIF を書き換えない★（CLAUDE.md ルール 11）。送るのは cropForIcon の出力だけ。
  */
-export async function compressForIcon(file: File): Promise<ReencodedJpeg> {
-  const out = await imageCompression(file, {
-    maxWidthOrHeight: ICON_MAX_EDGE,
-    initialQuality: ICON_QUALITY,
-    maxSizeMB: ICON_MAX_MB,
-    useWebWorker: true,
-    libURL: workerLibUrl(),
-    fileType: "image/jpeg",
+export async function loadIconSource(file: File): Promise<IconSource> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      if (bmp.width > 0 && bmp.height > 0) {
+        return { image: bmp, width: bmp.width, height: bmp.height, close: () => bmp.close?.() };
+      }
+      bmp.close?.();
+    } catch {
+      /* 下の <img> の経路で読み直す */
+    }
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = new window.Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("画像を読み込めませんでした"));
+      img.src = url;
+    });
+    if (!img.naturalWidth || !img.naturalHeight) throw new Error("画像を読み込めませんでした");
+    return {
+      image: img,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    throw e;
+  }
+}
+
+function canvasToJpeg(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("画像を処理できませんでした"))),
+      "image/jpeg",
+      quality,
+    );
   });
+}
+
+/** 容量が上限を超えたときに品質を下げる幅と、下げる限度 */
+const ICON_QUALITY_STEP = 0.1;
+const ICON_QUALITY_MIN = 0.45;
+
+/**
+ * 写真から正方形の範囲を切り取り、アイコン用の JPEG にする（長辺 ICON_MAX_EDGE 以下・ICON_MAX_MB 以下）。
+ * 丸く見せるのは表示側（rounded-full）。canvas で再エンコードするので EXIF（GPS を含む）は付かない。
+ * 送る直前にも uploadThumb の assertSafeThumb が確かめる。
+ */
+export async function cropForIcon(source: IconSource, crop: IconCrop): Promise<ReencodedJpeg> {
+  // 計算の誤差で写真の外へはみ出さないように収める（はみ出すと余白が写る）
+  const size = Math.max(1, Math.min(crop.size, source.width, source.height));
+  const x = Math.min(Math.max(crop.x, 0), source.width - size);
+  const y = Math.min(Math.max(crop.y, 0), source.height - size);
+
+  const edge = Math.max(1, Math.min(ICON_MAX_EDGE, Math.round(size)));
+  const canvas = document.createElement("canvas");
+  canvas.width = edge;
+  canvas.height = edge;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("画像を処理できませんでした");
+  // 透過のある PNG は JPEG にすると黒くなるので、白で下塗りする
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, edge, edge);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source.image, x, y, size, size, 0, 0, edge, edge);
+
+  const maxBytes = ICON_MAX_MB * 1024 * 1024;
+  let quality = ICON_QUALITY;
+  let out = await canvasToJpeg(canvas, quality);
+  while (out.size > maxBytes && quality - ICON_QUALITY_STEP >= ICON_QUALITY_MIN) {
+    quality -= ICON_QUALITY_STEP;
+    out = await canvasToJpeg(canvas, quality);
+  }
   return markReencoded(out);
 }
 
