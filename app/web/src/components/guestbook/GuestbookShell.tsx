@@ -68,7 +68,8 @@ export const CHROME_MOTION =
 
 /**
  * /guestbook 以下で共通の枠: 上に検索バーと「＋」、下に固定のタブ。
- * 下へ読み進めている間はヘッダーを上へ隠し、ボトムナビを左下の丸いボタンに縮める（全画面表示）。
+ * 下へ読み進めている間はヘッダーの検索欄と背景を上へ隠して左上のロゴと右上のボタンだけを残し、
+ * ボトムナビを左下の丸いボタンに縮める（全画面表示）。
  * 少しでも上へ戻すと元に戻る（判定は useCompactChrome）。
  *
  * ★本文の下余白はボトムナビの高さ＋safe-area 分を必ず空ける★
@@ -98,6 +99,15 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * 全画面のときは検索欄と白い背景だけを上へ隠し、ロゴと右側の丸いボタン（＋・写真の選択）は残す（Issue #80）。
+ *
+ * ★背景は別の層にして translate で動かす★ header 自体の background を変えると transform / opacity 以外の
+ *   アニメーションになる（CHROME_MOTION の★参照）。header ごと動かすと残したいボタンまで隠れる。
+ * ★全画面のとき header は pointer-events-none にし、残すボタンだけ pointer-events-auto で戻す★
+ *   背景が消えたあとの透明な帯が、下にある投稿へのタップを奪わないようにするため。
+ * ★隠した検索欄は inert にする★ 見えない入力欄にフォーカスやタップが届かないようにするため。
+ */
 function Header({ compact }: { compact: boolean }) {
   const { pathname, params } = useBackdropLocation();
   const view = useGuestbookView();
@@ -105,20 +115,33 @@ function Header({ compact }: { compact: boolean }) {
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   const { running } = useGuestbookUpload();
   return (
-    <header
-      inert={compact}
-      className={`sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
-    >
+    <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] group-data-[chrome=compact]/chrome:pointer-events-none">
+      <div
+        aria-hidden
+        className={`absolute inset-0 -z-10 border-b border-stone-200/80 bg-white/95 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
+      />
       <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
-        <SpaceSwitch
-          current="guestbook"
-          notice={
-            running
-              ? "高画質版を送信中です。ご案内へ移ると、いま送っている1枚のあとで送信が止まります。続きはゲストブックに戻ってから送れます。"
-              : undefined
-          }
-        />
-        <SearchBar />
+        {/* 背景が消えても読めるよう、全画面のときだけロゴの下に白い丸地を出す */}
+        <div className="pointer-events-auto relative isolate shrink-0">
+          <span
+            aria-hidden
+            className={`absolute inset-0 -z-10 rounded-full bg-white/90 shadow-sm ring-1 ring-stone-200/80 backdrop-blur ${CHROME_MOTION} opacity-0 group-data-[chrome=compact]/chrome:opacity-100`}
+          />
+          <SpaceSwitch
+            current="guestbook"
+            notice={
+              running
+                ? "高画質版を送信中です。ご案内へ移ると、いま送っている1枚のあとで送信が止まります。続きはゲストブックに戻ってから送れます。"
+                : undefined
+            }
+          />
+        </div>
+        <div
+          inert={compact}
+          className={`flex min-w-0 flex-1 ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-[calc(100%+1rem+env(safe-area-inset-top))] group-data-[chrome=compact]/chrome:opacity-0`}
+        >
+          <SearchBar />
+        </div>
         {/* ギャラリーでだけ出す。押すと保存する写真を選ぶモードに入る（もう一度押すと抜ける） */}
         {gallery && (
           <Link
@@ -126,7 +149,7 @@ function Header({ compact }: { compact: boolean }) {
             replace={selecting}
             scroll={false}
             aria-label={selecting ? "写真の選択をやめる" : "写真を選んで保存する"}
-            className={`flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border text-lg leading-none transition ${
+            className={`pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border text-lg leading-none transition ${
               selecting
                 ? "border-sky-600 bg-sky-600 text-white"
                 : "border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
@@ -138,7 +161,7 @@ function Header({ compact }: { compact: boolean }) {
         <Link
           href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
           aria-label="新しく投稿する"
-          className="flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
+          className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
         >
           <span aria-hidden>＋</span>
         </Link>
@@ -150,6 +173,7 @@ function Header({ compact }: { compact: boolean }) {
 /**
  * /guestbook 以外の画面（詳細・通知・設定）で、高画質版の送信中であることを出す。
  * /guestbook では UploadStatusBar が詳しく出すので、ここでは出さない。
+ * 全画面のときもヘッダーの段にはロゴとボタンが残るので、位置は詰めない。
  */
 function UploadMiniStatus() {
   const { pathname } = useBackdropLocation();
@@ -161,7 +185,7 @@ function UploadMiniStatus() {
     <Link
       href={GUESTBOOK_PATHS.home}
       role="status"
-      className={`sticky top-[calc(3.5rem+1px+env(safe-area-inset-top))] z-30 block border-b border-sky-200 bg-sky-50/95 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-[calc(3.5rem+1px)]`}
+      className="sticky top-[calc(3.5rem+1px+env(safe-area-inset-top))] z-30 block border-b border-sky-200 bg-sky-50/95 backdrop-blur"
     >
       <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-2 text-xs font-medium text-sky-900">
         <span className="shrink-0">高画質版を送信中… 残り {remaining} 枚</span>

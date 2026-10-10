@@ -51,7 +51,7 @@ export function SpaceSwitch({ current, notice }: { current: AppSpace; notice?: s
 }
 
 /**
- * ★document.body へ Portal で出す★ ヘッダーは全画面表示のとき inert になり、本文は引っ張って更新の間
+ * ★document.body へ Portal で出す★ ヘッダーは全画面表示のとき pointer-events-none になり、本文は引っ張って更新の間
  *   transform が付く（PullToRefresh の★参照）。その中に置くと押せない・画面に固定されないことがある。
  */
 function SpaceSheet({
