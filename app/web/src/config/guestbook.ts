@@ -27,6 +27,9 @@ export function postPath(id: string): string {
   return `${GUESTBOOK_PATHS.home}/posts/${encodeURIComponent(id)}`;
 }
 
+/** マイページの自分の投稿: 1回に読む件数。Rules の上限（posts 50）以下にする */
+export const MY_POSTS_PAGE_SIZE = 20;
+
 const POST_PATH_RE = /^\/guestbook\/posts\/([A-Za-z0-9_-]{1,64})$/;
 
 /** 投稿の詳細画面のパスなら投稿 ID を、そうでなければ null を返す */

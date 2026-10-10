@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useRef, useState, type MouseEvent } from "react";
 import type { User } from "firebase/auth";
 import type { Post } from "@/types";
@@ -35,7 +36,9 @@ const INTERACTIVE = "a, button, input, textarea, select, label, video";
  *   - timeline: カードの余白・本文のタップで、カードがそのまま広がって詳細シートになる
  *     （PostDetailSheet）。写真のタップは写真ビューア（MediaLightbox）。
  *     コメントは件数だけを出す（購読は詳細画面でだけ張る）。
- *     ★timeline はタイムラインのページ（/guestbook）でだけ使う★ シートを出すのはそのページだけ。
+ *     ★シートを出すのはタイムラインのページ（/guestbook）だけ★ ほかのページ（マイページ）で
+ *     timeline の見た目を使うときは openAs="page" を渡し、詳細画面（posts/[id]）へ遷移させる。
+ *     渡さないと URL だけが変わって何も開かない（PostDetailSheet の openPostSheet の★参照）。
  *   - detail: 詳細画面用。画面の端から端まで広げ、カード自体は遷移しない。
  *     いいねとコメントはアイコンと数字だけ。コメントの一覧と入力欄は PostDetail が下に出す。
  */
@@ -43,11 +46,14 @@ export function PostCard({
   post,
   user,
   variant = "timeline",
+  openAs = "sheet",
 }: {
   post: Post;
   user: User;
   variant?: "timeline" | "detail";
+  openAs?: "sheet" | "page";
 }) {
+  const router = useRouter();
   const card = useRef<HTMLElement>(null);
   const detail = variant === "detail";
   const href = postPath(post.id);
@@ -74,11 +80,14 @@ export function PostCard({
   }
 
   function openDetail() {
-    if (card.current) openPostSheet(post.id, card.current.getBoundingClientRect());
+    if (openAs === "page") router.push(href);
+    else if (card.current) openPostSheet(post.id, card.current.getBoundingClientRect());
   }
 
   /** 時刻・コメントのリンク。新しいタブで開く操作だけはブラウザに任せる */
   function onLinkClick(e: MouseEvent<HTMLAnchorElement>) {
+    // 詳細画面へ遷移するときは Link に任せる
+    if (openAs === "page") return;
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
