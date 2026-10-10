@@ -162,6 +162,7 @@ export function PostCard({
       {post.text && (
         <RichText
           text={post.text}
+          mentionNames={post.mentions}
           className="selectable mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
         />
       )}

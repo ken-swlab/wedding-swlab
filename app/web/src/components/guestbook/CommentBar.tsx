@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { User } from "firebase/auth";
 import { COMMENT_INPUT_ID, KEYBOARD_OPEN_WAIT_MS } from "@/config/guestbook";
 import { CharCount, useCommentForm } from "./CommentArea";
+import { MentionSuggestions } from "./MentionSuggestions";
 import type { Post } from "@/types";
 
 /**
@@ -32,6 +33,10 @@ import type { Post } from "@/types";
  *   fixed ではなく absolute にする（枠は transform で動くので、中の fixed は使えない。useSwipeBack の★参照）。
  * ★enterkeyhint は付けない★ 複数行のコメントなので改行キーは改行のまま。「送信」表示にすると押しても
  *   改行になり紛らわしい。iOS の「^ v 完了」バーは enterkeyhint や inputmode では消せない。
+ * ★@メンションの候補は、この欄の上に absolute で重ねる（欄の高さを変えない）★
+ *   欄はいつもキーボードのすぐ上にあるので、その上に出せばキーボードにも「送信」にも隠れない。
+ *   欄の中に並べると高さが変わり、上の「形を変えない」に反する。候補のボタンはフォーカスを奪わない
+ *   （MentionSuggestions の★参照）。
  * ★文字の大きさは 16px 以上★ それより小さいと iOS がフォーカス時に画面を拡大し、
  *   枠の位置合わせ（visualViewport）が拡大中の扱いになって崩れる。
  */
@@ -56,7 +61,7 @@ function keepScreenStill(el: HTMLElement) {
 
 export function CommentBar({ post, user, onSent }: { post: Post; user: User; onSent?: () => void }) {
   const input = useRef<HTMLTextAreaElement>(null);
-  const { text, setText, busy, formError, count, over, near, canSend, onSubmit } = useCommentForm(
+  const { text, setText, busy, formError, count, over, near, canSend, onSubmit, mention } = useCommentForm(
     post,
     user,
     () => {
@@ -64,6 +69,7 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
       input.current?.blur();
       onSent?.();
     },
+    input,
   );
   const expanded = text.length > 0;
 
@@ -75,14 +81,25 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
     >
       {/* キーボードの裏を隠す白（★参照） */}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-lvh bg-white" />
-      <div className="mx-auto max-w-xl">
+      <div className="relative mx-auto max-w-xl">
+        <MentionSuggestions state={mention.suggestions} className="bottom-full mb-3" />
         <div className="flex items-end gap-2">
           <textarea
             ref={input}
             id={COMMENT_INPUT_ID}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            onFocus={(e) => keepScreenStill(e.currentTarget)}
+            onChange={(e) => {
+              setText(e.target.value);
+              mention.track(e.currentTarget);
+            }}
+            onSelect={(e) => mention.track(e.currentTarget)}
+            onFocus={(e) => {
+              keepScreenStill(e.currentTarget);
+              mention.track(e.currentTarget);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") mention.suggestions.close();
+            }}
             rows={expanded ? 3 : 1}
             aria-label="コメント"
             placeholder="コメントを追加…"

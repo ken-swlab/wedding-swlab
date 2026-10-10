@@ -4,6 +4,8 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { extractTags } from "@/lib/text";
+import type { MentionPerson } from "@/lib/mentions";
+import { MAX_MENTIONS } from "@/config/mentions";
 import type { MediaItem, Post } from "@/types";
 
 /** snapshot -> Post。欠損フィールドをここで吸収する。 */
@@ -19,6 +21,7 @@ export function toPost(snap: QueryDocumentSnapshot<DocumentData>): Post {
     visibleToTags: Array.isArray(d.visibleToTags) ? d.visibleToTags : [],
     hashtags: Array.isArray(d.hashtags) ? d.hashtags : [],
     mentions: Array.isArray(d.mentions) ? d.mentions : [],
+    mentionUids: Array.isArray(d.mentionUids) ? d.mentionUids : [],
     status: d.status ?? "visible",
     reactionCount: d.reactionCount ?? 0,
     commentCount: d.commentCount ?? 0,
@@ -37,8 +40,11 @@ export async function createPost(params: {
   text: string;
   media: MediaItem[];
   visibleToTags: string[];
+  /** 候補から選んだメンションの相手（本文に残っている人だけ。lib/mentions.ts の activeMentions） */
+  mentioned?: MentionPerson[];
 }) {
   const { uid, displayName, photoURL, text, media, visibleToTags } = params;
+  const mentioned = (params.mentioned ?? []).slice(0, MAX_MENTIONS);
 
   if (!text.trim() && media.length === 0) throw new Error("本文か写真のどちらかは必要です");
   if (text.length > 2000) throw new Error("本文は2000文字までです");
@@ -46,7 +52,7 @@ export async function createPost(params: {
   if (visibleToTags.length === 0) throw new Error("公開範囲を1つ以上選んでください");
 
   // 本文から #タグ と @メンションを抽出して保存する
-  const { hashtags, mentions } = extractTags(text);
+  const { hashtags, mentions } = extractTags(text, mentioned.map((m) => m.name));
 
   return addDoc(collection(db, "posts"), {
     authorUid: uid,
@@ -57,6 +63,8 @@ export async function createPost(params: {
     visibleToTags,
     hashtags,
     mentions,
+    // ★相手がいるときだけ付ける★ Rules では任意のキー（hasOnly）。空のときは従来と同じ形で書く
+    ...(mentioned.length > 0 ? { mentionUids: mentioned.map((m) => m.uid) } : {}),
     status: "visible",
     reactionCount: 0,
     commentCount: 0,

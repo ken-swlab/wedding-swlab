@@ -3,11 +3,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
+import { useGuestSessionContext } from "./GuestSessionContext";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
 import { SpaceSwitch } from "./SpaceSwitch";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { useCompactChrome } from "@/hooks/useCompactChrome";
+import { useUnreadNotificationCount } from "@/hooks/useNotifications";
+import { UNREAD_BADGE_LIMIT } from "@/config/mentions";
 import {
   CHROME_MORPH_EASING,
   CHROME_MORPH_MS,
@@ -207,8 +210,26 @@ function UploadMiniStatus() {
   );
 }
 
+/**
+ * 未読の通知の数（Issue #92）。1〜9 はそのまま、それ以上は「9+」。0 件のときは出さない。
+ * 数える購読は UNREAD_BADGE_LIMIT 件までなので、上限に届いたら「9+」にする。
+ */
+function UnreadBadge({ count, className }: { count: number; className: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-hidden
+      className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none tabular-nums text-white ${className}`}
+    >
+      {count >= UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT - 1}+` : count}
+    </span>
+  );
+}
+
 function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => void }) {
   const { pathname } = useBackdropLocation();
+  const unread = useUnreadNotificationCount(useGuestSessionContext().user?.uid ?? null);
+  const unreadLabel = unread >= UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT - 1}件以上` : `${unread}件`;
   const view = useGuestbookView();
   const active: NavKey =
     pathname === GUESTBOOK_PATHS.notifications
@@ -250,8 +271,12 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                     on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}
                 >
-                  <span aria-hidden className="text-lg leading-none">{item.icon}</span>
+                  <span aria-hidden className="relative text-lg leading-none">
+                    {item.icon}
+                    {item.key === "notifications" && <UnreadBadge count={unread} className="-right-3 -top-1.5" />}
+                  </span>
                   {item.label}
+                  {item.key === "notifications" && unread > 0 && <span className="sr-only">（未読 {unreadLabel}）</span>}
                 </Link>
               </li>
             );
@@ -264,10 +289,11 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         type="button"
         inert={!compact}
         onClick={onExpand}
-        aria-label={`メニューを開く（いまは${current.label}）`}
+        aria-label={`メニューを開く（いまは${current.label}${unread > 0 ? `。通知の未読 ${unreadLabel}` : ""}）`}
         className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-stone-900/90 text-xl leading-none text-white shadow-lg backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
       >
         <span aria-hidden>{current.icon}</span>
+        <UnreadBadge count={unread} className="right-0 top-0" />
       </button>
     </>
   );

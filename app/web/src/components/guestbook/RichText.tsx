@@ -10,13 +10,16 @@ import { tokenizeText } from "@/lib/text";
 export function RichText({
   text,
   className,
+  mentionNames,
   onTokenClick,
 }: {
   text: string;
+  /** 投稿・コメントの mentions。選んで入れた相手のニックネーム（空白や記号を含む）を1つのメンションとして色付けする */
+  mentionNames?: readonly string[];
   className?: string;
   onTokenClick?: (kind: "hashtag" | "mention", key: string) => void;
 }) {
-  const tokens = tokenizeText(text);
+  const tokens = tokenizeText(text, mentionNames);
 
   return (
     <span className={className}>

@@ -55,8 +55,14 @@ service cloud.firestore {
       return d.authorName is string && d.authorName.size() >= 1 && d.authorName.size() <= 40
         && (!('authorPhotoURL' in d) || (d.authorPhotoURL is string && d.authorPhotoURL.size() <= 1024));
     }
+    // @メンションの相手の uid（Issue #92）。★任意のキー★ 相手がいるときだけクライアントが付ける。
+    //   必須（hasAll）にすると、Rules の反映からデプロイまでの間、古い画面からの投稿がすべて失敗する。
+    //   uid の中身（実在するか・投稿が見えるか）は、通知を作る /api/notifications/mention が確かめる。
+    function validMentionUids(d) {
+      return !('mentionUids' in d) || (d.mentionUids is list && d.mentionUids.size() <= 10);
+    }
     function validPost(d) {
-      return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt','updatedAt']) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
+      return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','mentionUids','status','reactionCount','commentCount','createdAt','updatedAt']) && validMentionUids(d) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
     }
     // updatedAt を変えるならサーバー時刻（serverTimestamp()）だけ。変えない更新はそのまま通す
     function updatedAtIsNow() {
@@ -104,7 +110,7 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         function parentPost() { return get(/databases/$(database)/documents/posts/$(postId)).data; }
-        function validComment(d, parent) { return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','visibleToTags','createdAt']) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
+        function validComment(d, parent) { return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','hashtags','mentions','visibleToTags','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','hashtags','mentions','mentionUids','visibleToTags','createdAt']) && validMentionUids(d) && d.text is string && d.text.size() > 0 && d.text.size() <= 600 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.visibleToTags == parent.visibleToTags && d.createdAt == request.time; }
         // ★非表示にした投稿のコメントは visibleToTags が空になる（/api/admin/posts/visibility の★）★
         //   canSee() では誰にも見えなくなるので、書いた本人だけは読めるようにする（「非表示になりました」を出すため）。
         allow get:  if signedIn() && resource != null && (canSee(resource.data) || resource.data.authorUid == myUid());
@@ -202,6 +208,23 @@ service cloud.firestore {
       allow get:   if signedIn();
       allow list:  if signedIn() && request.query.limit <= 200;
       allow write: if false;
+    }
+
+    // =====================================================
+    // /notifications/{uid}/items/{id} : 本人あての通知（@メンション。Issue #92）
+    //   ★作るのはサーバーだけ★ /api/notifications/mention（Admin SDK）が、送った人がその投稿・コメントの
+    //     作者であること、相手がその投稿を見られることを確かめてから書く。
+    //     クライアントに作成を開けると、見えない相手や他人の名前で通知を送れてしまう。
+    //   ★本人ができるのは、読むことと、read を true にすることだけ★
+    //     中身は種類・送った人の uid とニックネーム・投稿（とコメント）の ID・作成日時・read。本文は入れない。
+    // =====================================================
+    match /notifications/{uid}/items/{itemId} {
+      allow get:  if signedIn() && uid == myUid();
+      allow list: if signedIn() && uid == myUid() && request.query.limit <= 50;
+      allow create, delete: if false;
+      allow update: if signedIn() && uid == myUid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+        && request.resource.data.read == true;
     }
 
     match /{document=**} { allow read, write: if false; }
