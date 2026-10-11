@@ -65,6 +65,9 @@ jobs:
           PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -uo pipefail
+          # ★終了コードは「|| code=$?」で受ける★ Actions の bash は -e 付きなので、そのまま失敗させると
+          #   そこで止まり、下のサマリーが書かれない。
+          code=0
           range=""
           case "$EVENT_NAME" in
             pull_request) range="${PR_BASE_SHA}..${PR_HEAD_SHA}" ;;
@@ -77,12 +80,11 @@ jobs:
             # ★範囲を git が読めないときは、ここで失敗にする★
             #   gitleaks は git log が失敗しても「0 コミットを検査、検出なし」で成功を返すので、検査せずに通ってしまう。
             git rev-list --count "$range" > /dev/null || { echo "::error::検査する範囲を読めません: $range"; exit 1; }
-            gitleaks git --redact --no-banner --log-opts="$range"
+            gitleaks git --redact --no-banner --log-opts="$range" || code=$?
           else
             scope="履歴全体"
-            gitleaks git --redact --no-banner
+            gitleaks git --redact --no-banner || code=$?
           fi
-          code=$?
           {
             echo "### gitleaks: ${scope}"
             echo
@@ -121,7 +123,9 @@ jobs:
       - name: npm ci
         working-directory: ${{ matrix.dir }}
         run: npm ci --ignore-scripts --no-audit --no-fund
+      # npm ci が失敗しても検査は行う（npm audit はロックファイルだけで判定できる。ジョブ自体は npm ci の失敗で赤になる）
       - name: npm audit --omit=dev --audit-level=high（例外の一覧と照らす）
+        if: ${{ !cancelled() }}
         env:
           TARGET_DIR: ${{ matrix.dir }}
         run: node app/web/scripts/check-audit.mjs "$TARGET_DIR"
@@ -150,11 +154,12 @@ jobs:
       - name: osv-scanner（警告のみ）
         run: |
           set -uo pipefail
+          # ★終了コードは「|| code=$?」で受ける★（bash は -e 付き。指摘があると 1 を返すが、ここでは失敗にしない）
+          code=0
           osv-scanner scan \
             --lockfile app/web/package-lock.json \
             --lockfile infra/workers/exif-stripper/package-lock.json \
-            --format markdown --output-file "$RUNNER_TEMP/osv.md"
-          code=$?
+            --format markdown --output-file "$RUNNER_TEMP/osv.md" || code=$?
           {
             echo "### OSV-Scanner（警告のみ）"
             echo
