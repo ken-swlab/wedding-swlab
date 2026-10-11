@@ -1,0 +1,22 @@
+# Gitleaks の設定（Issue #101）
+#   手元:  gitleaks git --redact            （履歴全体。値は伏せて表示される）
+#   CI:    .github/workflows/security.yml の gitleaks（PR は差分、毎週月曜と手動は履歴全体）
+#
+# 既定のルールをそのまま使う。ここに書くのは、誤検知の許可リストだけ。
+#
+# ★許可リストには必ず理由を書く★ 書き方:
+#   [[allowlists]]
+#   description = "なぜ秘密ではないのか（公開してよい理由）"
+#   paths = ['''^path/to/file$''']        # できるだけファイルと値の形の両方で狭く絞る
+#   regexes = ['''値の形''']
+# ★本物の秘密を許可リストで黙らせない★ 漏れた秘密は、先に失効・再発行する。
+# ★ルールごと・接頭辞ごと（例: Google の API キーの形すべて）の広い許可は足さない★
+#   Firebase のクライアント設定は公開してよい値だが、同じ形の Vertex AI などの鍵まで見逃すことになる。
+#
+# 現在、許可リストは空。Firebase のクライアント設定や Sentry の DSN は NEXT_PUBLIC_* の環境変数から読み、
+# リポジトリには値を置いていないので、履歴全体を検査しても検出されない（2026-10-11 に確認）。
+# 過去のコミットの誤検知（localStorage のキー名）は、コミット単位で .gitleaksignore に書いてある。
+title = "wedding-swlab"
+
+[extend]
+useDefault = true

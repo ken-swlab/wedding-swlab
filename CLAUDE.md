@@ -39,13 +39,16 @@ cd app/web && npx tsc --noEmit   # 型チェック（変更したら必ず）
 cd app/web && npm run lint       # ESLint（自分の変更で新しいエラーを出さない）
 cd app/web && npm run build      # 本番ビルド（変更したら必ず）
 cd infra/workers/exif-stripper && npm run typecheck   # Worker を触ったとき
+cd infra/firestore/test && npm test   # Rules の単体テスト（Rules を変えたら必ず。エミュレーター上で動く）
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
 ```
 
 - 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。
 
-- テストランナーは無い。型チェックとビルドの通過が最低ライン。
+- テストがあるのは Firestore の Rules だけ（`infra/firestore/test`。Issue #101）。初回は `cd infra/firestore/test && npm ci`。Java 21 が要る。つなぐ先はエミュレーター（プロジェクト `demo-wedding-rules`）だけで、本番には届かない。`dev:emulator` と同じポート（8080）を使うので、同時には動かせない。アプリ本体（`app/web/src`）のテストは無く、型チェックとビルドの通過が最低ライン。
+- **Rules（`infra/firestore/firestore.rules`）を変える PR では、対応するテスト（許可と拒否の両方）を `infra/firestore/test/rules.test.mjs` に足し、`npm test` を通す。** CI は `rules-test`。
+- CI（`.github/workflows/`）: `security`（gitleaks・npm audit・OSV-Scanner・Semgrep・Checkov）、`rules-test`、`deps-runtime`。Vercel は CI を待たずにデプロイするので、PR 上で赤が無いことを見てからマージする。`npm audit fix --force` は使わない。脆弱性の例外は `.github/audit-ignore.json`（理由と 90 日以内の期限が必須）、秘密の誤検知は `.gitleaks.toml`（理由つき）。
 - 読み取りだけの運用: `node scripts/ops.mjs audit|ratelimit`（app/web で）、`scripts/csp-reports.py`、`scripts/pii-access-report.py`。GCP の前に `bash scripts/ensure-gcloud-auth.sh`。
 - Next.js 16 は学習データと API が違う。書く前に `app/web/node_modules/next/dist/docs/` を読む（`app/web/AGENTS.md` は `next dev` が書き直すので編集しない）。
 
@@ -83,7 +86,7 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
 
 ## Issue の実装
 
-「Issue #N を実装して」と言われたら `implement-issue` スキル（`/implement-issue N`）に従う。要点: `gh issue view N --comments` で読む → 曖昧・矛盾・上のルールとの衝突があれば書く前に質問 → `issue-N-<短い英語>` ブランチで Issue の範囲だけ変える → 型チェック・lint・ビルドを通す → ファイルを指定してコミット（`git add .` / `-A` は使わない）→ PR。`main` への直接 push とマージはオーナーの明示的な指示があるときだけ。オーナーの作業（terraform apply・環境変数・Worker のデプロイ）が要るなら PR に手順を書く。
+「Issue #N を実装して」と言われたら `implement-issue` スキル（`/implement-issue N`）に従う。要点: `gh issue view N --comments` で読む → 曖昧・矛盾・上のルールとの衝突があれば書く前に質問 → `issue-N-<短い英語>` ブランチで Issue の範囲だけ変える → 型チェック・lint・ビルドを通す（Rules を変えたら Rules のテストも）→ ファイルを指定してコミット（`git add .` / `-A` は使わない）→ PR。`main` への直接 push とマージはオーナーの明示的な指示があるときだけ。オーナーの作業（terraform apply・環境変数・Worker のデプロイ）が要るなら PR に手順を書く。
 
 ## コードの書き方
 

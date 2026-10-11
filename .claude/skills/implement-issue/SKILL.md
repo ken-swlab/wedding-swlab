@@ -30,6 +30,7 @@ git switch main && git pull --ff-only && git switch -c issue-<番号>-<短い英
 - 近い既存コードの書き方に合わせる（新しい API は既存ルートを複製する）。定数は `src/config/*` に置く。
 - `★` コメントの不変条件を守り、新しく作った不変条件には理由付きの `★` コメントを残す。
 - Firestore のクエリや書き込みを変えたら、Rules（`validPost()` や `limit` の上限）と複合インデックスとの整合を確かめる。
+- Rules を変えるときは、テスト（`infra/firestore/test/rules.test.mjs`）のケースも一緒に変える・足す。
 
 ## 5. 検証（すべて通るまで繰り返す）
 ```bash
@@ -37,6 +38,7 @@ cd app/web && npx tsc --noEmit
 cd app/web && npm run lint
 cd app/web && npm run build
 ```
+- Firestore の Rules（`infra/firestore/**`）を変えたら `cd infra/firestore/test && npm test`（初回は `npm ci`）。Rules を変える PR には、対応するテストのケース（許可と拒否の両方）を必ず一緒に足す。
 - Worker を触ったら `cd infra/workers/exif-stripper && npm run typecheck`。Terraform を触ったら `terraform fmt -check` と `terraform validate`（`apply` はしない）。
 - 通らないまま完了にしない。直せないときは、エラーと原因の見立てをオーナーに報告して止まる。
 - 画面を変えたら、スマホ（LINE アプリ内ブラウザ）での確認手順を PR に書く。

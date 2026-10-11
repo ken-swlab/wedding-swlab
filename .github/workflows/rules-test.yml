@@ -1,0 +1,59 @@
+# Firestore Security Rules の単体テスト（Issue #101）
+#
+# Rules・エミュレーターの設定・テスト自体を変える PR で、infra/firestore/test のテストを
+# Firestore エミュレーターの上で動かす。ブラウザが Firestore を直接読むこのアプリでは Rules が防御の本体なので、
+# 「読めてはいけない人が読める」変更を、terraform apply（オーナー）より前に PR で見つける。
+#
+# ★つなぐ先はエミュレーターだけ★ プロジェクト ID は demo-wedding-rules。秘密も本番の設定も渡さない。
+# ★本番デプロイ（Vercel の main 連携）とは独立している★
+#   Vercel は GitHub Actions の結果を待たない。Rules の反映は terraform apply なので、
+#   このチェックが赤い PR はマージせず、apply もしない。
+# ★サードパーティの Action はコミット SHA で固定する★（security.yml と同じ）
+name: rules-test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - infra/firestore/**
+      - firebase.json
+      - .github/workflows/rules-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rules-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: infra/firestore/test/package-lock.json
+
+      # Firestore エミュレーターには Java 21 以上が要る。ランナーに入っている 21 を使う（Action を増やさない）
+      - name: Java 21 を使う
+        run: |
+          set -euo pipefail
+          test -x "$JAVA_HOME_21_X64/bin/java"
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_21_X64/bin" >> "$GITHUB_PATH"
+
+      - name: npm ci
+        working-directory: infra/firestore/test
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: Rules のテスト
+        working-directory: infra/firestore/test
+        run: npm test

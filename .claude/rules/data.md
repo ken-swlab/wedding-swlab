@@ -17,9 +17,9 @@ paths:
 | `guests/{uid}` | 本人・管理者・タグを1つ以上持つ人 | サーバー（本人のプロフィールは `/api/guest/profile` 経由。本人の直接の書き込みは不可） |
 | `guestPrivate/{uid}` | 本人・管理者 | サーバー |
 | `guestAdmin/{uid}` | 管理者 | サーバー |
-| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の更新は `text`・`media`・`visibleToTags`・`hashtags`・`mentions`・`updatedAt` だけ。カウンタは ±1 |
+| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の直接の更新は `media`・`updatedAt` だけ（本文の編集は `/api/posts/[id]`）。カウンタは ±1（`reactionCount` は自分のいいねの作成・削除と同じ書き込みのときだけ） |
 | `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
-| `posts/{id}/reactions/{uid}` | サインイン済み | 本人の1件だけ |
+| `posts/{id}/reactions/{uid}` | 本人の1件だけ（管理者は読める） | 本人の1件だけ（その投稿が読める人） |
 | `notifications/{uid}/items/{id}` | 本人 | 作成はサーバー（`/api/notifications/mention`）。本人の更新は `read` を `true` にするだけ |
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
@@ -30,6 +30,15 @@ paths:
 - 個人情報は `guestPrivate`（本人も見てよいもの）か `guestAdmin`（管理者だけ）へ。`guests` に足してよいのは公開して困らない値だけ。ゲスト向けの表示名は `src/lib/names.ts` の `publicName`（本名は出さない）。
 - 投稿の非表示は `/api/admin/posts/visibility` だけで行う（`status: "hidden"` を直接書かない）。コメントも `visibleToTags: []`・`hidden: true` にして、横断購読（`/screen`）から外す。戻すときは親の `visibleToTags` を写し直す。
 - アクセス停止は `guestPrivate.isActive === false`。判定は `!== false`（未設定を停止扱いにしない）。
+
+## Rules のテスト（infra/firestore/test。Issue #101）
+- 実行は `cd infra/firestore/test && npm test`（初回は `npm ci`。Java 21）。Firestore エミュレーター（プロジェクト `demo-wedding-rules`）の上で、`firestore.rules` をそのまま読み込んで動く。本番にはつながない。
+- **Rules を変えたら、必ずテストを通す。Rules を変える PR には、対応するケースを一緒に足す**（許可されるものと拒否されるものの両方。権限を閉じる修正なら、再発防止のケースも）。
+- ケースは `rules.test.mjs` の表に1行ずつ書く: `[人物, ALLOW | DENY, 説明, 操作]`。人物（未ログイン・未承認・ゲスト・挙式参列者・新郎友人・新婦友人・新郎新婦・管理者・停止ゲスト）と初期データは `harness.mjs`。
+- 「現状:」で始まるケースは、今の Rules の動きを固定しただけのもの。Rules を直すときは期待結果も一緒に変える。
+- 落ちたときは、エミュレーターのメッセージに拒否した Rules の行番号（`L123`）が出る。
+- コレクションや `match` を足したら、テストにも足す（既定拒否のテストは、Rules に書かれていないパスだけを見ている）。
+- CI は `.github/workflows/rules-test.yml`（`infra/firestore/**`・`firebase.json` を変える PR）。Rules の反映は `terraform apply` なので、赤いまま apply しない。
 
 ## クライアントのクエリ
 - Rules はフィルタではない。条件と `limit()` が Rules と合わないクエリは全体が拒否される。
