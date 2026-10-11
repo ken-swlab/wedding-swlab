@@ -29,6 +29,7 @@ Sentry: エラーと CSP 違反の報告先（DSN はビルド時に焼き込み
 | `infra/` | `terraform/`、`firestore/firestore.rules`、`workers/exif-stripper/`、`modal/` |
 | `scripts/`, `app/web/scripts/` | 検証・運用スクリプト |
 | `docs/ROADMAP.md` | 機能のバックログ（データモデルの記述は一部古い。実装と Rules が正） |
+| `docs/security/` | 秘密情報の一覧（`secrets-inventory.md`）・ローテーション手順書・キーレス化の方針・アカウント保護のチェックリスト。**値は書かない。** 秘密（環境変数）を足す・やめるときは一覧も直す |
 
 ## コマンド
 
