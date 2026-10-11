@@ -1,10 +1,16 @@
-# セキュリティスキャン（Gitleaks / Semgrep / Checkov）
+# セキュリティスキャン（Gitleaks / npm audit / OSV-Scanner / Semgrep / Checkov）
+#
+# 実行するのは、main 向けの PR・main への push・毎週月曜（新しく公表された脆弱性と、履歴全体の秘密の検査）・手動。
 #
 # ★本番デプロイ（Vercel の main 連携）とは独立している★
 #   Vercel は GitHub Actions の結果を待たずにデプロイするので、ここが失敗しても
 #   main のデプロイは止まらない。マージ前に PR 上で気づくためのもの。
 # ★サードパーティの Action はコミット SHA で固定する★
 #   タグは付け替えられる（サプライチェーン攻撃の入口になる）。更新は Dependabot が PR で出す。
+# ★権限は contents: read だけ。秘密（secrets）はどのジョブにも渡さない★（Issue #101）
+#   PR のコードや依存を扱うジョブなので、書き込みの権限やトークンを持たせない。結果はログとサマリーで見る。
+# ★直接ダウンロードするバイナリ（gitleaks・osv-scanner）は、版とチェックサムを固定する★
+#   Dependabot は更新しないので、上げるときは版とリリースのチェックサムを一緒に書き換える。
 name: security
 
 on:
@@ -12,6 +18,8 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: "0 21 * * 0" # 毎週月曜 06:00（日本時間）
   workflow_dispatch:
 
 permissions:
@@ -22,23 +30,149 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # 秘密の検出。PR ではその PR のコミット、push では push されたコミットだけを見る。
-  # 過去の履歴の誤検知（localStorage のキー名）は .gitleaksignore で除外している。
+  # 秘密の検出（Issue #101 で gitleaks-action から CLI に置き換えた。PR へのコメントをやめ、権限を読み取りだけにするため）。
+  #   PR:               その PR で足されたコミットの差分
+  #   main への push:   push されたコミットの差分
+  #   毎週月曜・手動:   履歴全体
+  # 検出したら失敗にする。値は --redact で伏せて出す。
+  # 誤検知は .gitleaks.toml の許可リスト（理由つき）か、コミット単位の .gitleaksignore に書く。
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: read
-      pull-requests: write # 検出時に PR へコメントするため（値は --redact で伏せられる）
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      # https://github.com/gitleaks/gitleaks/releases の gitleaks_<版>_checksums.txt にある linux_x64 の値
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+          persist-credentials: false
+      - name: gitleaks を入れる（チェックサムを確かめる）
+        run: |
+          set -euo pipefail
+          file="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$file" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$file"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$file" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$file" -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: gitleaks
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # 個人アカウントのリポジトリなのでライセンスキーは不要
-          GITLEAKS_VERSION: 8.30.1
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -uo pipefail
+          # ★終了コードは「|| code=$?」で受ける★ Actions の bash は -e 付きなので、そのまま失敗させると
+          #   そこで止まり、下のサマリーが書かれない。
+          code=0
+          range=""
+          case "$EVENT_NAME" in
+            pull_request) range="${PR_BASE_SHA}..${PR_HEAD_SHA}" ;;
+            push)
+              # 履歴に無い before（強制 push など）のときは、範囲を決められないので履歴全体を見る
+              if git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null; then range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"; fi ;;
+          esac
+          if [ -n "$range" ]; then
+            scope="差分（${range}）"
+            # ★範囲を git が読めないときは、ここで失敗にする★
+            #   gitleaks は git log が失敗しても「0 コミットを検査、検出なし」で成功を返すので、検査せずに通ってしまう。
+            git rev-list --count "$range" > /dev/null || { echo "::error::検査する範囲を読めません: $range"; exit 1; }
+            gitleaks git --redact --no-banner --log-opts="$range" || code=$?
+          else
+            scope="履歴全体"
+            gitleaks git --redact --no-banner || code=$?
+          fi
+          {
+            echo "### gitleaks: ${scope}"
+            echo
+            if [ "$code" -eq 0 ]; then
+              echo "秘密は検出されませんでした。"
+            else
+              echo "**秘密らしい文字列を検出しました（失敗）。** 場所はこのジョブのログにあります（値は伏せてあります）。"
+              echo
+              echo "本物の秘密なら、先に失効・再発行してください。コミットを消すだけでは、漏れた値は取り消せません。"
+              echo "誤検知なら、理由を書いて \`.gitleaks.toml\` の許可リストに足します。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+
+  # 依存の脆弱性（Issue #101）。本番に入る依存の high 以上で失敗にする。
+  # 開発用の依存の指摘はサマリーに出すだけ。例外は .github/audit-ignore.json（理由と期限が必須）。
+  # 判定の中身は app/web/scripts/check-audit.mjs。
+  # ★npm audit fix --force は使わない★（メジャー更新が入る。Issue #38・dependabot.yml の注意）
+  npm-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [app/web, infra/workers/exif-stripper]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      # インストール時のスクリプトは動かさない（依存のコードを実行せずに検査する）
+      - name: npm ci
+        working-directory: ${{ matrix.dir }}
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      # npm ci が失敗しても検査は行う（npm audit はロックファイルだけで判定できる。ジョブ自体は npm ci の失敗で赤になる）
+      - name: npm audit --omit=dev --audit-level=high（例外の一覧と照らす）
+        if: ${{ !cancelled() }}
+        env:
+          TARGET_DIR: ${{ matrix.dir }}
+        run: node app/web/scripts/check-audit.mjs "$TARGET_DIR"
+
+  # ロックファイルを OSV（Google の脆弱性データベース）でも検査する（Issue #101）。
+  # ★警告のみ★ 失敗にはせず、結果をサマリーに出す。失敗にするかどうかの判定は npm-audit が持つ。
+  osv-scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OSV_SCANNER_VERSION: 2.6.0
+      # https://github.com/google/osv-scanner/releases の osv-scanner_SHA256SUMS にある linux_amd64 の値
+      OSV_SCANNER_SHA256: ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: osv-scanner を入れる（チェックサムを確かめる）
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/osv-scanner" "https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SCANNER_SHA256}  $RUNNER_TEMP/bin/osv-scanner" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/bin/osv-scanner"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: osv-scanner（警告のみ）
+        run: |
+          set -uo pipefail
+          # ★終了コードは「|| code=$?」で受ける★（bash は -e 付き。指摘があると 1 を返すが、ここでは失敗にしない）
+          code=0
+          osv-scanner scan \
+            --lockfile app/web/package-lock.json \
+            --lockfile infra/workers/exif-stripper/package-lock.json \
+            --format markdown --output-file "$RUNNER_TEMP/osv.md" || code=$?
+          {
+            echo "### OSV-Scanner（警告のみ）"
+            echo
+            if [ "$code" -eq 0 ]; then
+              echo "既知の脆弱性は見つかりませんでした。"
+            elif [ "$code" -eq 1 ] && [ -s "$RUNNER_TEMP/osv.md" ]; then
+              cat "$RUNNER_TEMP/osv.md"
+            else
+              echo "osv-scanner を実行できませんでした（終了コード ${code}）。"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -ne 0 ]; then echo "::warning::OSV-Scanner に指摘があります（終了コード ${code}）。ジョブのサマリーを見てください"; fi
+          exit 0
 
   # アプリのコードの静的解析。PR のときだけ動かす。
   # 導入時点の指摘は 0 件なので、指摘があれば PR のチェックを失敗にする（--error）。

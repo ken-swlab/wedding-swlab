@@ -1,0 +1,9 @@
+{
+  "説明": [
+    "npm audit の例外（Issue #101）。直せない・影響しないと判断した脆弱性だけを書く。",
+    "形: { \"id\": \"GHSA-xxxx-xxxx-xxxx\", \"reason\": \"影響しないと判断した理由\", \"expires\": \"YYYY-MM-DD\" }",
+    "理由が無い・期限が無い・期限切れ・期限が 90 日より先の項目があると、CI は失敗する（app/web/scripts/check-audit.mjs）。",
+    "app/web と infra/workers/exif-stripper の両方に効く。"
+  ],
+  "ignore": []
+}
