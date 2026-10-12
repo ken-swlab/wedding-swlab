@@ -1,0 +1,7 @@
+# 脆弱性の報告窓口（RFC 9116）。方針: docs/security/disclosure-policy.md
+# 期限（Expires）が切れる前に更新すること。
+Contact: mailto:security@sw-lab.net
+Expires: 2027-09-30T15:00:00Z
+Preferred-Languages: ja, en
+Canonical: https://wedding.sw-lab.net/.well-known/security.txt
+Policy: https://github.com/ken-swlab/wedding-swlab/blob/main/docs/security/disclosure-policy.md
