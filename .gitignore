@@ -42,10 +42,15 @@ __pycache__/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+# terraform plan -out のファイル（構成の全体が入る）
+*.plan
 
 # ---- 作業の残骸 ----
 *.bak*
+*.swp
 .attic/
+# firebase emulators:export の出力
+firebase-export-*/
 .DS_Store
 .vercel
 .env*
