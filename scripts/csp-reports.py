@@ -33,6 +33,12 @@ UA = "wedding-swlab-csp-reports/1.0"
 #   導入後にも出るものは、設定漏れの兆候なので要確認に倒す
 KNOWN = [
     (("csp-test.invalid",), "P6-FIX2 の疎通テスト。無視してよい", "P6-FIX2 の疎通テスト。無視してよい"),
+    # ★Firestore の通信ライブラリ（WebChannel）の到達確認★ 通信エラーのとき、ネットワークが生きているかを
+    #   //www.google.com/images/cleardot.gif の読み込みで確かめる。ブロックされても再接続は別に行われ、
+    #   機能は止まらない。img-src には足さない（docs/security/csp-check.md §5。Issue #103）。
+    #   img-src 以外で www.google.com が出たら、下に当たらず要確認になる
+    (("img-src", "www.google.com"), "Firestore の通信エラー時の到達確認（cleardot.gif）。無視してよい",
+     "Firestore の通信エラー時の到達確認（cleardot.gif）。無視してよい"),
     (("apis.google.com",), "Firebase Auth が読む gapi。nonce + strict-dynamic で許可される",
      "★要確認★ strict-dynamic 下では出ないはず"),
     (("cdn.jsdelivr.net",), "画像圧縮ワーカーの CDN 読み込み。自前配信に切り替えて解消",
