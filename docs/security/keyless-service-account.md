@@ -1,6 +1,8 @@
 # サービスアカウント鍵のキーレス化: 調査と方針（Issue #102）
 
-調査日: 2026-10-11。対象は、Vercel の環境変数 `FIREBASE_SERVICE_ACCOUNT_B64` に入れているサービスアカウント `wedding-app-server` の鍵（Admin SDK・`createCustomToken`・Vertex AI が使う）。
+調査日: 2026-10-11（2026-10-12 に、決定と実機の状況を追記）。対象は、Vercel の環境変数 `FIREBASE_SERVICE_ACCOUNT_B64` に入れているサービスアカウントの鍵（Admin SDK・`createCustomToken`・Vertex AI が使う）。
+
+**訂正（2026-10-12）:** 調査の時点では、鍵のサービスアカウントを Terraform の `wedding-app-server` として書いたが、実機で Vercel に入っているのは、Firebase が自動で作った `firebase-adminsdk-fbsvc` の鍵だった（`gcloud` の読み取りで確認。`wedding-app-server` にはユーザー管理の鍵が無い）。下の「いまの状況」を参照。
 
 この Issue では調査と方針まで。**実装はしていない。**
 
@@ -23,14 +25,23 @@
 
 | 日付 | 決定（やる／やらない／いつ） | 決めた人 |
 |---|---|---|
-| | | |
+| 2026-10-12 | **やる**（上の提案どおり）。PoC を 2026 年内に行い（別 Issue）、通れば移行を 2027-02 末までに終える。2 月末までに終わらなければ、当日は代替策で迎え、キーレス化は披露宴のあとにする | オーナー |
+
+## いまの状況（2026-10-12）
+
+- **本番の鍵は `firebase-adminsdk-fbsvc` のもの。** ロールは `roles/firebase.sdkAdminServiceAgent`・`roles/firebaseauth.admin`・`roles/iam.serviceAccountTokenCreator`・`roles/storage.admin`・`roles/aiplatform.user` で、Terraform の `wedding-app-server`（`firebaseauth.admin`・`datastore.user`・`aiplatform.user`）より広い。**キーレス化でどちらのサービスアカウントになるかは未決定。** 最小権限の `wedding-app-server` に寄せるのが素直だが、本番で一度も使っていないので、PoC で動くことを確かめてから決める（下の「確かめられていないこと」6）。
+- 代替策のうち、鍵の入れ替えと「鍵を持つ環境を Vercel だけにする」は 2026-10-12 に実施した（[rotation-runbook.md](rotation-runbook.md) の記録）。有効な鍵は 1 本（Vercel の Production・Sensitive）。Preview と開発機には無い。
+- **影響: 開発機では、この鍵を必要とする API が動かない。** 開発機の `app/web/.env.local` から `FIREBASE_SERVICE_ACCOUNT_B64` の行を消したので、ふつうの `npm run dev` では、カスタムトークンの発行（`/api/auth/line` の `createCustomToken`）が失敗する。ユーザーの ADC（`gcloud auth application-default login`）では、`createCustomToken` の署名ができない（`/api/auth/line` の ★ コメントのとおり、`auth/insufficient-permission` になる）。Firestore と Auth の読み書きをする運用スクリプトは ADC で動く。
+  - 開発機で動かしたいときは、鍵を戻すのではなく、サービスアカウントの偽装（impersonation）などのキーレス化が要る。候補は `gcloud auth application-default login --impersonate-service-account=…` と、自分のアカウントへの `roles/iam.serviceAccountTokenCreator` の付与。動くかどうかは未確認で、PoC で一緒に確かめる。
+  - 画面の確認は `npm run dev:emulator` と `/dev-login`（鍵も ADC も要らない）でできる。
+- 同じ理由で、Vercel の Preview でも、鍵を必要とする API は動かない（Preview には秘密を入れていない）。キーレス化のあとも、Preview からは使えないように `…:environment:production` の主体だけを通す方針（下の表）なので、これは変わらない。
 
 ## いまの作り
 
 - `src/lib/firebase-admin.ts` が、環境変数の鍵を `cert()` に渡して Admin SDK を初期化する。鍵が無ければ ADC（開発機の `gcloud auth application-default login`）を使う。
 - `/api/auth/line` が `createCustomToken(uid)` でカスタムトークンを作る。**鍵の秘密鍵でその場で署名する**（外部への通信なし）。
 - `/api/admin/ai-test`（Vertex AI）も、同じ鍵（または `GCP_SERVICE_ACCOUNT_B64`）を使う。
-- サービスアカウントの権限は `roles/firebaseauth.admin`・`roles/datastore.user`・`roles/aiplatform.user`（`infra/terraform/service_account.tf`）。同じファイルに「将来は Workload Identity Federation で鍵レス化するのが理想」とある。
+- Terraform の `wedding-app-server` の権限は `roles/firebaseauth.admin`・`roles/datastore.user`・`roles/aiplatform.user`（`infra/terraform/service_account.tf`）。同じファイルに「将来は Workload Identity Federation で鍵レス化するのが理想」とある。ただし本番の鍵はこのサービスアカウントのものではない（上の「いまの状況」）。
 
 ## 調べて分かったこと
 
@@ -53,6 +64,8 @@
 3. 依存を足したあと、`deps-runtime` のチェック（古い Node での `require()`）が通るか。Issue #38 と同じ種類の事故を避ける。
 4. ログインの遅さ。署名が IAM への通信になるので、ログイン 1 回ごとに 1 往復増える（数百ミリ秒の見込み。実測する）。アクセストークンの交換は、関数のインスタンスごとに約 1 時間に 1 回。
 5. 披露宴の当日のような、同時に 100 人がログインする場面で、IAM Credentials API の割り当てに余裕があるか（既定の割り当てを GCP のコンソールで確かめる）。
+6. どのサービスアカウントで動かすか。`wedding-app-server`（最小権限。本番では未使用）に切り替えて、ログイン・投稿・管理画面・Vertex AI が動くか。足りない権限があれば洗い出す。
+7. 開発機で、サービスアカウントの偽装（impersonation）により、鍵なしで `createCustomToken` まで動くか。
 
 ## 移行するときの作業（PoC が通ったあと。別 Issue）
 
@@ -61,7 +74,7 @@
 2. Terraform に足して apply する:
    - `iamcredentials.googleapis.com` と `sts.googleapis.com` の有効化
    - Workload Identity のプールと、OIDC のプロバイダ（発行者・`google.subject = assertion.sub`・このプロジェクトの `sub` だけを通す条件）
-   - `wedding-app-server` に、`…/subject/owner:<チーム>:project:<プロジェクト>:environment:production` からの `roles/iam.workloadIdentityUser`
+   - サービスアカウント（「確かめられていないこと」6 で決めたもの。以下は `wedding-app-server` の場合）に、`…/subject/owner:<チーム>:project:<プロジェクト>:environment:production` からの `roles/iam.workloadIdentityUser`
    - `wedding-app-server` 自身に、自分に対する `roles/iam.serviceAccountTokenCreator`（`signBlob` のため）
 3. Vercel の環境変数（どれも秘密ではない）: プロジェクト番号・サービスアカウントのメール・プールとプロバイダの ID。
 
@@ -83,8 +96,8 @@
 
 | 策 | やること | 誰が |
 |---|---|---|
-| 鍵に期限を持たせる | 90 日ごとと、披露宴の 1 か月前に入れ替える（[rotation-runbook.md §1](rotation-runbook.md#1-サービスアカウント鍵)）。ユーザー管理の鍵は常に 1 本だけにする。Google Cloud の組織があれば、組織ポリシー `iam.serviceAccountKeyExpiryHours` で期限を強制できる（組織の無いプロジェクトでは使えない） | オーナー |
-| 鍵を持つ環境を Vercel だけにする | Vercel では Production だけ・Sensitive にする（Preview と Development には入れない）。開発機の `app/web/.env.local` から鍵を消し、ADC を使う（コードは、鍵が無ければ ADC を使う）。鍵のファイルを手元やクラウドのストレージに残さない | オーナー |
-| 権限を絞る | `roles/firebaseauth.admin` を、使っている操作だけのカスタムロールにする。Vertex AI は別のサービスアカウントに分け、`roles/aiplatform.user` を `wedding-app-server` から外す（コードは `GCP_SERVICE_ACCOUNT_B64` を先に見るので、変数を足すだけで分けられる） | Claude が Terraform の PR、オーナーが apply |
+| 鍵に期限を持たせる | 90 日ごとと、披露宴の 1 か月前に入れ替える（[rotation-runbook.md §1](rotation-runbook.md#1-サービスアカウント鍵)。初回は 2026-10-12）。ユーザー管理の鍵は常に 1 本だけにする。Google Cloud の組織があれば、組織ポリシー `iam.serviceAccountKeyExpiryHours` で期限を強制できる（組織の無いプロジェクトでは使えない） | オーナー |
+| 鍵を持つ環境を Vercel だけにする | Vercel では Production だけ・Sensitive にする（Preview と Development には入れない）。開発機の `app/web/.env.local` から鍵を消し、ADC を使う（コードは、鍵が無ければ ADC を使う。ただし ADC では `createCustomToken` は動かない）。鍵のファイルを手元やクラウドのストレージに残さない。**2026-10-12 実施** | オーナー |
+| 権限を絞る | `roles/firebaseauth.admin` を、使っている操作だけのカスタムロールにする。Vertex AI は別のサービスアカウントに分け、`roles/aiplatform.user` を Admin SDK 用のサービスアカウントから外す（コードは `GCP_SERVICE_ACCOUNT_B64` を先に見るので、変数を足すだけで分けられる） | Claude が Terraform の PR、オーナーが apply |
 | 鍵が使われたら気づけるようにする | Cloud Logging で、サービスアカウントの鍵の作成（`CreateServiceAccountKey`）にアラートを付ける。Data Access ログ（`data_access.tf`）と `scripts/pii-access-report.py` を定期的に見る | Claude が Terraform の PR、オーナーが apply |
 | 鍵を新しく作れないようにする（キーレス化のあと） | 組織があれば、組織ポリシー `iam.disableServiceAccountKeyCreation` | オーナー |

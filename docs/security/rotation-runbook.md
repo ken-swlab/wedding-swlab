@@ -7,7 +7,9 @@
 ## 共通の決まり
 
 - **秘密の値を、Issue・PR・コミット・チャット・ログに貼らない。** ターミナルに表示させない（`cat` しない、コマンドの引数に直接書かない）。
-- 順番は必ず **「新しい値を登録する → 登録されたことを確かめる → 再デプロイする → 動作を確かめる（ログインまで）→ 古い値を失効させる」**。先に失効させると本番が止まる。登録が失敗したまま先へ進んでも止まる。
+- 順番は必ず **「新しい値を登録する → 登録されたことを確かめる（管理画面か API）→ 再デプロイする → 動作を確かめる（ログインと写真の投稿まで）→ 古い値を無効にする → 数日後に消す」**。先に無効にすると本番が止まる。登録が失敗したまま先へ進んでも止まる。
+- **「登録されたこと」は、名前があることだけでなく、対象の環境が Production であることまで見る。** 2026-10-12 の障害は、`FIREBASE_SERVICE_ACCOUNT_B64` が Preview にしか無かったことと、`WEDDING_PASSCODE` が Production から消えていたことが原因だった（下の「2026-10-12 の作業と障害」）。環境変数をまとめて触ったあとは、触っていない変数も含めて、Production の一覧を [secrets-inventory.md](secrets-inventory.md) と突き合わせる。
+- **復旧のために古い値を戻した（鍵を再び有効にした）ときは、復旧が済んだら必ずもう一度無効にする。** 戻したこと・無効にし直したことを、下の「記録」に書く。戻したまま忘れると、入れ替えた意味がなくなる。
 - **環境変数を書き換えるコマンドの出力を隠さない。** `> /dev/null`・`2>/dev/null`・`| tail`・`--silent` などを付けず、成功・失敗の表示を最後まで読む。値は標準入力のファイルから渡すので、出力に値は出ない（隠すのは値で、コマンドの結果ではない）。
 - **Vercel CLI の表示だけを信じない。** このリポジトリの `.vercel/` は `repo.json` の形式（`vercel link --repo`）で、この形式のとき `vercel env ls` の一覧が空になり、`vercel env rm` / `vercel env add` がエラーを出さずに何もしないことがある。登録・削除のあとは、**必ず Vercel の管理画面（Settings → Environment Variables）か API（`GET /v10/projects/<プロジェクト ID>/env?teamId=<チーム ID>`。`vercel api` で呼べる）で、その名前が Production にあり、更新日時が今になっていること**を確かめる。確かめられなければ、管理画面から入れ直す。
 - Vercel の環境変数は、**次のデプロイから**効く。変えたら Vercel の管理画面の Deployments → 最新の Production → **Redeploy** で出し直す（`vercel --prod` / `vercel deploy` は使わない。CLAUDE.md のルール 17）。`NEXT_PUBLIC_*` は、ビルドし直さないと変わらない。
@@ -16,8 +18,9 @@
 - 終わったら、下の「記録」に日付を書く（値は書かない）。
 - 動作の確認に共通で使うもの:
   - `curl -sI https://wedding.sw-lab.net/api/health` の `X-Build` が、新しいデプロイのコミットになっている
-  - スマホで LINE ログイン → タイムラインが出る → 写真を 1 枚投稿できる
+  - スマホで LINE ログイン → タイムラインが出る → **写真を 1 枚投稿できる**（文字だけの投稿では確かめたことにならない。文字だけの投稿はブラウザから Firestore に直接書くので、サーバーの鍵が壊れていても通る。`src/lib/posts.ts`）
   - Sentry に新しいエラーが出ていない
+  - Vercel のログに `MetadataLookupWarning`（google-auth）が出ていない。出ていたら、`FIREBASE_SERVICE_ACCOUNT_B64` が Production に無く、`firebase-admin.ts` が `applicationDefault()` に落ちている
 
 ## 漏れたとき（漏れたかもしれないとき）
 
@@ -37,13 +40,14 @@ gitleaks が検出した、画面共有に映った、端末をなくした、�
 
 ## 1. サービスアカウント鍵
 
-対象: `FIREBASE_SERVICE_ACCOUNT_B64`（Vercel に登録しているのはこの名前だけ。Admin SDK も Vertex AI もこの鍵を使う）。サービスアカウントは `wedding-app-server@<PROJECT_ID>.iam.gserviceaccount.com`（`infra/terraform/service_account.tf`）。
+対象: `FIREBASE_SERVICE_ACCOUNT_B64`（Vercel に登録しているのはこの名前だけ。Admin SDK も Vertex AI もこの鍵を使う）。サービスアカウントは `firebase-adminsdk-fbsvc@<PROJECT_ID>.iam.gserviceaccount.com`（Firebase が自動で作ったもの。2026-10-12 に `gcloud` で確認）。Terraform の `wedding-app-server`（`infra/terraform/service_account.tf`）には鍵が無く、本番では使っていない。
 
 ```bash
 bash scripts/ensure-gcloud-auth.sh
-SA="wedding-app-server@<PROJECT_ID>.iam.gserviceaccount.com"
+SA="firebase-adminsdk-fbsvc@<PROJECT_ID>.iam.gserviceaccount.com"
 
-# 1. いまある鍵を見る（ID と作成日を控える。ユーザー管理の鍵は 1 本だけが正常）
+# 1. いまある鍵を見る（ID と作成日・無効かどうかを控える。有効なユーザー管理の鍵は 1 本だけが正常。
+#    どの鍵が Vercel に入っているか分からないときは、分かるまで古い鍵を無効にしない）
 gcloud iam service-accounts keys list --iam-account="$SA" --managed-by=user
 
 # 2. 新しい鍵を作る（リポジトリの外、メモリ上の一時ディレクトリに）
@@ -56,18 +60,19 @@ cd app/web
 vercel env add FIREBASE_SERVICE_ACCOUNT_B64 production --sensitive --force < "$D/key.b64"
 ```
 
-4. **登録されたことを確かめる。** 管理画面か API で、`FIREBASE_SERVICE_ACCOUNT_B64` が Production にあり、更新日時が今になっていることを見る（共通の決まり。CLI が成功と表示しても、一覧が空でも、ここで確かめる）。更新されていなければ、管理画面から `$D/key.b64` の中身を入れ直す。
+4. **登録されたことを確かめる。** 管理画面か API で、`FIREBASE_SERVICE_ACCOUNT_B64` が **Production** にあり（Preview だけになっていないこと）、種別が Sensitive で、更新日時が今になっていることを見る（共通の決まり。CLI が成功と表示しても、一覧が空でも、ここで確かめる）。更新されていなければ、管理画面から `$D/key.b64` の中身を入れ直す。
 5. 手元の写しを消す: `rm -rf "$D"`（4 を確かめてから。先に消すと、登録に失敗していたときに鍵を作り直すことになる）。
 6. Vercel の管理画面で Redeploy し、終わるのを待つ。
-7. **ログインまで確かめる。** 共通の確認のうち、スマホで LINE ログイン → タイムラインが出るところまでを必ず行う（`createCustomToken` がこの鍵で署名するので、鍵が壊れているとログインだけが失敗する）。管理画面で `/api/admin/ai-test`（Vertex AI）も 1 回試す。
-8. 古い鍵を無効にする: `gcloud iam service-accounts keys disable <古い鍵の ID> --iam-account="$SA"`。おかしくなったら `keys enable` で戻せる。
-9. 無効にしたあと、もう一度ログインを確かめる。数日たって問題が無ければ、古い鍵を消す: `gcloud iam service-accounts keys delete <古い鍵の ID> --iam-account="$SA"`。`keys list` で、鍵が 1 本だけになったことを確かめる。
+7. **ログインと写真の投稿まで確かめる。** スマホで LINE ログイン → タイムラインが出る → 写真を 1 枚投稿する、までを必ず行う（`createCustomToken` がこの鍵で署名するので、鍵が壊れているとログインが失敗する。`/api/uploads/presign` と `/api/faces/detect` も Admin SDK を使うので、写真の投稿が失敗する）。管理画面で `/api/admin/ai-test`（Vertex AI）も 1 回試す。
+8. 古い鍵を無効にする: `gcloud iam service-accounts keys disable <古い鍵の ID> --iam-account="$SA"`。おかしくなったら `keys enable` で戻せる。**戻したときは、原因を直して 4〜7 をやり直したあと、必ずもう一度 `keys disable` する**（`keys list` の `DISABLED` で確かめる）。途中で作って使わなかった鍵も、ここで無効にする。
+9. 無効にしたあと、もう一度ログインと写真の投稿を確かめる。数日たって問題が無ければ、古い鍵を消す: `gcloud iam service-accounts keys delete <古い鍵の ID> --iam-account="$SA"`。`keys list` で、鍵が 1 本だけになったことを確かめる。
 
 - `--force` は同じ名前の変数を上書きする。Redeploy が終わるまでは、動いているデプロイが古い値を持ったままなので止まらない。
 - **4 と 7 を飛ばして古い鍵を無効にしない。** 登録が黙って失敗していると、本番は古い鍵のまま動いていて、無効にした瞬間に全員がログインできなくなる。
 - 鍵を無効にしても・消しても、ログイン済みのゲストはそのまま使える（発行済みの ID トークンは Google の鍵で署名されている）。
 - `GCP_SERVICE_ACCOUNT_B64` は Vercel に登録していない。`/api/admin/ai-test` のコードはこの名前があれば先に読むが、無いので `FIREBASE_SERVICE_ACCOUNT_B64` を使う。Vertex AI を別のサービスアカウントに分けるまで、この名前で登録しない。
-- 開発機の `.env.local` に同じ鍵があれば、消して ADC に切り替える（[keyless-service-account.md](keyless-service-account.md) の代替策）。
+- 開発機の `.env.local` には鍵を置かない（2026-10-12 に消した）。運用スクリプトは ADC で動く。ただし ADC では `createCustomToken` の署名ができないので、ふつうの `npm run dev` で LINE ログインは通らない（[secrets-inventory.md](secrets-inventory.md) §4、[keyless-service-account.md](keyless-service-account.md)）。
+- 古い鍵を無効にする前に、その鍵がほかの場所（Vercel の Preview、開発機）でも使われていないかを見る。2026-10-12 は、同じ鍵が Production・Preview・開発機の 3 か所にあった。
 
 ## 2. R2 の API トークン
 
@@ -122,7 +127,7 @@ rm -rf "$D"
 
 ## 6. Sentry のトークン
 
-- `SENTRY_AUTH_TOKEN`（ビルド時のソースマップのアップロード）: Sentry → Settings → Auth Tokens（組織のトークン。権限はソースマップのアップロードだけ）で新しく作る → Vercel に入れる → Redeploy → ビルドログでアップロードが成功していることを見る → 古いトークンを失効。
+- `SENTRY_AUTH_TOKEN`（ビルド時のソースマップのアップロード）: Sentry → Settings → Auth Tokens（組織のトークン。権限はソースマップのアップロードだけ）で新しく作る → Vercel に入れる（Sensitive・Production）→ 登録を確かめる → Redeploy → ビルドログでアップロードが成功していることを見る → 古いトークンを失効。個人用のトークン（`sntryu_` で始まるもの）は、本人の権限をそのまま持つので使わない。
 - `SENTRY_READ_TOKEN`（`scripts/csp-reports.py`）: 保存していない。Sentry で古いトークンを失効させ、要るときに新しく作る（権限は読み取りだけ）。
 - DSN（`NEXT_PUBLIC_SENTRY_DSN`）は秘密ではない。偽のイベントが多くて困るときだけ、Sentry の Client Keys で作り直す → Vercel に入れる → Redeploy → `python3 scripts/csp-verify.py` で CSP の報告先が新しい DSN になったことを確かめる → 古い Client Key を無効にする。
 
@@ -131,6 +136,7 @@ rm -rf "$D"
 対象: `WEDDING_PASSCODE`、`INVITE_CODES_JSON`。
 
 - **定期には変えない。** 招待状に印刷して配る値なので、変えるとまだ登録していないゲストが入れなくなる。
+- Sensitive の変数は値を読み出せない。いまの値の控えを、パスワードマネージャーに置いておく（Production から消えたときに、戻す元になる）。
 - 漏れたとき: 新しい値を Vercel に入れる（`WEDDING_PASSCODE` の桁数は `src/config/passcode.ts` の `PASSCODE_LENGTH` と同じにする）→ Redeploy → まだ登録していないゲストに、新しい値を個別に伝える。登録済みのゲストには影響しない。
 - 漏れた値で登録した人がいないかを、管理画面の未承認の一覧で見る（承認しなければ、名簿も投稿も見えない）。
 
@@ -160,4 +166,32 @@ rm -rf "$D"
 
 | 日付 | 対象 | 理由（定期・当日前・漏えい） | 実行した人 | 確認したこと |
 |---|---|---|---|---|
-| | | | | |
+| 2026-10-12 | サービスアカウント鍵（`firebase-adminsdk-fbsvc`）。新: `ae0bab47`。旧: `43bfd482`（2026-09-18 作成）・`71d1aa3d`（2026-09-20 作成。未使用）・`c3cbc383`（作業中に作成。未登録） | 初回の棚卸し（Issue #102。鍵が複数あり、Preview と開発機にも置かれていた） | オーナー | 新しい鍵を Vercel の Production に Sensitive で登録 → 再デプロイ → LINE ログイン・写真の投稿・合言葉を確認。旧 3 本を無効化（`43bfd482` は復旧のために一度戻し、同日に無効にし直した。`keys list` で 3 本とも `DISABLED`、有効なのは `ae0bab47` だけ）。**旧 3 本の削除は未実施（数日後）** |
+| 2026-10-12 | `SENTRY_AUTH_TOKEN` | 漏えいの疑い（個人用トークンが、開発機の `.env.local` に `名前=値` でない行として残っていた） | オーナー | Vercel の値を新しいトークンに差し替え（Sensitive・Production）。古いトークンを Sentry で失効。`.env.local` の行を削除 |
+| 2026-10-12 | `WEDDING_PASSCODE` | 値は変えていない（Production から消えていたので、同じ値を登録し直した） | オーナー | 再デプロイ後に合言葉の動作を確認 |
+
+## 2026-10-12 の作業と障害
+
+Issue #102 の棚卸しとして、オーナーが実機で行った。値は書かない。鍵の ID は先頭 8 文字。
+
+**行ったこと**
+
+1. サービスアカウント鍵の入れ替え（上の記録の 1 行目）。入れ替えの前、`43bfd482` は Vercel の Production・Preview と開発機の `.env.local` の 3 か所で使われ、`71d1aa3d` はどこにも使われていなかった。
+2. Vercel の 9 つの秘密を、Sensitive・Production のみに変更（[secrets-inventory.md](secrets-inventory.md) §5）。
+3. `SENTRY_AUTH_TOKEN` の差し替えと、古い個人用トークンの失効。
+4. Firebase の Web API キーに HTTP リファラーの制限を追加（[secrets-inventory.md](secrets-inventory.md) §3）。
+5. 開発機の `.env.local` から、サービスアカウントの鍵の行と、Sentry のトークンの行を削除。
+
+**障害**
+
+- 症状: 写真の投稿が失敗した（`/api/uploads/presign`・`/api/faces/detect`）。Vercel のログに google-auth の `MetadataLookupWarning` が出ていた。文字だけの投稿には影響が出なかった（ブラウザから Firestore に直接書くため。`src/lib/posts.ts` の `addDoc`）。
+- 原因: (a) `FIREBASE_SERVICE_ACCOUNT_B64` が Preview にしか登録されておらず、Production に無かった。鍵が無いと `firebase-admin.ts` は `applicationDefault()` に落ち、Vercel にはメタデータサーバーが無いので、Admin SDK を使う API が失敗する。(b) `WEDDING_PASSCODE` が Production から消えていた。
+- 復旧: 新しい鍵と合言葉を Production に登録し直して再デプロイ。写真の投稿・LINE ログイン・合言葉の動作を確認した。途中、復旧のために `43bfd482` を一時的に有効に戻し、同日に無効にし直した。
+
+**分かったこと（上の手順に反映済み）**
+
+- 順番は「登録 → 登録の存在確認（Production にあること）→ 再デプロイ → ログインと写真の投稿まで確認 → 古い鍵を無効化 → 数日後に削除」。
+- 環境変数を書き換えるコマンドの出力を隠さない。
+- この環境の Vercel CLI（61.1.0）は `.vercel/repo.json` の形式でリンクされ、`vercel env ls` が空になり、`env rm` / `env add` が黙って失敗した。以後は Vercel の REST API（`projects/<プロジェクト ID>/env`）か管理画面で確かめた。
+- 復旧のために古い鍵を有効に戻したら、必ず無効にし直す。
+- Sensitive の変数は読み出せないので、合言葉のように控えが要る値は、パスワードマネージャーに置く。
