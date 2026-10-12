@@ -19,6 +19,10 @@
 #   ★ロックは2段階で★
 #     audit_bucket_locked = false で apply → エクスポートが届くことを確認
 #     → true にして apply。ロックは取り消せない。
+#
+#   ★ロック済み（2026-09-25 から。Issue #104 で実機を確認）★
+#     default を true にしてあるのは、実機に合わせるため。false に戻すと、
+#     plan が「ロックを外す」差分になり、apply が失敗する（外せないため）。
 ###############################################################
 
 variable "audit_retention_days" {
@@ -28,9 +32,9 @@ variable "audit_retention_days" {
 }
 
 variable "audit_bucket_locked" {
-  description = "true にすると保持ポリシーをロックする（取り消し不可）"
+  description = "true にすると保持ポリシーをロックする（取り消し不可）。ロック済みなので false に戻さない"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # --- 1. TTL ポリシー -------------------------------------------

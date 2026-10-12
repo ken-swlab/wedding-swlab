@@ -48,6 +48,8 @@ locals {
     "cloudscheduler.googleapis.com",
     # 個人情報の閲覧ログ（data_access.tf）
     "logging.googleapis.com",
+    # アラート（alerting.tf）
+    "monitoring.googleapis.com",
   ]
 }
 

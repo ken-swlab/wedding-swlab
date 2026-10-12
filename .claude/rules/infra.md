@@ -12,8 +12,8 @@ paths:
 
 ## Terraform（infra/terraform）
 - state はローカル（Git に入らない）。Claude がしてよいのは `terraform fmt` / `validate` / `plan` まで。`apply` はオーナーが実行するので、PR に手順と影響を書く。GCP を触る前に `bash scripts/ensure-gcloud-auth.sh`（`source` しない）。
-- Terraform が反映するもの: Firestore の Rules（`infra/firestore/firestore.rules` を読み込む）・複合インデックス・TTL、`auditLogs` の毎日の GCS エクスポート（Cloud Scheduler）、Data Access ログ、アプリ用サービスアカウントと IAM。`firebase deploy` は使わない（state と食い違い、Terraform 管理のインデックスを消しかねない）。
-- 取り消せない変数: `audit_bucket_locked`（audit.tf）と `pii_access_bucket_locked`（data_access.tf）。`pii_access_minimize` にも段階の手順がある（data_access.tf の冒頭）。この3つの default は勝手に変えない。段階を進めるときは tfvars ではなく default を書き換えてコミットする決まり。
+- Terraform が反映するもの: Firestore の Rules（`infra/firestore/firestore.rules` を読み込む）・複合インデックス・TTL、`auditLogs` の毎日の GCS エクスポート（Cloud Scheduler）、Data Access ログ、アプリ用サービスアカウントと IAM、Firestore の定期バックアップ（`backup.tf`）、GCP 側のアラート（`alerting.tf`。通知先は tfvars の `alert_email`。空なら作らない）。`firebase deploy` は使わない（state と食い違い、Terraform 管理のインデックスを消しかねない）。
+- 取り消せない変数: `audit_bucket_locked`（audit.tf。**ロック済みで default は `true`。false に戻さない**）と `pii_access_bucket_locked`（data_access.tf。未ロック）。`pii_access_minimize` にも段階の手順がある（data_access.tf の冒頭）。この3つの default は勝手に変えない。段階を進めるときは tfvars ではなく default を書き換えてコミットする決まり。
 - `prevent_destroy` を外さない。`firestore_location` を変えない。Firestore の `DATA_WRITE` 監査を有効にしない（書いた値がログに複製され、削除依頼に応えられなくなる）。
 - サービスアカウントの鍵を Terraform で作らない（state に平文で残る）。
 - R2 のバケット・カスタムドメイン・DNS、Vercel、Cloudflare の設定は Terraform 管理外（オーナーが手で管理）。
