@@ -30,6 +30,7 @@ Sentry: エラーと CSP 違反の報告先（DSN はビルド時に焼き込み
 | `scripts/`, `app/web/scripts/` | 検証・運用スクリプト |
 | `docs/ROADMAP.md` | 機能のバックログ（データモデルの記述は一部古い。実装と Rules が正） |
 | `docs/security/` | 秘密情報の一覧（`secrets-inventory.md`）・ローテーション手順書・キーレス化の方針・アカウント保護のチェックリスト・CSP の確認と切り戻し（`csp-check.md`）。**値は書かない。** 秘密（環境変数）を足す・やめるときは一覧も直す |
+| `docs/privacy/` | データの一覧（`data-inventory.md`）・外部のサービス（`subprocessors.md`）・削除の手順書（`deletion-runbook.md`）・プライバシーポリシーの改訂案（`privacy-policy-draft.md`。未承認）。**個人情報の値・依頼者の情報は書かない。** 保存するデータ・外部のサービスを足す・やめるときは、一覧と改訂案も直す |
 | `docs/ops/` | バックアップと復旧（`backup-restore.md`）・監視とアラート（`alerting.md`）・インシデント対応（`incident-response.md`）。**リポジトリは公開。連絡先・個人情報・事故の詳細は書かない** |
 
 ## コマンド
