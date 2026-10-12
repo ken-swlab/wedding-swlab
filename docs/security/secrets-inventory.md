@@ -1,6 +1,6 @@
 # 秘密情報の一覧（Issue #102）
 
-最終更新: 2026-10-11（コードが参照している名前から作成）
+最終更新: 2026-10-12（コードが参照している名前から作成。サービスアカウント鍵の変数名を Vercel の実際の登録に合わせた）
 
 **このファイルに秘密の値は書かない。** 書くのは、名前・置き場所・用途・ローテーションの周期・漏れたときの入口だけ。
 手順は [rotation-runbook.md](rotation-runbook.md)、サービスアカウント鍵をなくす方針は [keyless-service-account.md](keyless-service-account.md)、アカウントの保護は [account-checklist.md](account-checklist.md)。
@@ -14,8 +14,7 @@
 
 | 名前 | 置き場所 | 用途 | 漏れると | 周期 | 手順 |
 |---|---|---|---|---|---|
-| `FIREBASE_SERVICE_ACCOUNT_B64`（または `_JSON`） | Vercel（Production）。開発機の `app/web/.env.local` にもある可能性（オーナー確認） | サービスアカウント `wedding-app-server` の鍵。Admin SDK（Firestore の全読み書き・Custom Claims・`createCustomToken`）と、未設定時の Vertex AI | **最重要。** Rules を通らずに全ゲストの本名・アレルギー・顔の座標を読め、任意のユーザーになりすませ、管理者権限も付けられる | 90 日 + 当日前。キーレス化できれば廃止 | [runbook §1](rotation-runbook.md#1-サービスアカウント鍵) |
-| `GCP_SERVICE_ACCOUNT_B64` | Vercel（設定されていれば。オーナー確認） | Vertex AI 用のサービスアカウント鍵（`/api/admin/ai-test`）。無ければ上の鍵を使う | 上と同じ鍵なら同じ。別の鍵なら、そのサービスアカウントの権限の範囲 | 上と同じ | [runbook §1](rotation-runbook.md#1-サービスアカウント鍵) |
+| `FIREBASE_SERVICE_ACCOUNT_B64`（または `_JSON`） | Vercel（Production）。開発機の `app/web/.env.local` にもある可能性（オーナー確認） | サービスアカウント `wedding-app-server` の鍵。Admin SDK（Firestore の全読み書き・Custom Claims・`createCustomToken`）と Vertex AI（`/api/admin/ai-test`） | **最重要。** Rules を通らずに全ゲストの本名・アレルギー・顔の座標を読め、任意のユーザーになりすませ、管理者権限も付けられる | 90 日 + 当日前。キーレス化できれば廃止 | [runbook §1](rotation-runbook.md#1-サービスアカウント鍵) |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | Vercel（Production）、開発機の `.env.local`（運用スクリプト用） | R2 の署名付き URL の発行（アップロード）、原本・公開バケットの操作 | 原本（EXIF・位置情報つき）の読み出し、写真の削除・差し替え | 180 日 + 当日前 | [runbook §2](rotation-runbook.md#2-r2-の-api-トークン) |
 | `WORKER_WEBHOOK_SECRET`（Vercel）⇔ `WEBHOOK_SECRET`（Worker） | Vercel（Production）と、Cloudflare Worker `wedding-exif-stripper` の Secret。**同じ値の対** | Worker → `/api/hooks/original-published` の認証（`x-worker-secret`） | 任意の原本を「公開済み」として通知でき、投稿の写真の状態を書き換えられる | 180 日 + 当日前 | [runbook §3](rotation-runbook.md#3-worker-の-webhook-の秘密) |
 | `REKOGNITION_ACCESS_KEY_ID` / `REKOGNITION_SECRET_ACCESS_KEY`（無ければ `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`） | Vercel（Production） | AWS Rekognition（顔の検出・照合） | 顔コレクションの読み出し・削除、AWS の課金 | 90 日 + 当日前 | [runbook §4](rotation-runbook.md#4-aws-rekognition-のアクセスキー) |
@@ -41,6 +40,8 @@
 | LINE Developers（チャネル・LIFF） | オーナー本人 | LIFF の設定変更（エンドポイント URL の差し替え = ログインの乗っ取り） | MFA。Channel Secret は下の注 |
 | Sentry・Modal・AWS のアカウント | オーナー本人 | トークン・鍵の発行、データの閲覧 | MFA |
 
+**`GCP_SERVICE_ACCOUNT_B64` について:** Vercel には登録していない（サービスアカウント鍵の変数は `FIREBASE_SERVICE_ACCOUNT_B64` だけ）。`/api/admin/ai-test` のコードは、この名前があれば先に読み、無ければ `FIREBASE_SERVICE_ACCOUNT_B64` を使う。Vertex AI を別のサービスアカウントに分けるときに登録する名前で、そのときは上の表に行を足す。
+
 **LINE の Channel Secret について:** このアプリは使っていない。ログインは LINE の ID トークンを `https://api.line.me/oauth2/v2.1/verify` に `client_id`（チャネル ID）を付けて検証するだけで、Secret を送らない。Vercel に `LINE_CHANNEL_SECRET` のような変数があれば、どこからも読まれていないので消してよい（オーナー確認）。Secret 自体は LINE Developers のコンソールにあり、再発行の手順は [runbook §9](rotation-runbook.md#9-line-の-channel-secret)。
 
 ## 3. 秘密ではない設定（ローテーション不要）
@@ -64,6 +65,7 @@
 
 - 本番の秘密は **Vercel の環境変数（Production。種類は Sensitive）**、Worker の秘密は `wrangler secret put`、Modal の秘密は `modal secret` に置く。コード・コミット・Issue・ログ・Sentry には書かない（CLAUDE.md のルール 3・4）。
 - Preview と Development の環境には、本番の秘密を入れない（Preview はどのブランチのコードでも動く）。
+- Vercel の環境変数を足す・変える・消すときは、コマンドの出力を隠さず、結果を管理画面か API で確かめる（`.vercel/repo.json` の形式のとき、CLI の一覧が空になり、登録や削除が黙って失敗することがある。[rotation-runbook.md](rotation-runbook.md) の「共通の決まり」）。
 - 開発機の `app/web/.env.local` には、運用スクリプトに要るものだけを置く。サービスアカウントの鍵は置かず、ADC（`gcloud auth application-default login`）を使う（`firebase-admin.ts` と運用スクリプトは、鍵が無ければ ADC を使う）。
 - 混入の検査は CI の gitleaks（PR の差分と、毎週の履歴全体。`.github/workflows/security.yml`）。検出されたら、先に [rotation-runbook.md](rotation-runbook.md) の「漏れたとき」を行う。
 
