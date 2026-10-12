@@ -32,6 +32,7 @@ Sentry: エラーと CSP 違反の報告先（DSN はビルド時に焼き込み
 | `docs/security/` | 秘密情報の一覧（`secrets-inventory.md`）・ローテーション手順書・キーレス化の方針・アカウント保護のチェックリスト・CSP の確認と切り戻し（`csp-check.md`）。**値は書かない。** 秘密（環境変数）を足す・やめるときは一覧も直す |
 | `docs/privacy/` | データの一覧（`data-inventory.md`）・外部のサービス（`subprocessors.md`）・削除の手順書（`deletion-runbook.md`）・プライバシーポリシーの改訂案（`privacy-policy-draft.md`。未承認）。**個人情報の値・依頼者の情報は書かない。** 保存するデータ・外部のサービスを足す・やめるときは、一覧と改訂案も直す |
 | `docs/ops/` | バックアップと復旧（`backup-restore.md`）・監視とアラート（`alerting.md`）・インシデント対応（`incident-response.md`）。**リポジトリは公開。連絡先・個人情報・事故の詳細は書かない** |
+| `docs/sales/` | 法人向けの資料: チェックシートの回答集（`security-answers.md`）・概要（`security-overview.md`）・診断と認証の方針（`certification-roadmap.md`）・商用で提供する前に決めること（`commercial-readiness.md`）・既存資料の差分（`material-diff.md`）。**「実施済み／一部実施／未実施」を正直に書き、認証取得済み・診断済みと読める表現を使わない。相手の会社名・連絡先・提出した回答は書かない。** 回答の根拠になる実装を変えたら、回答も直す |
 
 ## コマンド
 
