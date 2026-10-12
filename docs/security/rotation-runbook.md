@@ -1,13 +1,15 @@
 # 秘密情報のローテーション手順書（Issue #102）
 
-最終更新: 2026-10-11
+最終更新: 2026-10-12
 
 対象の一覧と周期は [secrets-inventory.md](secrets-inventory.md)。**ここに書いた操作は、すべてオーナーが実行する**（Claude Code は実行しない）。
 
 ## 共通の決まり
 
 - **秘密の値を、Issue・PR・コミット・チャット・ログに貼らない。** ターミナルに表示させない（`cat` しない、コマンドの引数に直接書かない）。
-- 順番は必ず **「新しい値を作る → 置き換える → 動作を確かめる → 古い値を失効させる」**。先に失効させると本番が止まる。
+- 順番は必ず **「新しい値を登録する → 登録されたことを確かめる → 再デプロイする → 動作を確かめる（ログインまで）→ 古い値を失効させる」**。先に失効させると本番が止まる。登録が失敗したまま先へ進んでも止まる。
+- **環境変数を書き換えるコマンドの出力を隠さない。** `> /dev/null`・`2>/dev/null`・`| tail`・`--silent` などを付けず、成功・失敗の表示を最後まで読む。値は標準入力のファイルから渡すので、出力に値は出ない（隠すのは値で、コマンドの結果ではない）。
+- **Vercel CLI の表示だけを信じない。** このリポジトリの `.vercel/` は `repo.json` の形式（`vercel link --repo`）で、この形式のとき `vercel env ls` の一覧が空になり、`vercel env rm` / `vercel env add` がエラーを出さずに何もしないことがある。登録・削除のあとは、**必ず Vercel の管理画面（Settings → Environment Variables）か API（`GET /v10/projects/<プロジェクト ID>/env?teamId=<チーム ID>`。`vercel api` で呼べる）で、その名前が Production にあり、更新日時が今になっていること**を確かめる。確かめられなければ、管理画面から入れ直す。
 - Vercel の環境変数は、**次のデプロイから**効く。変えたら Vercel の管理画面の Deployments → 最新の Production → **Redeploy** で出し直す（`vercel --prod` / `vercel deploy` は使わない。CLAUDE.md のルール 17）。`NEXT_PUBLIC_*` は、ビルドし直さないと変わらない。
 - Vercel に入れるときは、Production だけに、種類を Sensitive にして入れる。CLI なら `vercel env add <名前> production --sensitive --force < <値のファイル>`（値は標準入力から渡す。`--value` で引数に書かない）。管理画面から入れてもよい。
 - 披露宴（2027-05-29）の 1 か月前に全部を一度入れ替え、それ以降は、漏れたとき以外は当日まで変えない。
@@ -35,7 +37,7 @@ gitleaks が検出した、画面共有に映った、端末をなくした、�
 
 ## 1. サービスアカウント鍵
 
-対象: `FIREBASE_SERVICE_ACCOUNT_B64`（と、同じ鍵を入れているなら `GCP_SERVICE_ACCOUNT_B64`）。サービスアカウントは `wedding-app-server@<PROJECT_ID>.iam.gserviceaccount.com`（`infra/terraform/service_account.tf`）。
+対象: `FIREBASE_SERVICE_ACCOUNT_B64`（Vercel に登録しているのはこの名前だけ。Admin SDK も Vertex AI もこの鍵を使う）。サービスアカウントは `wedding-app-server@<PROJECT_ID>.iam.gserviceaccount.com`（`infra/terraform/service_account.tf`）。
 
 ```bash
 bash scripts/ensure-gcloud-auth.sh
@@ -48,22 +50,23 @@ gcloud iam service-accounts keys list --iam-account="$SA" --managed-by=user
 umask 077 && D="$(mktemp -d -p /dev/shm)"
 gcloud iam service-accounts keys create "$D/key.json" --iam-account="$SA"
 
-# 3. Vercel に入れる（値を画面に出さない）
+# 3. 新しい鍵を Vercel に登録する（値は標準入力から。コマンドの出力は隠さずに読む）
 base64 -w0 "$D/key.json" > "$D/key.b64"
 cd app/web
 vercel env add FIREBASE_SERVICE_ACCOUNT_B64 production --sensitive --force < "$D/key.b64"
-
-# 4. 手元の写しを消す
-rm -rf "$D"
 ```
 
-5. Vercel の管理画面で Redeploy → 共通の確認（**LINE ログインができること**。`createCustomToken` がこの鍵で署名する）。管理画面で `/api/admin/ai-test`（Vertex AI）も 1 回試す。
-6. 古い鍵を消す: `gcloud iam service-accounts keys delete <古い鍵の ID> --iam-account="$SA"`
-7. もう一度 `keys list` で、鍵が 1 本だけになったことを確かめる。
+4. **登録されたことを確かめる。** 管理画面か API で、`FIREBASE_SERVICE_ACCOUNT_B64` が Production にあり、更新日時が今になっていることを見る（共通の決まり。CLI が成功と表示しても、一覧が空でも、ここで確かめる）。更新されていなければ、管理画面から `$D/key.b64` の中身を入れ直す。
+5. 手元の写しを消す: `rm -rf "$D"`（4 を確かめてから。先に消すと、登録に失敗していたときに鍵を作り直すことになる）。
+6. Vercel の管理画面で Redeploy し、終わるのを待つ。
+7. **ログインまで確かめる。** 共通の確認のうち、スマホで LINE ログイン → タイムラインが出るところまでを必ず行う（`createCustomToken` がこの鍵で署名するので、鍵が壊れているとログインだけが失敗する）。管理画面で `/api/admin/ai-test`（Vertex AI）も 1 回試す。
+8. 古い鍵を無効にする: `gcloud iam service-accounts keys disable <古い鍵の ID> --iam-account="$SA"`。おかしくなったら `keys enable` で戻せる。
+9. 無効にしたあと、もう一度ログインを確かめる。数日たって問題が無ければ、古い鍵を消す: `gcloud iam service-accounts keys delete <古い鍵の ID> --iam-account="$SA"`。`keys list` で、鍵が 1 本だけになったことを確かめる。
 
 - `--force` は同じ名前の変数を上書きする。Redeploy が終わるまでは、動いているデプロイが古い値を持ったままなので止まらない。
-- 鍵を消しても、ログイン済みのゲストはそのまま使える（発行済みの ID トークンは Google の鍵で署名されている）。
-- `GCP_SERVICE_ACCOUNT_B64` に別のサービスアカウントの鍵を入れているなら、そのサービスアカウントで同じ手順を行う。
+- **4 と 7 を飛ばして古い鍵を無効にしない。** 登録が黙って失敗していると、本番は古い鍵のまま動いていて、無効にした瞬間に全員がログインできなくなる。
+- 鍵を無効にしても・消しても、ログイン済みのゲストはそのまま使える（発行済みの ID トークンは Google の鍵で署名されている）。
+- `GCP_SERVICE_ACCOUNT_B64` は Vercel に登録していない。`/api/admin/ai-test` のコードはこの名前があれば先に読むが、無いので `FIREBASE_SERVICE_ACCOUNT_B64` を使う。Vertex AI を別のサービスアカウントに分けるまで、この名前で登録しない。
 - 開発機の `.env.local` に同じ鍵があれば、消して ADC に切り替える（[keyless-service-account.md](keyless-service-account.md) の代替策）。
 
 ## 2. R2 の API トークン
@@ -86,7 +89,8 @@ openssl rand -base64 48 | tr -d '\n' > "$D/secret"
 
 cd app/web
 vercel env add WORKER_WEBHOOK_SECRET production --sensitive --force < "$D/secret"
-# → ここで Vercel の管理画面から Redeploy し、終わるのを待つ
+# → 管理画面か API で、登録されたこと（Production・更新日時が今）を確かめる（共通の決まり）
+# → Vercel の管理画面から Redeploy し、終わるのを待つ
 
 cd ../../infra/workers/exif-stripper
 npx wrangler secret put WEBHOOK_SECRET < "$D/secret"
@@ -94,6 +98,7 @@ rm -rf "$D"
 ```
 
 - Redeploy が終わってから `wrangler secret put` までの間、Worker の通知は 401 になる。Worker は 401 を全体障害として扱い、回数を数えずに次の実行（2 分ごと）でやり直すので、**写真は失われない**。その間に投稿された写真の高画質版の公開が遅れるだけ。間を空けない。
+- Vercel への登録を確かめずに `wrangler secret put` へ進まない。登録が黙って失敗していると、Worker だけが新しい値になり、通知が 401 のまま止まる。
 - 確認: `bash scripts/infra-verify.sh`、`npx wrangler tail` に 401 が出ていない、写真を 1 枚投稿して高画質版が公開される。
 
 ## 4. AWS Rekognition のアクセスキー
