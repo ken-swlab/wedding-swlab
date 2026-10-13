@@ -11,6 +11,9 @@ import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
 
+/** スマホではタップ領域を 44px にする */
+const NAV_LINK = "inline-flex min-h-11 touch-manipulation items-center rounded-full border border-stone-200 bg-white px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1";
+
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
   const { rows, loading, error } = useAdminGuests(isAdmin);
@@ -84,16 +87,17 @@ export default function AdminPage() {
 
   return (
     <main className="selectable min-h-screen bg-stone-50">
-      <div className="mx-auto max-w-[1600px] px-4 py-8">
+      <div className="mx-auto max-w-[1600px] px-4 py-4 md:py-8">
         <header className="mb-5">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-serif text-xl text-stone-900">ゲスト管理</h1>
-            <Link href="/admin/guests" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">招待予定者リスト →</Link>
-            <Link href="/admin/episodes" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">エピソード管理 →</Link>
-            <Link href="/admin/ai-test" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">AIシミュレーター →</Link>
-            <Link href="/admin/faces" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">顔の名寄せ →</Link>
-            <Link href="/admin/invitation_test" className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">招待状テスト →</Link>
-            <div className="ml-auto flex items-center gap-4 text-sm">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3">
+            <h1 className="w-full font-serif text-xl text-stone-900 md:w-auto">ゲスト管理</h1>
+            <Link href="/admin/guests" className={NAV_LINK}>招待予定者リスト →</Link>
+            <Link href="/admin/episodes" className={NAV_LINK}>エピソード管理 →</Link>
+            <Link href="/admin/ai-test" className={NAV_LINK}>AIシミュレーター →</Link>
+            <Link href="/admin/faces" className={NAV_LINK}>顔の名寄せ →</Link>
+            <Link href="/admin/invitation_test" className={NAV_LINK}>招待状テスト →</Link>
+            {/* スマホでは 4 列 × 2 段に折り返す（横スクロールさせない） */}
+            <div className="grid w-full grid-cols-4 gap-x-2 gap-y-1 text-sm md:ml-auto md:flex md:w-auto md:items-center md:gap-4">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-sky-700">{pending.length}</p><p className="text-[11px] text-stone-400">承認待ち</p></div>
               <div className="text-center"><p className={`tabular-nums text-lg font-semibold ${changedCount > 0 ? "text-rose-600" : "text-stone-300"}`}>{changedCount}</p><p className="text-[11px] text-stone-400">回答の変更</p></div>
               {ATTENDANCE_OPTIONS.map((o) => (
@@ -102,38 +106,38 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ニックネーム・LINE名で検索" className="min-w-[220px] flex-1 rounded-lg border border-stone-200 px-3 py-1.5 text-sm outline-none focus:border-stone-400" />
-            <button type="button" onClick={exportCsv} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">CSV</button>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ニックネーム・LINE名で検索" className="min-h-11 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-base outline-none focus:border-stone-400 md:min-h-0 md:min-w-[220px] md:py-1.5 md:text-sm" />
+            <button type="button" onClick={exportCsv} className="min-h-11 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1.5">CSV</button>
           </div>
         </header>
 
         {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">読み込みに失敗しました</div> : loading ? <div className="h-64 animate-pulse rounded-2xl bg-stone-200/60" /> : (
           <div className="space-y-8">
             <section>
-              <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">承認待ち</h2><p className="text-xs text-stone-400">LINE ログイン直後のゲストです。名簿の誰かを選んでから「承認する」を押すと紐付きます。</p></div>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">承認待ち</h2><p className="text-xs text-stone-400">LINE ログイン直後のゲストです。名簿の誰かを選んでから「承認する」を押すと紐付きます。</p></div>
               <GuestTable mode="pending" rows={pending} preGuests={preGuests} onSave={onSave} onApprove={onApprove} />
             </section>
             <section>
-              <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
               <GuestTable mode="approved" rows={approved} onSave={onSave} />
             </section>
             <section>
-              <div className="mb-2 flex items-baseline gap-2"><h2 className="text-sm font-semibold text-stone-800">非表示の投稿</h2><p className="text-xs text-stone-400">ゲストブックで投稿を開き「非表示にする（管理者）」を押すとここに入ります。コメントも一緒に隠れます。</p></div>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">非表示の投稿</h2><p className="text-xs text-stone-400">ゲストブックで投稿を開き「非表示にする（管理者）」を押すとここに入ります。コメントも一緒に隠れます。</p></div>
               <HiddenPosts enabled={isAdmin} />
             </section>
 
             {passcodeBlocked.length > 0 && (
               <section>
-                <div className="mb-2 flex items-baseline gap-2">
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <h2 className="text-sm font-semibold text-rose-800">パスコードで停止中</h2>
                   <p className="text-xs text-stone-400">パスコードを10回間違えて入力を止めています。ご本人と確認できたら解除してください（総当たりの可能性もあります）。</p>
                 </div>
                 <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
                   {passcodeBlocked.map((r) => (
-                    <li key={r.uid} className="flex items-center gap-3 px-4 py-2.5">
+                    <li key={r.uid} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
                       <span className="min-w-0 flex-1 truncate text-sm text-stone-700">{r.lineDisplayName || adminName(r) || "（名前なし）"}</span>
-                      <span className="truncate font-mono text-xs text-stone-400">{r.uid}</span>
-                      <button type="button" onClick={() => void onPasscodeUnlock(r)} className="shrink-0 rounded-full border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">入力を再開させる</button>
+                      <span className="min-w-0 truncate font-mono text-xs text-stone-400">{r.uid}</span>
+                      <button type="button" onClick={() => void onPasscodeUnlock(r)} className="ml-auto min-h-11 shrink-0 touch-manipulation rounded-full border border-stone-200 px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1">入力を再開させる</button>
                     </li>
                   ))}
                 </ul>
@@ -142,16 +146,16 @@ export default function AdminPage() {
 
             {banned.length > 0 && (
               <section>
-                <div className="mb-2 flex items-baseline gap-2">
+                <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <h2 className="text-sm font-semibold text-rose-800">アクセス停止中</h2>
                   <p className="text-xs text-stone-400">タグが空になり、手持ちのログインも失効しています。解除後はタグの付け直しが必要です。</p>
                 </div>
                 <ul className="divide-y divide-stone-200 overflow-hidden rounded-xl border border-stone-200 bg-white">
                   {banned.map((r) => (
-                    <li key={r.uid} className="flex items-center gap-3 px-4 py-2.5">
+                    <li key={r.uid} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
                       <span className="min-w-0 flex-1 truncate text-sm text-stone-700">{adminName(r)}</span>
-                      <span className="truncate text-xs text-stone-400">{r.bannedReason || "理由の記録なし"}</span>
-                      <button type="button" onClick={() => void onUnban(r)} className="shrink-0 rounded-full border border-stone-200 px-3 py-1 text-xs text-stone-600 hover:bg-stone-100">停止を解除</button>
+                      <span className="min-w-0 truncate text-xs text-stone-400">{r.bannedReason || "理由の記録なし"}</span>
+                      <button type="button" onClick={() => void onUnban(r)} className="ml-auto min-h-11 shrink-0 touch-manipulation rounded-full border border-stone-200 px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1">停止を解除</button>
                     </li>
                   ))}
                 </ul>
@@ -160,7 +164,7 @@ export default function AdminPage() {
           </div>
         )}
       </div>
-      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-stone-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-50 max-w-[calc(100vw-2rem)] md:bottom-6 -translate-x-1/2 rounded-full bg-stone-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
     </main>
   );
 }

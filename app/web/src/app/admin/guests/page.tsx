@@ -9,11 +9,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { compareGuests } from "@/lib/roster";
+import { adminName } from "@/lib/names";
 import { INVITATION_STATUSES, invitationDef } from "@/config/roster";
 import { RosterImportDialog } from "@/components/admin/RosterImportDialog";
+import { CARD_BUTTON, CARD_INPUT, CARD_SELECT, CardField, CardToggle, MobileSaveBar } from "@/components/admin/MobileCard";
 import type { GuestRow } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "displayName" | "kana" | "invitationStatus">>;
+
+/** 表（PC）のセルに置く入力欄。枠はホバー・フォーカスのときだけ出す */
+const CELL_INPUT = "w-full rounded border border-transparent bg-transparent px-1.5 py-1 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none";
 
 async function callRoster(payload: Record<string, unknown>) {
   return postJson("/api/admin/roster", payload);
@@ -37,6 +42,8 @@ export default function AdminRosterPage() {
   const [tagSaving, setTagSaving] = useState<Record<string, boolean>>({});
   /** 呼び名も即時保存。打鍵ごとに投げないよう onBlur で確定させる */
   const [callOverride, setCallOverride] = useState<Record<string, string>>({});
+  /** スマホのカードで詳細を開いている行 */
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (!toast) return;
@@ -151,18 +158,73 @@ export default function AdminRosterPage() {
   const dirtyRows = visible.filter(isDirty);
   const loggedIn = useMemo(() => rows.filter((r) => !r.isPreRegistered), [rows]);
 
+  function saveAll() {
+    void (async () => { for (const r of dirtyRows) await save(r); setToast("保存しました"); })();
+  }
+  function addOne() {
+    void callRoster({ action: "upsert", displayName: "新しいゲスト" }).then(() => setToast("1名追加しました")).catch((e) => setToast(e.message));
+  }
+
+  // ---- 行の入力。表（PC）とカード（スマホ）で同じものを出す。card のときは 16px・44px にする ----
+  function nameInput(row: GuestRow, card: boolean) {
+    return <input value={field(row, "displayName")} onChange={(e) => patch(row.uid, { displayName: e.target.value })} maxLength={40} aria-label="名前" className={card ? CARD_INPUT : `${CELL_INPUT} font-medium text-stone-800`} />;
+  }
+  function kanaInput(row: GuestRow, card: boolean) {
+    return <input value={field(row, "kana")} onChange={(e) => patch(row.uid, { kana: e.target.value })} maxLength={40} placeholder="まえかわ たろう" aria-label="ふりがな" className={card ? CARD_INPUT : `${CELL_INPUT} text-xs text-stone-600 placeholder:text-stone-300`} />;
+  }
+  function statusSelect(row: GuestRow, card: boolean) {
+    return (
+      <select value={field(row, "invitationStatus")} onChange={(e) => patch(row.uid, { invitationStatus: e.target.value })} aria-label="招待状況" className={`${card ? `${CARD_SELECT} shrink-0` : "w-full rounded-md px-2 py-1 text-xs font-medium"} ${invitationDef(field(row, "invitationStatus")).className}`}>
+        {INVITATION_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+      </select>
+    );
+  }
+  function tagPicker(row: GuestRow) {
+    return <TagPicker value={row.tags} onChange={(next) => void saveTags(row, next)} disabled={!!tagSaving[row.uid]} />;
+  }
+  function callNameInput(row: GuestRow, name: "callNameGroom" | "callNameBride", card: boolean) {
+    const key = `${row.uid}:${name}`;
+    return (
+      <input
+        value={callOverride[key] ?? row[name] ?? ""}
+        onChange={(e) => setCallOverride((p) => ({ ...p, [key]: e.target.value }))}
+        onBlur={(e) => void saveCallName(row, name, e.target.value)}
+        maxLength={20}
+        placeholder={givenName(row.displayName) || "—"}
+        aria-label={name === "callNameGroom" ? "新郎からの呼び名" : "新婦からの呼び名"}
+        className={card ? CARD_INPUT : `${CELL_INPUT} text-xs text-gray-900 placeholder:text-gray-300`}
+      />
+    );
+  }
+  function registeredBadge(row: GuestRow) {
+    return row.isRegistered ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">登録済</span> : <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">未登録</span>;
+  }
+  function rowActions(row: GuestRow, dirty: boolean, card: boolean) {
+    return (
+      <div className="flex justify-end gap-1">
+        {dirty && <button type="button" onClick={() => void save(row)} disabled={saving[row.uid]} className={`bg-stone-900 text-white disabled:opacity-50 ${card ? CARD_BUTTON : "rounded-md px-2.5 py-1 text-xs font-medium"}`}>{saving[row.uid] ? "…" : "保存"}</button>}
+        {row.isPreRegistered && !dirty && (
+          <>
+            <button type="button" onClick={() => setMerging(row)} className={`border border-stone-200 text-stone-500 hover:bg-stone-50 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>統合</button>
+            <button type="button" onClick={() => void callRoster({ action: "delete", uid: row.uid }).then(() => setToast("削除しました")).catch((e) => setToast(e.message))} className={`border border-stone-200 text-stone-400 hover:bg-rose-50 hover:text-rose-600 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>削除</button>
+          </>
+        )}
+      </div>
+    );
+  }
+
   if (authLoading) return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
   if (!user || !isAdmin) return <main className="flex min-h-screen items-center justify-center bg-stone-50 p-8"><p className="text-sm text-stone-600">管理者専用ページです</p></main>;
 
   return (
     <main className="selectable min-h-screen bg-stone-50">
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <header className="mb-5">
-          <Link href="/admin" className="text-xs text-stone-400 hover:text-stone-700">← ゲスト管理に戻る</Link>
+      <div className="mx-auto max-w-6xl px-4 py-4 md:py-8">
+        <header className="mb-3 md:mb-5">
+          <Link href="/admin" className="-my-3 inline-block py-3 text-xs text-stone-400 hover:text-stone-700">← ゲスト管理に戻る</Link>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h1 className="font-serif text-xl text-stone-900">招待予定者リスト</h1>
-              <p className="mt-1 text-sm text-stone-500">本人がログインする前でも、顔やエピソードの紐付け先として使えます。タグは即時保存され、権限として効き始めるのは本登録・承認の時点です。</p>
+              <p className="mt-1 text-xs text-stone-500 md:text-sm">本人がログインする前でも、顔やエピソードの紐付け先として使えます。タグは即時保存され、権限として効き始めるのは本登録・承認の時点です。</p>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-stone-900">{stats.total}</p><p className="text-[11px] text-stone-400">総数</p></div>
@@ -172,7 +234,25 @@ export default function AdminRosterPage() {
           </div>
         </header>
 
-        <div className="mb-3 flex flex-wrap items-center gap-2">
+        {/* スマホ: 2段に収める（1段目 = 検索と追加、2段目 = 絞り込み）。「まとめて保存」は一覧の下に貼り付ける */}
+        <div className="mb-3 space-y-2 md:hidden">
+          <div className="flex gap-2">
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ふりがな" aria-label="名前・ふりがなで検索" className={`${CARD_INPUT} min-w-0 flex-1`} />
+            <button type="button" onClick={() => setImporting(true)} className="min-h-11 shrink-0 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600">一括追加</button>
+            <button type="button" onClick={addOne} className="min-h-11 shrink-0 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600">＋ 個別追加</button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} aria-label="タグで絞り込む" className="min-h-11 min-w-0 rounded-lg border border-stone-200 bg-white px-2 text-base text-stone-700">
+              <option value="">タグ: すべて</option>
+              {allTags.filter((t) => t.community).map((t) => <option key={t.id} value={t.id}>{t.label}（{stats.by[t.id] ?? 0}）</option>)}
+            </select>
+            <select value={registered} onChange={(e) => setRegistered(e.target.value as "" | "yes" | "no")} aria-label="登録の状態で絞り込む" className="min-h-11 min-w-0 rounded-lg border border-stone-200 bg-white px-2 text-base text-stone-700">
+              <option value="">登録: すべて</option><option value="yes">登録済のみ</option><option value="no">未登録のみ</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="mb-3 hidden flex-wrap items-center gap-2 md:flex">
           <div className="flex flex-wrap gap-1">
             <button type="button" onClick={() => setTagFilter("")}
               className={`rounded-full px-3 py-1.5 text-sm ${!tagFilter ? "bg-stone-900 text-white" : "bg-white text-stone-600 hover:bg-stone-100"}`}>
@@ -191,8 +271,8 @@ export default function AdminRosterPage() {
           </select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ふりがなで検索" className="min-w-[160px] flex-1 rounded-lg border border-stone-200 px-3 py-1.5 text-sm outline-none focus:border-stone-400" />
           <button type="button" onClick={() => setImporting(true)} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">一括追加</button>
-          <button type="button" onClick={() => void callRoster({ action: "upsert", displayName: "新しいゲスト" }).then(() => setToast("1名追加しました")).catch((e) => setToast(e.message))} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">＋ 個別追加</button>
-          <button type="button" disabled={dirtyRows.length === 0} onClick={() => { void (async () => { for (const r of dirtyRows) await save(r); setToast("保存しました"); })(); }} className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">まとめて保存{dirtyRows.length > 0 ? ` (${dirtyRows.length})` : ""}</button>
+          <button type="button" onClick={addOne} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">＋ 個別追加</button>
+          <button type="button" disabled={dirtyRows.length === 0} onClick={saveAll} className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">まとめて保存{dirtyRows.length > 0 ? ` (${dirtyRows.length})` : ""}</button>
         </div>
 
         {error ? (
@@ -202,68 +282,70 @@ export default function AdminRosterPage() {
         ) : visible.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-stone-300 p-12 text-center text-sm text-stone-400">該当するゲストがいません。「一括追加」から名簿を投入してください。</p>
         ) : (
-          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
-            <table className="w-full min-w-[1400px] border-collapse text-sm">
-              <thead className="bg-stone-50 text-left text-xs font-semibold text-stone-500">
-                <tr><th className="border-b border-stone-200 px-3 py-2">名前</th><th className="w-44 border-b border-stone-200 px-3 py-2">ふりがな</th><th className="w-28 border-b border-stone-200 px-3 py-2">招待</th><th className="w-64 border-b border-stone-200 px-3 py-2">タグ</th><th className="w-32 border-b border-stone-200 px-3 py-2" title="新郎のAIがこのゲストを呼ぶときの名前">新郎からの呼び名</th><th className="w-32 border-b border-stone-200 px-3 py-2" title="新婦のAIがこのゲストを呼ぶときの名前">新婦からの呼び名</th><th className="w-28 border-b border-stone-200 px-3 py-2">状態</th><th className="w-32 border-b border-stone-200 px-3 py-2"></th></tr>
-              </thead>
-              <tbody>
-                {visible.map((row) => {
-                  const dirty = isDirty(row);
-                  return (
-                    <tr key={row.uid} className={dirty ? "bg-amber-50/60" : "hover:bg-stone-50/60"}>
-                      <td className="border-b border-stone-200 px-2 py-1.5">
-                        <input value={field(row, "displayName")} onChange={(e) => patch(row.uid, { displayName: e.target.value })} maxLength={40} className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 font-medium text-stone-800 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none" />
-                      </td>
-                      <td className="border-b border-stone-200 px-2 py-1.5">
-                        <input value={field(row, "kana")} onChange={(e) => patch(row.uid, { kana: e.target.value })} maxLength={40} placeholder="まえかわ たろう" className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs text-stone-600 placeholder:text-stone-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none" />
-                      </td>
-                      <td className="border-b border-stone-200 px-2 py-1.5">
-                        <select value={field(row, "invitationStatus")} onChange={(e) => patch(row.uid, { invitationStatus: e.target.value })} className={`w-full rounded-md px-2 py-1 text-xs font-medium ${invitationDef(field(row, "invitationStatus")).className}`}>
-                          {INVITATION_STATUSES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                        </select>
-                      </td>
-                      <td className="border-b border-stone-200 px-2 py-1.5">
-                        <TagPicker value={row.tags} onChange={(next) => void saveTags(row, next)} disabled={!!tagSaving[row.uid]} />
-                      </td>
-                      {(["callNameGroom", "callNameBride"] as const).map((field) => {
-                        const key = `${row.uid}:${field}`;
-                        const value = callOverride[key] ?? row[field] ?? "";
-                        return (
-                          <td key={field} className="border-b border-stone-200 px-2 py-1.5">
-                            <input
-                              value={value}
-                              onChange={(e) =>
-                                setCallOverride((p) => ({ ...p, [key]: e.target.value }))
-                              }
-                              onBlur={(e) => void saveCallName(row, field, e.target.value)}
-                              maxLength={20}
-                              placeholder={givenName(row.displayName) || "—"}
-                              className="w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs text-gray-900 placeholder:text-gray-300 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none"
-                            />
-                          </td>
-                        );
-                      })}
-                      <td className="border-b border-stone-200 px-3 py-2">
-                        {row.isRegistered ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">登録済</span> : <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">未登録</span>}
-                      </td>
-                      <td className="border-b border-stone-200 px-2 py-2 text-right">
-                        <div className="flex justify-end gap-1">
-                          {dirty && <button type="button" onClick={() => void save(row)} disabled={saving[row.uid]} className="rounded-md bg-stone-900 px-2.5 py-1 text-xs font-medium text-white disabled:opacity-50">{saving[row.uid] ? "…" : "保存"}</button>}
-                          {row.isPreRegistered && !dirty && (
-                            <>
-                              <button type="button" onClick={() => setMerging(row)} className="rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-500 hover:bg-stone-50">統合</button>
-                              <button type="button" onClick={() => void callRoster({ action: "delete", uid: row.uid }).then(() => setToast("削除しました")).catch((e) => setToast(e.message))} className="rounded-md border border-stone-200 px-2 py-1 text-xs text-stone-400 hover:bg-rose-50 hover:text-rose-600">削除</button>
-                            </>
-                          )}
+          <>
+            {/* スマホ: 1人 = 1カード。1行目に名前と招待状況、2行目にタグ。ふりがな・呼び名は「▾」で開く（Issue #127） */}
+            <ul className="space-y-2 md:hidden">
+              {visible.map((row) => {
+                const dirty = isDirty(row);
+                const open = !!expanded[row.uid];
+                // 名簿の名前が空（名簿に無いまま本人が登録した行）は、本人が入れた名前か LINE 名で見分ける
+                const name = field(row, "displayName") || adminName(row);
+                const toggle = () => setExpanded((p) => ({ ...p, [row.uid]: !p[row.uid] }));
+                return (
+                  <li key={row.uid} className={`rounded-xl border px-3 py-2 ${dirty ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-white"}`}>
+                    <div className="flex items-center gap-2">
+                      <button type="button" aria-expanded={open} onClick={toggle} className="flex min-h-11 min-w-0 flex-1 touch-manipulation items-center text-left">
+                        <span className="min-w-0 break-words text-base font-medium leading-snug text-stone-900">{name}</span>
+                      </button>
+                      {statusSelect(row, true)}
+                      <CardToggle open={open} onClick={toggle} label={name} />
+                    </div>
+                    <div className="pb-1">{tagPicker(row)}</div>
+                    {open && (
+                      <div className="mt-2 space-y-2 border-t border-stone-200/70 pt-2">
+                        <CardField label="名前">{nameInput(row, true)}</CardField>
+                        <CardField label="ふりがな">{kanaInput(row, true)}</CardField>
+                        <div className="grid grid-cols-2 gap-2">
+                          <CardField label="新郎からの呼び名">{callNameInput(row, "callNameGroom", true)}</CardField>
+                          <CardField label="新婦からの呼び名">{callNameInput(row, "callNameBride", true)}</CardField>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <div className="flex items-center justify-between gap-2">
+                          {registeredBadge(row)}
+                          {rowActions(row, dirty, true)}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <MobileSaveBar count={dirtyRows.length} onSave={saveAll} />
+
+            <div className="hidden overflow-x-auto rounded-xl border border-stone-200 bg-white md:block">
+              <table className="w-full min-w-[1400px] border-collapse text-sm">
+                <thead className="bg-stone-50 text-left text-xs font-semibold text-stone-500">
+                  <tr><th className="border-b border-stone-200 px-3 py-2">名前</th><th className="w-44 border-b border-stone-200 px-3 py-2">ふりがな</th><th className="w-28 border-b border-stone-200 px-3 py-2">招待</th><th className="w-64 border-b border-stone-200 px-3 py-2">タグ</th><th className="w-32 border-b border-stone-200 px-3 py-2" title="新郎のAIがこのゲストを呼ぶときの名前">新郎からの呼び名</th><th className="w-32 border-b border-stone-200 px-3 py-2" title="新婦のAIがこのゲストを呼ぶときの名前">新婦からの呼び名</th><th className="w-28 border-b border-stone-200 px-3 py-2">状態</th><th className="w-32 border-b border-stone-200 px-3 py-2"></th></tr>
+                </thead>
+                <tbody>
+                  {visible.map((row) => {
+                    const dirty = isDirty(row);
+                    return (
+                      <tr key={row.uid} className={dirty ? "bg-amber-50/60" : "hover:bg-stone-50/60"}>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{nameInput(row, false)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{kanaInput(row, false)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{statusSelect(row, false)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{tagPicker(row)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{callNameInput(row, "callNameGroom", false)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">{callNameInput(row, "callNameBride", false)}</td>
+                        <td className="border-b border-stone-200 px-3 py-2">{registeredBadge(row)}</td>
+                        <td className="border-b border-stone-200 px-2 py-2 text-right">{rowActions(row, dirty, false)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -294,7 +376,7 @@ export default function AdminRosterPage() {
           </div>
         </div>
       )}
-      {toast && <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-stone-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
+      {toast && <div className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-1/2 z-[60] max-w-[calc(100vw-2rem)] md:bottom-6 -translate-x-1/2 rounded-full bg-stone-900 px-5 py-2.5 text-sm text-white shadow-lg">{toast}</div>}
     </main>
   );
 }
