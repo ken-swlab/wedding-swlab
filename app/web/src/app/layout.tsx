@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { ACTIVE_THEME, themeVars } from "@/config/theme";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,6 +46,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="ja"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // ★テーマの色はサーバーで <html> の style に出す★（Issue #129）
+      //   クライアントで後から付けると、読み込みの一瞬だけ元の色が見える。
+      //   style 属性は CSP の style-src 'unsafe-inline' で許可済み（nonce は入れない。src/lib/csp.ts の★参照）。
+      style={themeVars(ACTIVE_THEME)}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

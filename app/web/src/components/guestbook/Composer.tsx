@@ -375,7 +375,7 @@ export function Composer({
 
       {/* ---- 思い出エピソード ---- */}
       <div className={`mt-3 rounded-xl border transition ${
-        episodeOn ? "border-rose-200 bg-rose-50/60" : "border-stone-200 bg-stone-50/40"
+        episodeOn ? "border-accent-200 bg-accent-50/60" : "border-stone-200 bg-stone-50/40"
       }`}>
         <label className="flex cursor-pointer items-start gap-2.5 p-3">
           <input
@@ -385,7 +385,7 @@ export function Composer({
               setEpisodeOn(e.target.checked);
               if (!e.target.checked) setTheme("");
             }}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-rose-600"
+            className="mt-0.5 h-4 w-4 shrink-0 accent-accent-600"
           />
           <span className="min-w-0">
             <span className="block text-sm font-medium text-stone-800">
@@ -399,7 +399,7 @@ export function Composer({
         </label>
 
         {episodeOn && (
-          <div className="border-t border-rose-200/70 p-3">
+          <div className="border-t border-accent-200/70 p-3">
             <p className="mb-1.5 text-xs font-medium text-stone-600">
               お題を選んでください
             </p>
