@@ -3,13 +3,168 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /*
+   * テーマの色（Issue #129）。本番の値は src/config/theme.ts の ACTIVE_THEME で、
+   * src/app/layout.tsx が <html> の style に --to-*（OKLCH）と --th-*（16進）で出す。
+   * ここでは、そのどちらを使うかを決める（OKLCH を読めるブラウザだけ OKLCH。theme.ts の★参照）。
+   * var() の2つ目の値は予備（global-error など、layout を通らない画面のため）。
+   * ★予備の値は THEME_CURRENT と同じにしておく★ base = Tailwind の stone、accent = Tailwind の rose。
+   *   sub / pop の予備は accent と同じ（まだ画面で使っていない）。
+   */
+  --t-base-50: var(--th-base-50, #fafaf9);
+  --t-base-100: var(--th-base-100, #f5f5f4);
+  --t-base-200: var(--th-base-200, #e7e5e4);
+  --t-base-300: var(--th-base-300, #d6d3d1);
+  --t-base-400: var(--th-base-400, #a6a09b);
+  --t-base-500: var(--th-base-500, #79716b);
+  --t-base-600: var(--th-base-600, #57534d);
+  --t-base-700: var(--th-base-700, #44403b);
+  --t-base-800: var(--th-base-800, #292524);
+  --t-base-900: var(--th-base-900, #1c1917);
+  --t-base-950: var(--th-base-950, #0c0a09);
+  --t-accent-50: var(--th-accent-50, #fff1f2);
+  --t-accent-100: var(--th-accent-100, #ffe4e6);
+  --t-accent-200: var(--th-accent-200, #ffccd3);
+  --t-accent-300: var(--th-accent-300, #ffa1ad);
+  --t-accent-400: var(--th-accent-400, #ff637e);
+  --t-accent-500: var(--th-accent-500, #ff2056);
+  --t-accent-600: var(--th-accent-600, #ec003f);
+  --t-accent-700: var(--th-accent-700, #c70036);
+  --t-accent-800: var(--th-accent-800, #a50036);
+  --t-accent-900: var(--th-accent-900, #8b0836);
+  --t-accent-950: var(--th-accent-950, #4d0218);
+  --t-sub-50: var(--th-sub-50, #fff1f2);
+  --t-sub-100: var(--th-sub-100, #ffe4e6);
+  --t-sub-200: var(--th-sub-200, #ffccd3);
+  --t-sub-300: var(--th-sub-300, #ffa1ad);
+  --t-sub-400: var(--th-sub-400, #ff637e);
+  --t-sub-500: var(--th-sub-500, #ff2056);
+  --t-sub-600: var(--th-sub-600, #ec003f);
+  --t-sub-700: var(--th-sub-700, #c70036);
+  --t-sub-800: var(--th-sub-800, #a50036);
+  --t-sub-900: var(--th-sub-900, #8b0836);
+  --t-sub-950: var(--th-sub-950, #4d0218);
+  --t-pop-50: var(--th-pop-50, #fff1f2);
+  --t-pop-100: var(--th-pop-100, #ffe4e6);
+  --t-pop-200: var(--th-pop-200, #ffccd3);
+  --t-pop-300: var(--th-pop-300, #ffa1ad);
+  --t-pop-400: var(--th-pop-400, #ff637e);
+  --t-pop-500: var(--th-pop-500, #ff2056);
+  --t-pop-600: var(--th-pop-600, #ec003f);
+  --t-pop-700: var(--th-pop-700, #c70036);
+  --t-pop-800: var(--th-pop-800, #a50036);
+  --t-pop-900: var(--th-pop-900, #8b0836);
+  --t-pop-950: var(--th-pop-950, #4d0218);
 }
 
+@supports (color: oklch(0% 0 0)) {
+  :root {
+    --t-base-50: var(--to-base-50, oklch(98.5% 0.001 106.423));
+    --t-base-100: var(--to-base-100, oklch(97% 0.001 106.424));
+    --t-base-200: var(--to-base-200, oklch(92.3% 0.003 48.717));
+    --t-base-300: var(--to-base-300, oklch(86.9% 0.005 56.366));
+    --t-base-400: var(--to-base-400, oklch(70.9% 0.01 56.259));
+    --t-base-500: var(--to-base-500, oklch(55.3% 0.013 58.071));
+    --t-base-600: var(--to-base-600, oklch(44.4% 0.011 73.639));
+    --t-base-700: var(--to-base-700, oklch(37.4% 0.01 67.558));
+    --t-base-800: var(--to-base-800, oklch(26.8% 0.007 34.298));
+    --t-base-900: var(--to-base-900, oklch(21.6% 0.006 56.043));
+    --t-base-950: var(--to-base-950, oklch(14.7% 0.004 49.25));
+    --t-accent-50: var(--to-accent-50, oklch(96.9% 0.015 12.422));
+    --t-accent-100: var(--to-accent-100, oklch(94.1% 0.03 12.58));
+    --t-accent-200: var(--to-accent-200, oklch(89.2% 0.058 10.001));
+    --t-accent-300: var(--to-accent-300, oklch(81% 0.117 11.638));
+    --t-accent-400: var(--to-accent-400, oklch(71.2% 0.194 13.428));
+    --t-accent-500: var(--to-accent-500, oklch(64.5% 0.246 16.439));
+    --t-accent-600: var(--to-accent-600, oklch(58.6% 0.253 17.585));
+    --t-accent-700: var(--to-accent-700, oklch(51.4% 0.222 16.935));
+    --t-accent-800: var(--to-accent-800, oklch(45.5% 0.188 13.697));
+    --t-accent-900: var(--to-accent-900, oklch(41% 0.159 10.272));
+    --t-accent-950: var(--to-accent-950, oklch(27.1% 0.105 12.094));
+    --t-sub-50: var(--to-sub-50, oklch(96.9% 0.015 12.422));
+    --t-sub-100: var(--to-sub-100, oklch(94.1% 0.03 12.58));
+    --t-sub-200: var(--to-sub-200, oklch(89.2% 0.058 10.001));
+    --t-sub-300: var(--to-sub-300, oklch(81% 0.117 11.638));
+    --t-sub-400: var(--to-sub-400, oklch(71.2% 0.194 13.428));
+    --t-sub-500: var(--to-sub-500, oklch(64.5% 0.246 16.439));
+    --t-sub-600: var(--to-sub-600, oklch(58.6% 0.253 17.585));
+    --t-sub-700: var(--to-sub-700, oklch(51.4% 0.222 16.935));
+    --t-sub-800: var(--to-sub-800, oklch(45.5% 0.188 13.697));
+    --t-sub-900: var(--to-sub-900, oklch(41% 0.159 10.272));
+    --t-sub-950: var(--to-sub-950, oklch(27.1% 0.105 12.094));
+    --t-pop-50: var(--to-pop-50, oklch(96.9% 0.015 12.422));
+    --t-pop-100: var(--to-pop-100, oklch(94.1% 0.03 12.58));
+    --t-pop-200: var(--to-pop-200, oklch(89.2% 0.058 10.001));
+    --t-pop-300: var(--to-pop-300, oklch(81% 0.117 11.638));
+    --t-pop-400: var(--to-pop-400, oklch(71.2% 0.194 13.428));
+    --t-pop-500: var(--to-pop-500, oklch(64.5% 0.246 16.439));
+    --t-pop-600: var(--to-pop-600, oklch(58.6% 0.253 17.585));
+    --t-pop-700: var(--to-pop-700, oklch(51.4% 0.222 16.935));
+    --t-pop-800: var(--to-pop-800, oklch(45.5% 0.188 13.697));
+    --t-pop-900: var(--to-pop-900, oklch(41% 0.159 10.272));
+    --t-pop-950: var(--to-pop-950, oklch(27.1% 0.105 12.094));
+  }
+}
+
+/*
+ * ★stone をテーマの base に結び付ける★（Issue #129）
+ *   既存の `bg-stone-*` / `text-stone-*` / `border-stone-*` は、各ファイルを変えずにテーマに従う。
+ *   ブランドの差し色は `accent-*`、2色目・3色目は `sub-*` / `pop-*`（`bg-accent-500` のように使う）。
+ *   状態の色（amber / emerald / rose / sky）とタグの色は結び付けない（意味を持つ色。config/theme.ts 参照）。
+ * ★tagstone はテーマに従わない灰色★ タグ・エピソードの分類のチップ用（config/tags.ts / episodes.ts）。
+ *   値は Tailwind の stone のまま固定する。タグの色はテーマを変えても変えない。
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-stone-50: var(--t-base-50);
+  --color-stone-100: var(--t-base-100);
+  --color-stone-200: var(--t-base-200);
+  --color-stone-300: var(--t-base-300);
+  --color-stone-400: var(--t-base-400);
+  --color-stone-500: var(--t-base-500);
+  --color-stone-600: var(--t-base-600);
+  --color-stone-700: var(--t-base-700);
+  --color-stone-800: var(--t-base-800);
+  --color-stone-900: var(--t-base-900);
+  --color-stone-950: var(--t-base-950);
+  --color-accent-50: var(--t-accent-50);
+  --color-accent-100: var(--t-accent-100);
+  --color-accent-200: var(--t-accent-200);
+  --color-accent-300: var(--t-accent-300);
+  --color-accent-400: var(--t-accent-400);
+  --color-accent-500: var(--t-accent-500);
+  --color-accent-600: var(--t-accent-600);
+  --color-accent-700: var(--t-accent-700);
+  --color-accent-800: var(--t-accent-800);
+  --color-accent-900: var(--t-accent-900);
+  --color-accent-950: var(--t-accent-950);
+  --color-sub-50: var(--t-sub-50);
+  --color-sub-100: var(--t-sub-100);
+  --color-sub-200: var(--t-sub-200);
+  --color-sub-300: var(--t-sub-300);
+  --color-sub-400: var(--t-sub-400);
+  --color-sub-500: var(--t-sub-500);
+  --color-sub-600: var(--t-sub-600);
+  --color-sub-700: var(--t-sub-700);
+  --color-sub-800: var(--t-sub-800);
+  --color-sub-900: var(--t-sub-900);
+  --color-sub-950: var(--t-sub-950);
+  --color-pop-50: var(--t-pop-50);
+  --color-pop-100: var(--t-pop-100);
+  --color-pop-200: var(--t-pop-200);
+  --color-pop-300: var(--t-pop-300);
+  --color-pop-400: var(--t-pop-400);
+  --color-pop-500: var(--t-pop-500);
+  --color-pop-600: var(--t-pop-600);
+  --color-pop-700: var(--t-pop-700);
+  --color-pop-800: var(--t-pop-800);
+  --color-pop-900: var(--t-pop-900);
+  --color-pop-950: var(--t-pop-950);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -23,6 +178,13 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+@theme {
+  --color-tagstone-100: oklch(97% 0.001 106.424);
+  --color-tagstone-200: oklch(92.3% 0.003 48.717);
+  --color-tagstone-600: oklch(44.4% 0.011 73.639);
+  --color-tagstone-700: oklch(37.4% 0.01 67.558);
 }
 
 /*

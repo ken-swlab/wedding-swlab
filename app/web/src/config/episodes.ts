@@ -23,7 +23,7 @@ export const EPISODE_THEMES = [
     className: "bg-pink-50 text-pink-700 ring-pink-200",
     prompt: "おふたりへのメッセージをどうぞ" },
   { id: "other", label: "その他",
-    className: "bg-stone-100 text-stone-600 ring-stone-200",
+    className: "bg-tagstone-100 text-tagstone-600 ring-tagstone-200",
     prompt: "そのほか、伝えたいことがあれば" },
 ] as const;
 

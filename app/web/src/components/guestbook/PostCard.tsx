@@ -224,7 +224,7 @@ export function PostCard({
             aria-pressed={reacted}
             aria-label={`いいね ${post.reactionCount}件`}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
-              reacted ? "bg-rose-50 text-rose-600" : "text-stone-500 hover:bg-stone-50"
+              reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-50"
             }`}
           >
             <span aria-hidden>{reacted ? "❤️" : "🤍"}</span>

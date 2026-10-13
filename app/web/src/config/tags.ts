@@ -12,7 +12,7 @@ export type TagDef = {
 };
 
 export const TAG_DEFS: TagDef[] = [
-  { id: "all",           label: "全員",       className: "bg-stone-100 text-stone-700 ring-stone-200",      selectable: true  },
+  { id: "all",           label: "全員",       className: "bg-tagstone-100 text-tagstone-700 ring-tagstone-200", selectable: true  },
   { id: "guest",         label: "承認済",     className: "bg-lime-50 text-lime-700 ring-lime-200",          selectable: true  },
   { id: "couple",        label: "新郎新婦",   className: "bg-pink-50 text-pink-700 ring-pink-200",          selectable: true  },
   { id: "family",        label: "親族",       className: "bg-rose-50 text-rose-700 ring-rose-200",          selectable: true,  community: true },
@@ -36,7 +36,8 @@ export const COUPLE_TAG = "couple";
  *   実際のクラス文字列はこのソース上の固定表から引く。
  */
 export const TAG_PALETTES = {
-  stone:   "bg-stone-100 text-stone-700 ring-stone-200",
+  // ★tagstone はテーマに従わない灰色★ タグの色はテーマ（config/theme.ts）を変えても変えない
+  stone:   "bg-tagstone-100 text-tagstone-700 ring-tagstone-200",
   rose:    "bg-rose-50 text-rose-700 ring-rose-200",
   pink:    "bg-pink-50 text-pink-700 ring-pink-200",
   orange:  "bg-orange-50 text-orange-700 ring-orange-200",

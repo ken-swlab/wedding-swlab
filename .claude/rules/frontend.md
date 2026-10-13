@@ -26,6 +26,7 @@ paths:
 ## 見た目と操作
 - 文言は日本語の丁寧語。日時は `ja-JP`（管理画面は `Asia/Tokyo`）。
 - 基調は `stone`: 背景 `bg-stone-50`、カード `rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm`、主ボタン `rounded-full bg-stone-900 text-white hover:bg-stone-700 disabled:opacity-40`。エラー rose、警告 amber、成功 emerald、情報 sky。`/screen` だけダーク。
+- 色はテーマに従う（`src/config/theme.ts`。Issue #129）: `stone-*` はテーマの base に結び付いている。ブランドの差し色は `rose-*` ではなく `accent-*`（2色目 `sub-*`、3色目 `pop-*`）で書く。状態の色（エラー・危険 rose、警告 amber、成功 emerald、情報 sky）とタグの色（`tagstone-*` を含む）はテーマに従わせない。色の値を直接（`bg-[#…]`）書かない。
 - スマホ前提: タップ領域 44px 以上（`touch-manipulation`）、高さは `dvh`、LINE アプリ内ブラウザ向けに `env(safe-area-inset-*)`。
 - アクセシビリティ: アイコンボタンに `aria-label`、トグルに `aria-pressed`、タブは `role="tablist"` / `"tab"`、エラーは `role="alert"`。
 - アニメーションは framer-motion（`components/screen/*` だけ。transform のみ）。

@@ -242,14 +242,14 @@ export default function AiTestPage() {
                         {debug.episodes.map((e) => (
                           <li key={e.id}
                             className={`rounded-lg border p-2 ${
-                              e.isPersonal ? "border-rose-200 bg-rose-50/60" : "border-stone-200 bg-stone-50/60"
+                              e.isPersonal ? "border-accent-200 bg-accent-50/60" : "border-stone-200 bg-stone-50/60"
                             }`}>
                             <p className="flex items-baseline gap-1.5">
                               <span className="min-w-0 flex-1 truncate text-xs font-medium text-stone-800">
                                 {e.title || "（タイトルなし）"}
                               </span>
                               {e.isPersonal && (
-                                <span className="shrink-0 rounded-full bg-rose-600 px-1.5 py-px text-[9px] text-white">
+                                <span className="shrink-0 rounded-full bg-accent-600 px-1.5 py-px text-[9px] text-white">
                                   本人
                                 </span>
                               )}
