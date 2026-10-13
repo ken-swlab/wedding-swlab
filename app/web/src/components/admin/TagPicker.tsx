@@ -344,7 +344,9 @@ export function TagPicker({
               <button
                 type="button"
                 onClick={() => onChange(value.filter((x) => x !== t))}
-                className="opacity-50 hover:opacity-100"
+                aria-label={`${d.label} を外す`}
+                // タッチ端末では、見た目を変えずに当たり判定だけ広げる（チップが並ぶので 44px の箱は置けない）
+                className="relative opacity-50 hover:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-x-2 pointer-coarse:after:-inset-y-3"
               >
                 ×
               </button>
@@ -359,7 +361,7 @@ export function TagPicker({
           onClick={toggle}
           aria-label="タグを追加"
           aria-expanded={open}
-          className="rounded-full border border-dashed border-stone-300 bg-white px-2 py-0.5 text-[11px] text-stone-400 hover:border-stone-400 hover:text-stone-600"
+          className="relative rounded-full border border-dashed border-stone-300 bg-white px-2 py-0.5 text-[11px] text-stone-400 hover:border-stone-400 hover:text-stone-600 pointer-coarse:px-3 pointer-coarse:py-1 pointer-coarse:text-sm pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:-inset-y-3"
         >
           ＋
         </button>
