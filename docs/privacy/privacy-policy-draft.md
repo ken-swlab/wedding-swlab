@@ -153,7 +153,7 @@
 | 2 原本と EXIF | `infra/workers/exif-stripper`、`.claude/rules/media.md` |
 | 2 操作の記録・IP | `src/lib/audit.ts`（値は残さない。IP は HMAC） |
 | 2 顔 | `src/app/api/faces/detect/route.ts`、`src/lib/rekognition.ts`（`indexFace`） |
-| 2・4 リアクションタイム | `src/app/api/guest/reaction/route.ts`（記録は 1 回だけ）。ランキングは Issue #132 |
+| 2・4 リアクションタイム | `src/app/api/guest/reaction/route.ts`（記録は 1 回だけ）。ランキングは `src/app/api/guest/reaction/ranking/route.ts`（自分が持つタグだけ。返すのはニックネーム・アイコン・タイム） |
 | 4 見える範囲 | `infra/firestore/firestore.rules`、`.claude/rules/data.md` |
 | 4 写真の URL | 公開バケット（認証なし）。[data-inventory.md](data-inventory.md) §3 |
 | 5 外部のサービス | [subprocessors.md](subprocessors.md) |
