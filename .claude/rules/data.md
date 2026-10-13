@@ -26,6 +26,7 @@ paths:
 | `tags` | サインイン済み | サーバー |
 | `config/runtime`・`rateLimits`・`auditLogs`・`redeemAttempts` | なし | サーバー |
 
+- `reactionTimes/{uid}`（オープニングのリアクションタイム。Issue #131）と `config/invitation`（新郎新婦の名前・会場）は Rules に書かない = クライアントからは管理者も読み書きできない。読み書きはサーバーの `/api/guest/reaction`・`/api/guest/invitation` だけ。`reactionTimes` は最初の 1 回だけ作り、上書きしない。名前を入れない。
 - 上にないパスはすべて拒否。コレクションやフィールドを足すときは、先に「誰が読めるか」を決めて Rules を書く。
 - 個人情報は `guestPrivate`（本人も見てよいもの）か `guestAdmin`（管理者だけ）へ。`guests` に足してよいのは公開して困らない値だけ。ゲスト向けの表示名は `src/lib/names.ts` の `publicName`（本名は出さない）。
 - 投稿の非表示は `/api/admin/posts/visibility` だけで行う（`status: "hidden"` を直接書かない）。コメントも `visibleToTags: []`・`hidden: true` にして、横断購読（`/screen`）から外す。戻すときは親の `visibleToTags` を写し直す。

@@ -100,6 +100,13 @@ for (const a of accounts) {
   await batch.commit();
 }
 
+// 招待状とオープニングの中身（Issue #131）。本番は scripts/ops.mjs invitation set で入れる。ここは架空の値だけ
+const invitationRef = db.collection("config").doc("invitation");
+if (!(await invitationRef.get()).exists) {
+  const sample = JSON.parse(readFileSync(new URL("../src/config/invitation-sample.json", import.meta.url), "utf8"));
+  await invitationRef.set({ ...sample, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
+}
+
 // 投稿が1件も無いときだけ、詳細画面やコメント欄を試すためのサンプルを置く
 const anyPost = await db.collection("posts").limit(1).get();
 if (anyPost.empty) {

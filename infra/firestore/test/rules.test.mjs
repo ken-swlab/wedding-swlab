@@ -471,6 +471,16 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ...lockedDown("rateLimits", "rateLimits/r1"),
   ...lockedDown("auditLogs", "auditLogs/a1"),
   ...lockedDown("config", "config/runtime"),
+  // 招待状とオープニングの中身（新郎新婦の名前・会場。Issue #131）。読むのはサーバーの /api/guest/invitation だけ
+  ...lockedDown("config/invitation", "config/invitation"),
+  ["pending", DENY, "config/invitation: 承認前のゲストも読めない", get("config/invitation")],
+  ["anon", DENY, "config/invitation: 未ログインは読めない", get("config/invitation")],
+  // リアクションタイム（Issue #131）。読み書きはサーバーの /api/guest/reaction だけ（記録は1回だけ・上書きなし）
+  ...lockedDown("reactionTimes", "reactionTimes/u_groom"),
+  ["guest", DENY, "reactionTimes: 自分の記録もクライアントからは読めない", get("reactionTimes/u_guest")],
+  ["guest", DENY, "reactionTimes: 自分の記録を書けない（タイムの自己申告）", set("reactionTimes/u_guest", { uid: "u_guest", reactionMs: 100 })],
+  ["guest", DENY, "reactionTimes: 自分の記録を書き換えられない", update("reactionTimes/u_guest", { reactionMs: 100 })],
+  ["pending", DENY, "reactionTimes: 承認前のゲストも書けない", set("reactionTimes/u_pending", { uid: "u_pending", reactionMs: 100 })],
   ...lockedDown("redeemAttempts", "redeemAttempts/x1"),
 ]);
 

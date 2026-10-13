@@ -1,12 +1,19 @@
 "use client";
 
+import { formatReaction } from "@/lib/opening-names";
+
 export function PendingApproval({
   nickname,
+  reactionMs,
   approvedButStale,
   onEdit,
   onRefresh,
 }: {
   nickname: string;
+  /**
+   * オープニングのリアクションタイム (ms。Issue #131)。記録が無ければ null、読み込み中・読めなかったときは undefined（何も出さない）
+   */
+  reactionMs?: number | null;
   /** 承認済みだが ID トークンにタグがまだ乗っていない過渡状態 */
   approvedButStale: boolean;
   onEdit: () => void;
@@ -44,6 +51,19 @@ export function PendingApproval({
         <br />
         承認されるとこの画面が自動で切り替わります。
       </p>
+      {reactionMs !== undefined && (
+        <p className="mt-5 rounded-xl bg-stone-50 px-4 py-3 text-sm leading-relaxed text-stone-600">
+          {reactionMs !== null ? (
+            <>
+              あなたのリアクションタイムは <strong className="text-base tabular-nums text-stone-900">{formatReaction(reactionMs)}</strong> 秒でした。
+              <br />
+              承認されると、グループごとのランキングで見られます。
+            </>
+          ) : (
+            <>リアクションタイムは、承認後にマイページから挑戦できます。</>
+          )}
+        </p>
+      )}
       <button
         type="button"
         onClick={onEdit}

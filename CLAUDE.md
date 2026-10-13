@@ -45,15 +45,16 @@ cd app/web && npm run lint       # ESLint（自分の変更で新しいエラー
 cd app/web && npm run build      # 本番ビルド（変更したら必ず）
 cd infra/workers/exif-stripper && npm run typecheck   # Worker を触ったとき
 cd infra/firestore/test && npm test   # Rules の単体テスト（Rules を変えたら必ず。エミュレーター上で動く）
+cd app/web && npm test           # 単体テスト（tests/*.test.mjs。Node 22.18 以上。いまは名前の表記の判定と config/invitation の形だけ）
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
 ```
 
 - 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。
 
-- テストがあるのは Firestore の Rules だけ（`infra/firestore/test`。Issue #101）。初回は `cd infra/firestore/test && npm ci`。Java 21 が要る。つなぐ先はエミュレーター（プロジェクト `demo-wedding-rules`）だけで、本番には届かない。`dev:emulator` と同じポート（8080）を使うので、同時には動かせない。アプリ本体（`app/web/src`）のテストは無く、型チェックとビルドの通過が最低ライン。
+- テストがあるのは Firestore の Rules（`infra/firestore/test`。Issue #101）と、アプリのごく一部の純粋な関数（`app/web/tests`。Issue #131。依存は足さず Node 標準の `node --test`。テストする関数は `@/` で値を import しない）だけ。初回は `cd infra/firestore/test && npm ci`。Java 21 が要る。つなぐ先はエミュレーター（プロジェクト `demo-wedding-rules`）だけで、本番には届かない。`dev:emulator` と同じポート（8080）を使うので、同時には動かせない。アプリ本体（`app/web/src`）の画面・API のテストは無く、型チェックとビルドの通過が最低ライン。
 - **Rules（`infra/firestore/firestore.rules`）を変える PR では、対応するテスト（許可と拒否の両方）を `infra/firestore/test/rules.test.mjs` に足し、`npm test` を通す。** CI は `rules-test`。
-- CI（`.github/workflows/`）: `security`（gitleaks・npm audit・OSV-Scanner・Semgrep・Checkov）、`rules-test`、`deps-runtime`。Vercel は CI を待たずにデプロイするので、PR 上で赤が無いことを見てからマージする。`npm audit fix --force` は使わない。脆弱性の例外は `.github/audit-ignore.json`（理由と 90 日以内の期限が必須）、秘密の誤検知は `.gitleaks.toml`（理由つき）。
+- CI（`.github/workflows/`）: `security`（gitleaks・npm audit・OSV-Scanner・Semgrep・Checkov）、`rules-test`、`unit-test`、`deps-runtime`。Vercel は CI を待たずにデプロイするので、PR 上で赤が無いことを見てからマージする。`npm audit fix --force` は使わない。脆弱性の例外は `.github/audit-ignore.json`（理由と 90 日以内の期限が必須）、秘密の誤検知は `.gitleaks.toml`（理由つき）。
 - 読み取りだけの運用: `node scripts/ops.mjs audit|ratelimit`（app/web で）、`scripts/csp-reports.py`、`scripts/pii-access-report.py`。GCP の前に `bash scripts/ensure-gcloud-auth.sh`。
 - Next.js 16 は学習データと API が違う。書く前に `app/web/node_modules/next/dist/docs/` を読む（`app/web/AGENTS.md` は `next dev` が書き直すので編集しない）。
 
@@ -64,6 +65,7 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
 2. 例外の本文（`e.message`、`String(e)`、外部 API の応答）をレスポンスにも Firestore にも入れない。catch では `console.error(...)`（Sentry に届く）→ `fail(safeMessage(e), 500)`。見せてよい文言だけ `throw new PublicError("...")`。
 3. すべてのルートに `rateLimit`、更新系には `audit` も付ける。ログ・監査ログ・Sentry に本名・アレルギー・パスコード・トークンを出さない。
 4. 秘密は環境変数だけに置く（コード・ログ・コミットに書かない）。GCP は ADC かサービスアカウントの環境変数で、API キーをハードコードしない。`.env*` は読まない・コミットしない。
+4a. **新郎新婦の名前・日付・会場・住所をリポジトリに書かない**（公開リポジトリ。コード・コメント・テスト・Issue・試作にも）。本物は Firestore の `config/invitation` にだけ置き（`cd app/web && node scripts/ops.mjs invitation set <リポジトリの外の JSON>`。オーナーが実行）、サーバー（`src/lib/invitation-server.ts`）がパスコードを通った人にだけ返す。リポジトリにあるのは架空の見本（`src/config/invitation-sample.json`）だけ。未設定のとき、招待状は「準備中」と出る（架空の名前は出さない）。
 
 ### データと権限（Firestore）
 5. 個人情報の置き場所: `guests` は承認済みゲスト全員が読める（公開名・アイコン・タグだけ）。本名・出欠・アレルギーは `guestPrivate`（本人と管理者）、運営情報は `guestAdmin`（管理者のみ）。本名や LINE 表示名を `guests` / `posts` に書かない。

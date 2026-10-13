@@ -1,0 +1,47 @@
+# アプリの単体テスト（Issue #131）
+#
+# app/web/tests の *.test.mjs を Node 標準のテストランナー（node --test）で動かす。
+# テストするのは、他のファイルに依存しない純粋な関数だけ（名前の表記の判定、config/invitation の形の確認）。
+# 依存パッケージは使わないので npm ci はしない（Node が .ts の型だけ落として読み込む。Node 22.18 以上）。
+#
+# ★秘密も本番の設定も渡さない★ Firestore にもネットワークにも触れない。
+# ★本番デプロイ（Vercel の main 連携）とは独立している★ Vercel は GitHub Actions の結果を待たない。
+#   このチェックが赤い PR はマージしない。
+# ★サードパーティの Action はコミット SHA で固定する★（security.yml と同じ）
+name: unit-test
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - app/web/src/lib/**
+      - app/web/src/config/**
+      - app/web/tests/**
+      - app/web/package.json
+      - .nvmrc
+      - .github/workflows/unit-test.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unit-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+
+      - name: 単体テスト
+        working-directory: app/web
+        run: npm test
