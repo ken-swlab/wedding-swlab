@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ACTIVE_THEME, themeVars } from "@/config/theme";
+import { ThemePreviewGate } from "@/components/ThemePreviewGate";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -51,7 +52,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       //   style 属性は CSP の style-src 'unsafe-inline' で許可済み（nonce は入れない。src/lib/csp.ts の★参照）。
       style={themeVars(ACTIVE_THEME)}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {/* 管理者の端末でだけ動くデザインのプレビュー（Issue #130）。ゲストには何も足さない */}
+        <ThemePreviewGate />
+      </body>
     </html>
   );
 }
