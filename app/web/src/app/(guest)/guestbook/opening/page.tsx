@@ -108,9 +108,14 @@ export default function OpeningReplayPage() {
             {view.kind === "unavailable" ? "オープニングは、ただいま準備中です。" : view.message}
           </p>
         )}
-        <Link href={GUESTBOOK_PATHS.settings} className="mt-3 inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
-          マイページに戻る
-        </Link>
+        <div className="mt-3 flex flex-wrap items-center justify-center">
+          <Link href={GUESTBOOK_PATHS.reaction} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
+            ランキングを見る
+          </Link>
+          <Link href={GUESTBOOK_PATHS.settings} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
+            マイページに戻る
+          </Link>
+        </div>
       </div>
     </main>
   );

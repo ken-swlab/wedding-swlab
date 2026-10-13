@@ -234,7 +234,8 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
   const active: NavKey =
     pathname === GUESTBOOK_PATHS.notifications
       ? "notifications"
-      : pathname === GUESTBOOK_PATHS.settings
+      : // ランキング（Issue #132）はマイページから開くので、ナビではマイページを光らせる
+        pathname === GUESTBOOK_PATHS.settings || pathname === GUESTBOOK_PATHS.reaction
         ? "settings"
         : view;
   const current = NAV.find((item) => item.key === active) ?? NAV[0];
