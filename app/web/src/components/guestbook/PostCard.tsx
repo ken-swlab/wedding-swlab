@@ -48,6 +48,7 @@ export function PostCard({
   variant = "timeline",
   openAs = "sheet",
   actions,
+  warn = false,
 }: {
   post: Post;
   user: User;
@@ -55,6 +56,8 @@ export function PostCard({
   openAs?: "sheet" | "page";
   /** カードの右上に置く操作（マイページの「⋯」。Issue #94）。タイムライン・詳細では渡さない */
   actions?: ReactNode;
+  /** 外枠を黄色（amber）にする。マイページで、低画質版だけの自分の投稿に付ける（Issue #128） */
+  warn?: boolean;
 }) {
   const router = useRouter();
   const card = useRef<HTMLElement>(null);
@@ -162,7 +165,9 @@ export function PostCard({
       className={
         detail
           ? "bg-white p-4"
-          : "cursor-pointer touch-manipulation rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm"
+          : `cursor-pointer touch-manipulation rounded-2xl border bg-white p-4 shadow-sm ${
+              warn ? "border-amber-300 ring-1 ring-amber-300" : "border-stone-200/80"
+            }`
       }
     >
       {/* 非表示の投稿は投稿者本人にだけ届く（usePost / Rules）。何が起きたかを伝える */}

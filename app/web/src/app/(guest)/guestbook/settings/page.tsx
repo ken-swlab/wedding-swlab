@@ -9,6 +9,8 @@ import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/Gue
 import { PostCard } from "@/components/guestbook/PostCard";
 import { PostEditor } from "@/components/guestbook/PostEditor";
 import { PostOwnerMenu } from "@/components/guestbook/PostOwnerMenu";
+import { QualityMark } from "@/components/guestbook/QualityMark";
+import { postQuality } from "@/lib/original-status";
 import { TagBadge } from "@/components/guestbook/TagBadge";
 import { useMyPosts } from "@/hooks/useMyPosts";
 import { postJson } from "@/lib/api-client";
@@ -416,16 +418,21 @@ export default function SettingsPage() {
                     post={p}
                     user={user}
                     openAs="page"
+                    // ★画質を出すのは自分の投稿だけ★ 画質は本人にしか知らせない（Issue #128）
+                    warn={p.authorUid === user.uid && postQuality(p)?.quality === "low"}
                     actions={
-                      <PostOwnerMenu
-                        post={p}
-                        onEdit={() => setEditingPost(p)}
-                        onDeleted={() => {
-                          // 送信待ちに残っている高画質版は、もう送らない
-                          void upload.discard(p.id);
-                          syncPost(p.id);
-                        }}
-                      />
+                      <div className="flex shrink-0 items-start">
+                        {p.authorUid === user.uid && <QualityMark post={p} />}
+                        <PostOwnerMenu
+                          post={p}
+                          onEdit={() => setEditingPost(p)}
+                          onDeleted={() => {
+                            // 送信待ちに残っている高画質版は、もう送らない
+                            void upload.discard(p.id);
+                            syncPost(p.id);
+                          }}
+                        />
+                      </div>
                     }
                   />
                 )

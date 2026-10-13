@@ -22,7 +22,7 @@ export function UploadStatusBar({
   /** 自分の投稿のうち、原本が pending のメディア一覧 */
   serverPending?: PendingOriginal[];
 }) {
-  const { jobs, failed, current, remaining, remainingBytes, running, sentCount, error, hydrated } =
+  const { jobs, failed, current, remaining, remainingBytes, running, sentCount, showDone, error, hydrated } =
     upload;
   const [giving, setGiving] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
@@ -72,7 +72,7 @@ export function UploadStatusBar({
   }
 
   if (!hydrated) return null;
-  if (remaining === 0 && sentCount === 0 && !showMissing && !error) return null;
+  if (remaining === 0 && !showDone && !showMissing && !error) return null;
 
   return (
     <div className="space-y-2">
@@ -150,8 +150,8 @@ export function UploadStatusBar({
         </div>
       )}
 
-      {/* ---- 完了 ---- */}
-      {!running && remaining === 0 && sentCount > 0 && (
+      {/* ---- 完了（引っ張って更新で閉じる。GuestbookDataProvider の refresh 参照。Issue #128）---- */}
+      {!running && remaining === 0 && showDone && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
           <p className="text-sm font-medium text-emerald-800">
             ✓ {sentCount} 枚の高画質版を送信しました
