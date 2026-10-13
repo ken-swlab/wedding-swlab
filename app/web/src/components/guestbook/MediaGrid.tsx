@@ -2,9 +2,8 @@
 
 import Image from "next/image";
 import { useRef, useState } from "react";
-import type { OriginalStatus, Post } from "@/types";
+import type { Post } from "@/types";
 import { MediaLightbox, measureMedia, type MediaSize } from "./MediaLightbox";
-import { displayStatus } from "@/lib/original-status";
 import { thumbSrc } from "@/lib/media-url";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";
@@ -17,26 +16,6 @@ function cellClass(count: number, i: number) {
   return "aspect-square";
 }
 
-type Badge = { label: string; className: string } | null;
-
-/**
- * 原本の状態バッジ。
- *
- * ★Record を全キー必須にしてある★
- *   Partial だと OriginalStatus に値を足したときに、
- *   何も表示されないまま型チェックも通ってしまう。
- *   ここをコンパイルエラーにするのが目的。
- */
-const BADGE: Record<OriginalStatus, Badge> = {
-  pending: { label: "高画質版 未送信", className: "bg-amber-500/80 text-white" },
-  // R2 には届いたが EXIF 除去がまだ。originalUrl は無いので HQ と言ってはいけない
-  uploaded: { label: "高画質版 処理中", className: "bg-sky-600/75 text-white" },
-  published: { label: "HQ", className: "bg-black/45 text-white/90" },
-  skipped: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
-  failed: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
-  unavailable: { label: "軽量版のみ", className: "bg-black/55 text-white/80" },
-};
-
 /**
  * 投稿の写真・動画のマス。
  *
@@ -45,6 +24,8 @@ const BADGE: Record<OriginalStatus, Badge> = {
  *   動画のマスは待たずに開く（ダブルタップのいいねは無い）。
  * ★ビューアが広がる元になるマスの大きさ（measureMedia）は、1回目のタップの時点で測る★
  *   待ったあとではイベントの要素（currentTarget）が読めない。
+ * ★マスに画質のバッジを出さない★（Issue #128）閲覧の邪魔になる。画質はマイページの自分の投稿にだけ、
+ *   カードの右上のマーク（QualityMark）と外枠で伝える。
  * onLike: いいねを付ける（PostCard が渡す）。戻り値は成功したか。
  */
 export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise<boolean> }) {
@@ -106,15 +87,6 @@ export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise
               />
             )}
 
-            {displayStatus(m) && BADGE[displayStatus(m)!] && (
-              <span
-                className={`absolute bottom-1.5 left-1.5 rounded-full px-2 py-0.5 text-[10px] ${
-                  BADGE[displayStatus(m)!]!.className
-                }`}
-              >
-                {BADGE[displayStatus(m)!]!.label}
-              </span>
-            )}
           </button>
         ))}
         {hearts.layer}

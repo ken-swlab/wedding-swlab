@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import { usePosts } from "@/hooks/usePosts";
 import { useUpload, type UploadApi } from "@/hooks/useUpload";
 import { useGuestSessionContext } from "./GuestSessionContext";
@@ -33,7 +33,15 @@ export function GuestbookDataProvider({ children }: { children: ReactNode }) {
   const upload = useUpload(user?.uid);
   const [personUid, setPersonUid] = useState("");
 
-  const { posts: list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error } = posts;
+  const { posts: list, loading, loadingMore, hasMore, loadMore, refresh: refreshPosts, syncPost, error } = posts;
+  // ★引っ張って更新で、送信完了の知らせ（✓ N 枚の高画質版を送信しました）を閉じる★（Issue #128）
+  //   送信キューは layout に1つなので、閉じた状態はタブを移っても残る（同じ完了を二度出さない）。
+  //   未送信・失敗の表示は閉じない（消えるのは完了の知らせだけ）。
+  const { dismissDone } = upload;
+  const refresh = useCallback(() => {
+    dismissDone();
+    return refreshPosts();
+  }, [dismissDone, refreshPosts]);
   const value = useMemo<GuestbookData>(
     () => ({ posts: list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error, personUid, setPersonUid }),
     [list, loading, loadingMore, hasMore, loadMore, refresh, syncPost, error, personUid],

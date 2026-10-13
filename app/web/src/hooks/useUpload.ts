@@ -67,6 +67,9 @@ export function useUpload(uid?: string) {
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [running, setRunning] = useState(false);
   const [sentCount, setSentCount] = useState(0);
+  // 「N 枚の高画質版を送信しました」を閉じたか。次の送信を始めたら戻す（Issue #128）
+  const [doneDismissed, setDoneDismissed] = useState(false);
+  const dismissDone = useCallback(() => setDoneDismissed(true), []);
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(false);
 
@@ -173,6 +176,7 @@ export function useUpload(uid?: string) {
     setRunning(true);
     setError("");
     setSentCount(0);
+    setDoneDismissed(false);
 
     void (async () => {
       try {
@@ -317,6 +321,9 @@ export function useUpload(uid?: string) {
     remainingBytes: [...pending, ...failed].reduce((n, j) => n + j.bytes, 0),
     running,
     sentCount,
+    /** 送信完了の知らせをまだ出すか（送った枚数があり、閉じていない） */
+    showDone: sentCount > 0 && !doneDismissed,
+    dismissDone,
     error,
     // 未ログインなら復元するものが無いので、読み込み済みとして扱う（以前と同じ）
     hydrated: !uid || hydrated,
