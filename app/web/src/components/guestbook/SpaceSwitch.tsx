@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useGuestSessionContext } from "./GuestSessionContext";
+import { useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import { GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
 import { GUIDE_PATHS, type AppSpace } from "@/config/guide";
@@ -30,8 +30,9 @@ const SPACES: { key: AppSpace; icon: string; label: string; sub: string; href: s
  * 管理者にはシートの一番下に管理画面へのリンクも出す（表示だけの出し分け。守りは /admin 側の判定）。
  *
  * notice: シートに添える注意（ゲストブックで高画質版を送信中のときなど）。
+ * current が "admin" のときは管理画面（/admin）に置いている。(guest) の外なので、セッションの Context は無い。
  */
-export function SpaceSwitch({ current, notice }: { current: AppSpace; notice?: string }) {
+export function SpaceSwitch({ current, notice }: { current: AppSpace | "admin"; notice?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -59,11 +60,13 @@ function SpaceSheet({
   notice,
   onClose,
 }: {
-  current: AppSpace;
+  current: AppSpace | "admin";
   notice?: string;
   onClose: () => void;
 }) {
-  const { isAdmin } = useGuestSessionContext();
+  const session = useOptionalGuestSessionContext();
+  // 管理画面では、開けている時点で管理者（判定は /admin 側。ここは表示だけ）
+  const isAdmin = current === "admin" || session?.isAdmin === true;
   const panel = useRef<HTMLDivElement>(null);
 
   // 裏の画面を止める。PullToRefresh もこれを見て引っ張りを始めない
@@ -146,9 +149,10 @@ function SpaceSheet({
           <Link
             href="/admin"
             onClick={onClose}
+            aria-current={current === "admin" ? "page" : undefined}
             className="mt-3 flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-full text-xs text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
           >
-            <span aria-hidden>👑</span>管理者画面
+            <span aria-hidden>👑</span>管理者画面{current === "admin" && "（表示中）"}
           </Link>
         )}
       </div>
