@@ -124,7 +124,7 @@ export default function AiTestChat({
   return (
     <div className={`flex h-full min-h-0 flex-col rounded-xl border border-gray-200 bg-[#7c9fbe] ${className}`}>
       <div className="flex items-center justify-between gap-2 border-b border-black/10 bg-white/85 px-3 py-2">
-        <span className="text-sm font-semibold text-gray-900">ミニ賢信AI</span>
+        <span className="text-sm font-semibold text-gray-900">ミニ新郎AI</span>
         <div className="flex items-center gap-3">
           <label className="flex items-center gap-1 text-xs text-gray-700">
             <input

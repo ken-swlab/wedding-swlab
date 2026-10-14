@@ -14,7 +14,7 @@
 - **Vercel CLI の表示だけを信じない。** このリポジトリの `.vercel/` は `repo.json` の形式（`vercel link --repo`）で、この形式のとき `vercel env ls` の一覧が空になり、`vercel env rm` / `vercel env add` がエラーを出さずに何もしないことがある。登録・削除のあとは、**必ず Vercel の管理画面（Settings → Environment Variables）か API（`GET /v10/projects/<プロジェクト ID>/env?teamId=<チーム ID>`。`vercel api` で呼べる）で、その名前が Production にあり、更新日時が今になっていること**を確かめる。確かめられなければ、管理画面から入れ直す。
 - Vercel の環境変数は、**次のデプロイから**効く。変えたら Vercel の管理画面の Deployments → 最新の Production → **Redeploy** で出し直す（`vercel --prod` / `vercel deploy` は使わない。CLAUDE.md のルール 17）。`NEXT_PUBLIC_*` は、ビルドし直さないと変わらない。
 - Vercel に入れるときは、Production だけに、種類を Sensitive にして入れる。CLI なら `vercel env add <名前> production --sensitive --force < <値のファイル>`（値は標準入力から渡す。`--value` で引数に書かない）。管理画面から入れてもよい。
-- 披露宴（2027-05-29）の 1 か月前に全部を一度入れ替え、それ以降は、漏れたとき以外は当日まで変えない。
+- 披露宴（2027 年 5 月）の 1 か月前に全部を一度入れ替え、それ以降は、漏れたとき以外は当日まで変えない。
 - 終わったら、下の「記録」に日付を書く（値は書かない）。
 - 動作の確認に共通で使うもの:
   - `curl -sI https://wedding.sw-lab.net/api/health` の `X-Build` が、新しいデプロイのコミットになっている
