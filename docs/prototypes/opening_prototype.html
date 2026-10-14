@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>招集オープニング 試作</title>
+<style>
+  :root{
+    --calm:#efe9df; --calm-ink:#3d3a34; --ink:#f5f3ee; --dim:#5b5852;
+    --led:#ff9a3c; --water1:#2b8a96; --water2:#0f4c5c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:#111;color:var(--ink);
+    font-family:"Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+
+  /* ---------- 試作用パネル ---------- */
+  #panel{min-height:100%;background:#f7f4ef;color:#2b2925;padding:20px 16px 40px}
+  #panel h1{font-size:18px;margin-bottom:4px}
+  #panel p{font-size:12.5px;color:#6b665f;line-height:1.6}
+  #panel label{display:block;font-size:12px;font-weight:700;margin:18px 0 6px}
+  #panel input{width:100%;font-size:16px;padding:10px 12px;border:1px solid #d8d2c8;border-radius:10px;-webkit-user-select:text;user-select:text}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chips button{font-size:12.5px;padding:6px 10px;border-radius:999px;border:1px solid #d8d2c8;background:#fff;color:#2b2925}
+  #judge{margin-top:10px;font-size:12.5px;background:#fff;border:1px solid #e6e0d6;border-radius:10px;padding:10px 12px;line-height:1.7}
+  #play{margin-top:20px;width:100%;font-size:16px;font-weight:700;padding:14px;border:0;border-radius:999px;background:#2b2925;color:#fff}
+
+  /* ---------- 舞台 ---------- */
+  #stage{position:fixed;inset:0;display:none;overflow:hidden;touch-action:none;background:#000}
+  #stage.on{display:block}
+  .scene{position:absolute;inset:0;opacity:0;transition:opacity .5s ease;pointer-events:none}
+  .scene.on{opacity:1;pointer-events:auto}
+  #skip{position:absolute;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:50;font-size:12px;
+    color:rgba(255,255,255,.75);background:rgba(255,255,255,.12);border:0;border-radius:999px;padding:6px 12px}
+  #stage.calm #skip{color:rgba(0,0,0,.55);background:rgba(0,0,0,.07)}
+
+  /* 1. 招集 */
+  #s1{background:var(--calm);color:var(--calm-ink);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px}
+  .flap{font-variant-numeric:tabular-nums;letter-spacing:.12em;min-height:1.3em;text-align:center}
+  #f1{font-size:22px;font-weight:700;letter-spacing:.3em}
+  #f2{font-size:40px;font-weight:800;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+  #f3{font-size:20px;font-weight:600;letter-spacing:.35em}
+  .rule{width:0;height:1px;background:var(--calm-ink);opacity:.4;transition:width 1s ease}
+  .rule.on{width:120px}
+
+  /* 2. レーン */
+  #s2{background:#000;display:flex;flex-direction:column;justify-content:center;padding:0 22px}
+  #boardTitle{font-size:11px;letter-spacing:.35em;color:var(--dim);margin-bottom:14px;text-align:center}
+  .lane{display:flex;align-items:center;height:44px;border-top:1px solid #1f1f1f;transition:background .4s}
+  .lane:last-child{border-bottom:1px solid #1f1f1f}
+  .lane .no{width:44px;font-family:ui-monospace,Menlo,monospace;font-size:18px;color:#333;transition:color .4s}
+  .lane .nm{flex:1;min-width:0;font-size:19px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0}
+  .lane.lit .no{color:var(--led)}
+  .lane.lit .nm{opacity:1}
+  .lane.guest .nm{color:var(--led)}
+  .lane.guest.lit{background:rgba(255,154,60,.07)}
+  #announce{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none}
+  #annLane{position:absolute;left:0;right:0;text-align:center;font-size:15px;letter-spacing:.3em;color:var(--led);font-family:ui-monospace,Menlo,monospace;opacity:0;transition:opacity .25s}
+  #flyName{position:absolute;font-weight:800;white-space:nowrap;transform-origin:0 0;opacity:0}
+
+  /* 3. スタート */
+  #s3{background:transparent}
+  #mark{position:absolute;top:36%;left:0;right:0;text-align:center;font-size:30px;font-weight:800;letter-spacing:.06em;opacity:0;transition:transform .6s}
+  #mark.on{opacity:1}
+  #mark .w{opacity:0;transition:opacity .12s}
+  #mark .w.on{opacity:1}
+  #hint{position:absolute;bottom:14%;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:12px;opacity:0;transition:opacity .4s}
+  #hint.on{opacity:1}
+  #ring{width:64px;height:64px;border-radius:50%;border:2px solid rgba(255,255,255,.7);position:relative}
+  #ring::after{content:"";position:absolute;inset:14px;border-radius:50%;background:rgba(255,255,255,.85);animation:press 1.4s ease-in-out infinite}
+  @keyframes press{0%,100%{transform:scale(1)}50%{transform:scale(.7)}}
+  #hintText{font-size:14px;color:rgba(255,255,255,.85);letter-spacing:.1em}
+  #holdFill{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--led)}
+  #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20}
+  #startTxt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:64px;font-weight:900;letter-spacing:.08em;color:#000;opacity:0;z-index:21;pointer-events:none}
+  #foul{position:absolute;top:38%;left:24px;right:24px;padding:18px 0;border-radius:16px;background:rgba(0,0,0,.82);text-align:center;font-size:34px;font-weight:900;color:var(--led);opacity:0;transition:opacity .2s;z-index:22;pointer-events:none}
+  #rt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;z-index:35;opacity:0;pointer-events:none;text-shadow:0 2px 14px rgba(0,0,0,.45)}
+  #rt .l{font-size:12px;letter-spacing:.35em;color:rgba(255,255,255,.8)}
+  #rt .v{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:64px;font-weight:800;color:#fff;font-variant-numeric:tabular-nums}
+  #rt .n{font-size:12px;color:rgba(255,255,255,.7);letter-spacing:.08em}
+  #foul small{display:block;font-size:13px;font-weight:500;color:rgba(255,255,255,.8);margin-top:8px;letter-spacing:.1em}
+  #world{position:absolute;inset:0;transition:transform 1.2s cubic-bezier(.3,.6,.2,1), filter 1.2s}
+  #world.tense{transform:scale(1.04)}
+
+  /* 4. 水 */
+  #water{display:none;position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,var(--water1),var(--water2));z-index:30;pointer-events:none}
+  #water svg{position:absolute;top:-22px;left:0;width:200%;height:24px;animation:wave 1.6s linear infinite}
+  @keyframes wave{to{transform:translateX(-50%)}}
+  .drop{position:absolute;border-radius:50%;background:rgba(220,245,250,.9);z-index:31;pointer-events:none}
+  .bub{position:absolute;bottom:-20px;border-radius:50%;border:1.5px solid rgba(255,255,255,.6);animation:rise linear forwards}
+  @keyframes rise{to{transform:translateY(-110vh);opacity:0}}
+
+  /* 5. 入力画面（仮） */
+  #s5{background:#f7f4ef;color:#2b2925;padding:calc(56px + env(safe-area-inset-top)) 20px 20px;z-index:40}
+  #s5 .k{font-size:11px;letter-spacing:.3em;color:#2b8a96;font-weight:700}
+  #s5 h2{font-size:22px;margin:6px 0 4px}
+  #s5 .sub{font-size:13px;color:#6b665f}
+  .fake{margin-top:14px;background:#fff;border:1px solid #e6e0d6;border-radius:14px;padding:14px;font-size:14px}
+  .fake .row{display:flex;gap:8px;margin-top:10px}
+  .fake .opt{flex:1;text-align:center;padding:10px 0;border-radius:10px;border:1px solid #d8d2c8;font-size:13px}
+  .fake .opt.sel{background:#2b2925;color:#fff;border-color:#2b2925}
+  #again{margin-top:22px;width:100%;padding:12px;border-radius:999px;border:1px solid #2b2925;background:transparent;font-size:14px;color:#2b2925}
+  .note{margin-top:10px;font-size:11.5px;color:#8a847b;text-align:center}
+
+  @media (prefers-reduced-motion: reduce){
+    #world,#mark{transition:none}
+    #ring::after,#water svg{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 試作用パネル ===== -->
+<div id="panel">
+  <h1>招集オープニング（試作）</h1>
+  <p>音なし・文字だけの短い版です。ゲストの LINE 名を変えると、ふたりの名前の表記が合わせて変わります。</p>
+  <label for="nm">ゲストの LINE 表示名</label>
+  <input id="nm" value="高橋 太郎" autocomplete="off">
+  <div class="chips" id="chips"></div>
+  <div id="judge"></div>
+  <button id="play">再生する</button>
+  <p style="margin-top:14px">Take your marks では長押しで構え、START の合図で指を離してください。離すまでの時間がリアクションタイムです。合図の前、または 0.10 秒未満で離すとフライングです。</p>
+</div>
+
+<!-- ===== 舞台 ===== -->
+<div id="stage">
+  <button id="skip">スキップ</button>
+  <div id="world">
+    <section class="scene" id="s1">
+      <div class="flap" id="f1"></div>
+      <div class="rule" id="rule"></div>
+      <div class="flap" id="f2"></div>
+      <div class="flap" id="f3"></div>
+    </section>
+
+    <section class="scene" id="s2">
+      <div id="boardTitle">LANE ASSIGNMENT</div>
+      <div id="board" style="transition:opacity .3s"></div>
+      <div id="announce"><div id="annLane"></div></div>
+      <div id="flyName"></div>
+    </section>
+
+    <section class="scene" id="s3">
+      <div id="mark"><span class="w">Take</span> <span class="w">your</span> <span class="w">marks</span></div>
+      <div id="hint"><div id="ring"></div><div id="hintText">長押しで構える</div><div id="hintSub" style="font-size:12px;color:rgba(255,255,255,.6);letter-spacing:.08em">START の合図で指を離す</div></div>
+      <div id="holdFill"></div>
+    </section>
+  </div>
+
+  <div id="flash"></div>
+  <div id="startTxt">START</div>
+  <div id="foul">フライング！<small id="foulSub">もう一度、長押しで構える</small></div>
+  <div id="rt"><div class="l">REACTION TIME</div><div class="v" id="rtv">0.00</div><div class="n" id="rtn"></div></div>
+  <div id="water"><svg viewBox="0 0 200 24" preserveAspectRatio="none"><path d="M0 12 Q12.5 0 25 12 T50 12 T75 12 T100 12 T125 12 T150 12 T175 12 T200 12 V24 H0Z" fill="#2b8a96"/></svg></div>
+
+  <section class="scene" id="s5">
+    <div class="k">ENTRY</div>
+    <h2>X/X（土）宴 ― （会場）</h2>
+    <div class="sub" id="entryFor"></div>
+    <div class="fake" style="display:flex;justify-content:space-between;align-items:center"><span>あなたのリアクションタイム</span><b id="myRt" style="font-family:ui-monospace,Menlo,monospace;font-size:20px;color:#c2410c">--</b></div>
+    <div class="sub" style="margin-top:6px;font-size:12px">承認されると、グループごとのランキングで見られます</div>
+    <div class="fake">ご出欠
+      <div class="row"><div class="opt sel">出場（出席）</div><div class="opt">棄権（欠席）</div></div>
+    </div>
+    <div class="fake">アレルギー・苦手な食べ物<div class="sub" style="margin-top:6px">（実装では、ここに式の詳細 → 出欠の入力が続く）</div></div>
+    <button id="again">もう一度見る</button>
+    <div class="note">※試作のため、入力画面は見た目だけです</div>
+  </section>
+</div>
+
+<script>
+/* ========= 名前の表記合わせ ========= */
+const COUPLE = {
+  kanjiFull:  ["山田 一郎","山田 花子"],
+  kanjiFirst: ["一郎","花子"],
+  hiraFull:   ["やまだ いちろう","やまだ はなこ"],
+  hiraFirst:  ["いちろう","はなこ"],
+  kataFull:   ["ヤマダ イチロウ","ヤマダ ハナコ"],
+  kataFirst:  ["イチロウ","ハナコ"],
+  latinFull:  ["Ichiro Yamada","Hanako Yamada"],
+  latinFirst: ["Ichiro","Hanako"],
+};
+const LABEL = {kanjiFull:"漢字・フルネーム",kanjiFirst:"漢字・名前のみ",hiraFull:"ひらがな・フルネーム",hiraFirst:"ひらがな・名前のみ",
+  kataFull:"カタカナ・フルネーム",kataFirst:"カタカナ・名前のみ",latinFull:"英字・フルネーム",latinFirst:"英字・名前のみ",none:"判定できない（既定）"};
+
+function clean(raw){
+  return (raw||"").replace(/\p{Extended_Pictographic}/gu,"").replace(/[‍️]/g,"")
+    .replace(/[　]/g," ").replace(/\s+/g," ").trim();
+}
+function classify(raw){
+  const s = clean(raw);
+  if(!s) return {style:"none", guest:"あなた"};
+  const hasSpace = / /.test(s);
+  if(/^[\p{Script=Hiragana}ー ]+$/u.test(s)) return {style: hasSpace?"hiraFull":"hiraFirst", guest:s};
+  if(/^[\p{Script=Katakana}ー・ ]+$/u.test(s)) return {style: hasSpace?"kataFull":"kataFirst", guest:s};
+  if(/^[A-Za-z .'\-]+$/.test(s)) return {style: hasSpace?"latinFull":"latinFirst", guest:s};
+  if(/^[\p{Script=Han}々\p{Script=Hiragana}\p{Script=Katakana}ー ]+$/u.test(s) && /\p{Script=Han}/u.test(s)){
+    const han = s.replace(/ /g,"");
+    return {style: (hasSpace || han.length>=3) ? "kanjiFull":"kanjiFirst", guest:s};
+  }
+  return {style:"none", guest:s};   // ニックネーム等
+}
+function coupleFor(style){ return COUPLE[style] || COUPLE.kanjiFull; }
+
+/* ========= 試作パネル ========= */
+const $ = id => document.getElementById(id);
+const samples = ["高橋 太郎","高橋太郎","太郎","たかはし たろう","たろう","タロウ","Taro Takahashi","taro","🏊たろう🐟","いちろうザウルス",""];
+samples.forEach(v=>{const b=document.createElement("button");b.textContent=v||"（空）";b.onclick=()=>{$("nm").value=v;judge();};$("chips").appendChild(b);});
+function judge(){
+  const c = classify($("nm").value), [k,h]=coupleFor(c.style);
+  $("judge").innerHTML = `判定：<b>${LABEL[c.style]}</b><br>3レーン ${k}<br>4レーン <b>${esc(c.guest)}</b><br>5レーン ${h}`;
+}
+function esc(s){return s.replace(/[&<>"]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[m]))}
+$("nm").addEventListener("input",judge); judge();
+
+/* ========= 演出 ========= */
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = ms => new Promise(r=>setTimeout(r, reduce? Math.min(ms,300): ms));
+let run = 0;  // 再生ごとの ID（スキップ・再再生で古い処理を止める）
+
+function show(id){ document.querySelectorAll(".scene").forEach(s=>s.classList.toggle("on", s.id===id)); }
+
+async function flap(el, text, token){
+  const pool = "0123456789ABCDEFGHJKMNPRSTUVWXYZ";
+  el.textContent = "";
+  for(let i=0;i<text.length;i++){
+    if(token!==run) return;
+    const ch = text[i];
+    if(false){
+      for(let k=0;k<4;k++){ el.textContent = text.slice(0,i) + pool[Math.random()*pool.length|0]; await wait(28); }
+    }
+    el.textContent = text.slice(0,i+1);
+    await wait(/[0-9A-Za-z.]/.test(ch)? 70 : 90);
+  }
+}
+
+function buildBoard(names){
+  const b = $("board"); b.innerHTML="";
+  for(let n=1;n<=8;n++){
+    const row=document.createElement("div"); row.className="lane"+(n===4?" guest":""); row.id="lane"+n;
+    row.innerHTML=`<div class="no">${n}</div><div class="nm">${names[n]?esc(names[n]):""}</div>`;
+    b.appendChild(row);
+  }
+}
+
+async function announce(n, name, token){
+  const row=$("lane"+n), slot=row.querySelector(".nm"), fly=$("flyName"), ann=$("annLane");
+  ann.textContent = `${n} レーン`; ann.style.opacity=1;
+  const target = slot.getBoundingClientRect();
+  const stage = $("stage").getBoundingClientRect();
+  fly.textContent = name;
+  fly.style.fontSize = getComputedStyle(slot).fontSize;
+  fly.style.color = n===4 ? "var(--led)" : "var(--ink)";
+  fly.style.left = (target.left-stage.left)+"px";
+  fly.style.top  = (target.top-stage.top + (target.height-parseFloat(fly.style.fontSize)*1.25)/2)+"px";
+  fly.style.lineHeight="1.25";
+  // 中央に大きく
+  const w = fly.getBoundingClientRect().width || 1;
+  const scale = Math.min(2.4, (stage.width-40)/w);
+  const cx = stage.width/2 - (target.left-stage.left) - w*scale/2;
+  const boardTop = $("boardTitle").getBoundingClientRect().top - stage.top;
+  const centerY = Math.max(90, boardTop/2 + 20);            // レーン表の上の空き
+  const h = parseFloat(fly.style.fontSize)*1.25;
+  const flyTop = parseFloat(fly.style.top);
+  const cy = centerY - flyTop - h*scale/2;
+  ann.style.top = (centerY - h*scale/2 - 30) + "px";
+  $("board").style.opacity = .25;
+  const big = `translate(${cx}px,${cy}px) scale(${scale})`;
+  fly.style.opacity=1;
+  const a1 = fly.animate([{transform:big, opacity:0},{transform:big, opacity:1}],{duration:reduce?1:260,fill:"forwards"});
+  await a1.finished; if(token!==run) return;
+  await wait(n===4? 1300 : 950); if(token!==run) return;
+  ann.style.opacity=0; $("board").style.opacity = 1;
+  const a2 = fly.animate([{transform:big},{transform:"translate(0,0) scale(1)"}],{duration:reduce?1:520,easing:"cubic-bezier(.5,0,.2,1)",fill:"forwards"});
+  await a2.finished; if(token!==run) return;
+  row.classList.add("lit"); fly.style.opacity=0; fly.getAnimations().forEach(x=>x.cancel());
+  await wait(n===4? 220 : 420);
+}
+
+/* --- Take your mark --- */
+let holdState = "idle", stanceTimer=null, startTimer=null, holdStart=0, raf=0, startAt=0, noReact=null, reaction=null;
+const MIN_RT = 0.10;   // これより速い反応は「予測スタート」とみなしてフライング
+function setHint(t){ $("hintText").textContent=t; }
+const STANCE_MS = 250;                 // 指を置いてから「構え」に入るまで
+function onDown(e){
+  if(holdState!=="ready" || e.target.closest("button")) return;
+  e.preventDefault();
+  holdState="stance"; holdStart=performance.now();
+  $("hint").classList.remove("on");
+  stanceTimer = setTimeout(()=>{ if(holdState==="stance"){ holdState="holding"; $("world").classList.add("tense"); } }, STANCE_MS);
+  const delay = 1100 + Math.random()*800;   // 指を置いてから START まで 1.1〜1.9秒（毎回ランダム）
+  startTimer = setTimeout(go, delay);
+}
+function foul(sub){
+  clearTimeout(stanceTimer); clearTimeout(startTimer); clearTimeout(noReact); cancelAnimationFrame(raf); $("holdFill").style.width="0";
+  holdState="foul"; $("world").classList.remove("tense");
+  $("mark").style.visibility="";
+  $("foulSub").textContent = sub;
+  $("foul").style.opacity=1;
+  setTimeout(()=>{ $("foul").style.opacity=0; holdState="ready"; $("hint").classList.add("on"); setHint("長押しで構える"); }, 1500);
+}
+function onUp(e){
+  if(holdState==="stance"){ clearTimeout(stanceTimer); clearTimeout(startTimer); holdState="ready"; $("hint").classList.add("on"); return; }
+  if(holdState==="holding"){ foul("もう一度、長押しで構える"); return; }
+  if(holdState!=="started") return;
+  // 入力の時刻は event.timeStamp（performance.now と同じ時計）を使う
+  const t = (e && e.timeStamp ? e.timeStamp : performance.now());
+  const rt = (t - startAt)/1000;
+  if(rt < MIN_RT){ foul("合図を予測した反応（0.10秒未満）はフライングです"); return; }
+  clearTimeout(noReact);
+  showResult(rt);
+}
+function go(){
+  holdState="starting"; cancelAnimationFrame(raf); $("holdFill").style.width="0";
+  $("mark").style.visibility="hidden";
+  $("flash").animate([{opacity:0},{opacity:1,offset:.15},{opacity:0}],{duration:650});
+  $("startTxt").animate([{opacity:0,transform:"scale(1.4)"},{opacity:1,transform:"scale(1)",offset:.2},{opacity:0}],{duration:650});
+  // START が描かれるフレームの時刻を基準にする
+  requestAnimationFrame(ts => { startAt = ts; if(holdState==="starting") holdState="started"; });
+  noReact = setTimeout(()=>{ if(holdState==="started") showResult(null); }, 3000);
+}
+async function showResult(rt){
+  const token = run;
+  holdState="result"; $("world").classList.remove("tense");
+  reaction = rt;
+  const v = rt===null ? "--.--" : (Math.floor(rt*100)/100).toFixed(2);   // 競泳と同じく 1/100 秒、切り捨て
+  $("rtv").textContent = v;
+  $("rtn").textContent = rt===null ? "反応なし" : "承認後、ランキングで見られます";
+  dive(token);
+}
+/* 手を離す → 水しぶき → しぶきの上にタイム → 入力画面 */
+function splash(){
+  if(reduce) return;
+  const st=$("stage"), W=st.clientWidth, H=st.clientHeight;
+  for(let i=0;i<26;i++){
+    const d=document.createElement("div"); d.className="drop"; const r=4+Math.random()*9;
+    d.style.width=d.style.height=r+"px"; d.style.left=(W/2-r/2)+"px"; d.style.top=(H*0.78)+"px";
+    st.appendChild(d);
+    const ang=(-90 + (Math.random()*130-65))*Math.PI/180, sp=H*(0.35+Math.random()*0.35);
+    const dx=Math.cos(ang)*sp*0.8, dy=Math.sin(ang)*sp;
+    d.animate([{transform:"translate(0,0)",opacity:1},{transform:`translate(${dx}px,${dy}px)`,opacity:.9,offset:.55},{transform:`translate(${dx*1.25}px,${dy*0.35+H*0.25}px)`,opacity:0}],
+      {duration:900+Math.random()*400,easing:"cubic-bezier(.2,.7,.4,1)"}).finished.then(()=>d.remove());
+  }
+}
+async function dive(token){
+  const w=$("water"); w.style.display="block";
+  $("world").style.transform="scale(1.25) translateY(6%)"; $("world").style.filter="blur(2px)";
+  splash();
+  const a = w.animate([{height:"0"},{height:"110%"}],{duration:reduce?1:900,easing:"cubic-bezier(.6,0,.3,1)",fill:"forwards"});
+  for(let i=0;i<18 && !reduce;i++){
+    const b=document.createElement("div"); b.className="bub"; const s=6+Math.random()*16;
+    b.style.width=b.style.height=s+"px"; b.style.left=(Math.random()*100)+"%";
+    b.style.animationDuration=(1.2+Math.random()*1.2)+"s"; b.style.animationDelay=(Math.random()*.6)+"s";
+    w.appendChild(b);
+  }
+  await wait(500); if(token!==run) return;                 // しぶきの間はタイムを出さない
+  $("rt").animate([{opacity:0,transform:"scale(.92)"},{opacity:1,transform:"scale(1)"}],{duration:250,fill:"forwards"});
+  await a.finished; if(token!==run) return;
+  await wait(1500); if(token!==run) return;
+  $("rt").animate([{opacity:1},{opacity:0}],{duration:250,fill:"forwards"});
+  await wait(250); if(token!==run) return;
+  finish();
+}
+function finish(){
+  const c=classify($("nm").value);
+  $("entryFor").textContent = `4レーン　${c.guest} さんのエントリー`;
+  $("myRt").textContent = reaction===null ? "記録なし" : (Math.floor(reaction*100)/100).toFixed(2)+" 秒";
+  $("stage").classList.remove("calm"); $("skip").style.display="none";
+  show("s5");
+  const w=$("water"); w.animate([{opacity:1},{opacity:0}],{duration:500,fill:"forwards"});
+}
+
+/* --- 全体の流れ --- */
+async function play(){
+  const token = ++run;
+  const c = classify($("nm").value), [k,h]=coupleFor(c.style);
+  // 初期化
+  $("panel").style.display="none"; $("stage").classList.add("on","calm"); $("skip").style.display="";
+  ["f1","f2","f3"].forEach(i=>$(i).textContent=""); $("rule").classList.remove("on");
+  $("mark").classList.remove("on"); $("mark").querySelectorAll(".w").forEach(w=>w.classList.remove("on")); $("mark").style.visibility=""; reaction=null; $("rt").getAnimations().forEach(a=>a.cancel()); $("board").style.opacity=1; $("hint").classList.remove("on");
+  const w=$("water"); w.getAnimations().forEach(a=>a.cancel()); w.style.opacity=""; w.style.height="0"; w.style.display="none"; w.querySelectorAll(".bub").forEach(b=>b.remove());
+  $("world").style.transform=""; $("world").style.filter=""; $("world").classList.remove("tense");
+  holdState="idle";
+
+  // 1. 招集
+  show("s1"); await wait(500);
+  await flap($("f1"),"招集のお知らせ",token); if(token!==run) return;
+  $("rule").classList.add("on"); await wait(250);
+  await flap($("f2"),"20XX.XX.XX",token); if(token!==run) return;
+  await flap($("f3"),"（かいじょう）",token); if(token!==run) return;
+  await wait(1600); if(token!==run) return;
+
+  // 2. レーン発表（3 → 5 → 4）
+  buildBoard({3:k,4:c.guest,5:h});
+  $("stage").classList.remove("calm"); show("s2"); await wait(650); if(token!==run) return;
+  await announce(3,k,token); if(token!==run) return;
+  await announce(5,h,token); if(token!==run) return;
+  await announce(4,c.guest,token); if(token!==run) return;
+  await wait(1200); if(token!==run) return;
+
+  // 3. Take your mark（レーン表は残したまま、上に重ねる）
+  $("s2").classList.remove("on"); await wait(450); if(token!==run) return;
+  $("s3").classList.add("on");
+  $("mark").classList.add("on");
+  const words = $("mark").querySelectorAll(".w");
+  words[0].classList.add("on"); await wait(200); if(token!==run) return;   // Take
+  words[1].classList.add("on"); await wait(100); if(token!==run) return;   // your
+  words[2].classList.add("on");                                            // marks
+  await wait(800); if(token!==run) return;
+  setHint("長押しで構える"); $("hint").classList.add("on");
+  holdState="ready";
+}
+
+$("play").onclick = play;
+$("again").onclick = () => { $("s2").style.filter=""; $("s3").classList.remove("on"); play(); };
+$("skip").onclick = () => { run++; clearTimeout(startTimer); clearTimeout(noReact); holdState="idle"; $("s2").style.filter=""; $("s3").classList.remove("on"); finish(); };
+const st=$("stage");
+st.addEventListener("pointerdown", onDown);
+st.addEventListener("pointerup", onUp);
+st.addEventListener("pointercancel", onUp);
+st.addEventListener("contextmenu", e=>e.preventDefault());
+</script>
+</body>
+</html>

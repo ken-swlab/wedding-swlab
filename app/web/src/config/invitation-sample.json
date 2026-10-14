@@ -1,0 +1,24 @@
+{
+  "groom": "新郎 太郎",
+  "bride": "新婦 花子",
+  "dateLabel": "20XX年X月X日（土）",
+  "receptionAt": "受付 XX:XX ／ 披露宴 XX:XX",
+  "venueName": "（ダミー）会場名",
+  "venueAddress": "（ダミー）住所",
+  "venueMapUrl": "",
+  "greeting": ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
+  "opening": {
+    "date": "20XX.XX.XX",
+    "venue": "（かいじょう）",
+    "names": {
+      "kanjiFull": ["山田 一郎", "山田 花子"],
+      "kanjiFirst": ["一郎", "花子"],
+      "hiraFull": ["やまだ いちろう", "やまだ はなこ"],
+      "hiraFirst": ["いちろう", "はなこ"],
+      "kataFull": ["ヤマダ イチロウ", "ヤマダ ハナコ"],
+      "kataFirst": ["イチロウ", "ハナコ"],
+      "latinFull": ["Ichiro Yamada", "Hanako Yamada"],
+      "latinFirst": ["Ichiro", "Hanako"]
+    }
+  }
+}

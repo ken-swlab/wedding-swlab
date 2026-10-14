@@ -1,24 +1,27 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
 import { InvitationView } from "@/components/guestbook/InvitationView";
 import { SplashScreen } from "@/components/SplashScreen";
-import { TEASER_FALLBACK_SEC, TEASER_MAX_SEC } from "@/config/invitation";
-import type { InvitationContent } from "@/types/invitation";
+import { Opening, type OpeningResult } from "@/components/opening/Opening";
+import { openingCast } from "@/lib/opening-names";
+import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
 /**
  * 招待状の画面の段階。親（/invitation・/admin/invitation_test）が持ち、ここは見た目だけを描く。
  *   entrance … 入り口と LINE ログイン（個人の情報なし）
  *   passcode … パスコード入力（個人の情報なし）
- *   teaser   … パスコードを通った直後のティザー動画（全画面）
+ *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
  *   open     … 招待状の本文と、その下に出欠の回答フォーム（1ページの縦スクロール。Issue #74）
+ *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
  */
 export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
   | { kind: "loading" }
   | { kind: "passcode" }
-  | { kind: "teaser" }
+  | { kind: "opening"; opening: OpeningContent; displayName: string | null | undefined; note: string }
+  | { kind: "preparing" }
   | { kind: "open"; invitation: InvitationContent }
   | { kind: "error"; message: string };
 
@@ -28,24 +31,24 @@ export type InvitationFlowProps = {
   onLogin: () => void;
   /** パスコードの送信。通らなければ Error を投げる（message を画面に出す） */
   onPasscodeSubmit: (passcode: string) => Promise<void>;
-  /** ティザー動画が終わった・スキップされた */
-  onTeaserEnd: () => void;
+  /** オープニングで有効なリアクションタイムが出た（保存するかは親が決める） */
+  onOpeningReaction?: (reactionMs: number) => void;
+  /** オープニングが終わった・スキップされた */
+  onOpeningEnd: (result: OpeningResult) => void;
   /** open の段階で開催概要の下に出す出欠の回答フォーム（送信の処理は親が持つ） */
   rsvp: ReactNode;
-  /** エラー画面の「もう一度読み込む」 */
+  /** エラー画面・準備中の画面の「もう一度読み込む」 */
   onRetry: () => void;
-  /** ティザー動画の URL（同一オリジン・blob: か R2）。無ければ代わりの画面を出す */
-  teaserSrc?: string;
 };
 
 /**
  * 招待状の見た目。ログイン・API・画面遷移は持たず、すべて props で受け取る。
  *
  * ★entrance と passcode の段階に新郎新婦の名前・写真・会場を出さない★
- *   招待状の URL は外に出回る前提。名前などは open の invitation（API がパスコードを
+ *   招待状の URL は外に出回る前提。名前などは open の invitation と opening の opening（API がパスコードを
  *   通った人にだけ返す）からだけ描く。ここに定数として書かない。
  */
-export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onTeaserEnd, rsvp, onRetry, teaserSrc }: InvitationFlowProps) {
+export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReaction, onOpeningEnd, rsvp, onRetry }: InvitationFlowProps) {
   switch (step.kind) {
     case "loading":
       return <SplashScreen phase="booting" />;
@@ -59,8 +62,37 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onTeaserEnd, r
           </div>
         </main>
       );
-    case "teaser":
-      return <TeaserStep src={teaserSrc} onDone={onTeaserEnd} />;
+    case "opening": {
+      // 新郎新婦の表記は、ゲストの LINE 名の書き方に合わせる（lib/opening-names.ts）
+      const cast = openingCast(step.displayName, step.opening.names);
+      return (
+        <Opening
+          couple={cast.couple}
+          guestName={cast.guestName}
+          date={step.opening.date}
+          venue={step.opening.venue}
+          note={step.note}
+          onReaction={onOpeningReaction}
+          onFinish={onOpeningEnd}
+        />
+      );
+    }
+    case "preparing":
+      return (
+        <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
+          <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col items-center justify-center px-6 text-center">
+            <p className="font-serif text-lg text-stone-800">ただいま準備中です</p>
+            <p className="mt-3 text-[13.5px] leading-[1.9] text-stone-500">
+              招待状を準備しています。
+              <br />
+              お手数ですが、しばらくしてからもう一度お試しください。
+            </p>
+            <button type="button" onClick={onRetry} className="mt-6 min-h-11 touch-manipulation rounded-full bg-stone-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-stone-700">
+              もう一度読み込む
+            </button>
+          </div>
+        </main>
+      );
     case "error":
       return (
         <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
@@ -108,80 +140,6 @@ function EntranceStep({ busy, message, onLogin }: { busy: boolean; message: stri
           {busy ? "LINE に接続しています…" : "LINE でログイン"}
         </button>
       </div>
-    </main>
-  );
-}
-
-/**
- * パスコードを通った直後に全画面で流すティザー動画。終わったら onDone。
- *
- * ★autoPlay には muted と playsInline を必ず付ける★
- *   付けないと iOS Safari・LINE 内ブラウザが自動再生せず、全画面プレーヤーに切り替わる。
- * ★動画が終わらなくても必ず先へ進める★
- *   省電力モードの iOS は muted でも自動再生を止める。読み込みに失敗することもある。
- *   上限の秒数で進め、再生できないと分かったらすぐ短い秒数に切り替える。スキップも置く。
- */
-function TeaserStep({ src, onDone }: { src?: string; onDone: () => void }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const doneRef = useRef(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onDoneRef = useRef(onDone);
-  useEffect(() => {
-    onDoneRef.current = onDone;
-  }, [onDone]);
-
-  function finish() {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    if (timerRef.current) clearTimeout(timerRef.current);
-    onDoneRef.current();
-  }
-
-  function startTimer(sec: number) {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(finish, sec * 1000);
-  }
-
-  useEffect(() => {
-    doneRef.current = false;
-    startTimer(src ? TEASER_MAX_SEC : TEASER_FALLBACK_SEC);
-    // autoPlay が効かなかったとき（省電力モードなど）は play() が reject する
-    videoRef.current?.play().catch(() => startTimer(TEASER_FALLBACK_SEC));
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- src が変わったときだけ数え直す
-  }, [src]);
-
-  return (
-    <main className="fixed inset-0 bg-black text-white">
-      {src ? (
-        <video
-          ref={videoRef}
-          key={src}
-          src={src}
-          autoPlay
-          muted
-          playsInline
-          preload="auto"
-          onEnded={finish}
-          onError={() => startTimer(TEASER_FALLBACK_SEC)}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="invitation-rise flex h-full w-full flex-col items-center justify-center bg-gradient-to-b from-stone-900 to-stone-700 text-center">
-          <p className="text-[11px] tracking-[0.35em] text-stone-400">TEASER</p>
-          <p className="mt-3 font-serif text-lg text-stone-100">（ここにティザー動画が流れます）</p>
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={finish}
-        className="absolute right-4 min-h-11 touch-manipulation rounded-full bg-white/15 px-4 text-[13px] text-white backdrop-blur"
-        style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
-      >
-        スキップ
-      </button>
     </main>
   );
 }

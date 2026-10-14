@@ -1,39 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
-import type { InvitationContent } from "@/types/invitation";
+import { SAMPLE_INVITATION } from "@/config/wedding";
+import { OPENING_NOTE } from "@/config/invitation";
+import { classifyDisplayName } from "@/lib/opening-names";
 
 /**
  * ★本物の名前・会場を使わない★
- *   本物は src/config/wedding.ts（サーバー専用）にあり、クライアントのバンドルに入れない。
- *   ここは見た目の確認用の架空の中身。
+ *   本物は Firestore の config/invitation にあり、クライアントのバンドルにもリポジトリにも入れない。
+ *   ここは見た目の確認用の架空の中身（src/config/invitation-sample.json）。
  */
-const DUMMY_INVITATION: InvitationContent = {
-  groom: "新郎 太郎",
-  bride: "新婦 花子",
-  dateLabel: "20XX年X月X日（土）",
-  receptionAt: "受付 XX:XX ／ 披露宴 XX:XX",
-  venueName: "（ダミー）会場名",
-  venueAddress: "（ダミー）住所",
-  venueMapUrl: "",
-  greeting: ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
-};
+const { opening: DUMMY_OPENING, ...DUMMY_INVITATION } = SAMPLE_INVITATION;
 
 /** ダミーのパスコード判定でわざと間違いにする値。エラー表示の確認用 */
 const WRONG_PASSCODE = "0000";
 
-/** 出欠フォームの下に出す LINE の表示名（ダミー） */
-const DUMMY_DISPLAY_NAME = "LINE の表示名";
+/** オープニングと出欠フォームに出す LINE の表示名（ダミー）の初期値。画面で書き換えて、名前の表記合わせを試せる */
+const DUMMY_DISPLAY_NAME = "高橋 太郎";
 
 const STEP_LABEL: Record<InvitationStep["kind"], string> = {
   entrance: "1-2. 入り口・LINE ログイン",
   loading: "読み込み中",
   passcode: "3. パスコード",
-  teaser: "4. ティザー動画",
+  opening: "4. オープニング",
+  preparing: "準備中",
   open: "5. 招待状・出欠の回答",
   error: "エラー",
 };
@@ -49,14 +43,7 @@ export default function InvitationTestPage() {
   const { user, isAdmin, loading } = useGuestSession();
   const [step, setStep] = useState<InvitationStep>({ kind: "entrance", busy: false, message: null });
   const [note, setNote] = useState<string | null>(null);
-  const [teaserSrc, setTeaserSrc] = useState<string | undefined>(undefined);
-
-  // 選んだ動画は端末の中だけで再生する（blob: URL）。どこにもアップロードしない
-  useEffect(() => {
-    return () => {
-      if (teaserSrc) URL.revokeObjectURL(teaserSrc);
-    };
-  }, [teaserSrc]);
+  const [displayName, setDisplayName] = useState(DUMMY_DISPLAY_NAME);
 
   const restart = useCallback(() => {
     console.log("[invitation_test] 最初から");
@@ -73,11 +60,12 @@ export default function InvitationTestPage() {
     console.log("[invitation_test] パスコード送信（ダミー）", passcode.length, "桁");
     await new Promise((r) => setTimeout(r, 400));
     if (passcode === WRONG_PASSCODE) throw new Error("パスコードが違います（ダミーのエラーです）");
-    setStep({ kind: "teaser" });
-  }, []);
+    setStep({ kind: "opening", opening: DUMMY_OPENING, displayName, note: OPENING_NOTE.test });
+  }, [displayName]);
 
-  const onTeaserEnd = useCallback(() => {
-    console.log("[invitation_test] ティザー動画が終了");
+  // ★記録しない★ /api/guest/reaction を呼ばない。タイムは画面と console に出すだけ
+  const onOpeningEnd = useCallback((result: { reactionMs: number | null; skipped: boolean }) => {
+    console.log("[invitation_test] オープニングが終了", result);
     setStep({ kind: "open", invitation: DUMMY_INVITATION });
   }, []);
 
@@ -105,7 +93,7 @@ export default function InvitationTestPage() {
       {/*
         テスト用の操作パネル。★fixed にせずページの先頭に置く★
         下へスクロールすれば消え、その下はゲストが見る画面とまったく同じになる。
-        ティザー動画（全画面の fixed）の間は動画に隠れる。
+        オープニング（全画面の fixed）の間はオープニングに隠れる。
       */}
       <aside className="border-b border-stone-200 bg-white px-3 pb-3 text-[12px] text-stone-600" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
         <div className="flex items-center gap-2">
@@ -119,17 +107,19 @@ export default function InvitationTestPage() {
           ダミーです（ログイン・保存はしません）。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。下へスクロールするとこのパネルが消え、ゲストと同じ画面になります。
         </p>
         <label className="mt-1.5 flex items-center gap-2">
-          <span className="shrink-0">動画:</span>
+          <span className="shrink-0">LINE 名:</span>
           <input
-            type="file"
-            accept="video/*"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              setTeaserSrc(file ? URL.createObjectURL(file) : undefined);
-            }}
-            className="min-w-0 flex-1 text-[11px]"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            maxLength={40}
+            aria-label="LINE の表示名（ダミー）"
+            className="min-h-11 min-w-0 flex-1 rounded-lg border border-stone-200 px-2 text-base text-stone-800"
           />
         </label>
+        <p className="mt-1 text-stone-500">
+          オープニングの名前の表記: {classifyDisplayName(displayName).style}
+          {classifyDisplayName(displayName).matched ? "" : "（判定できないので既定）"}。パスコードを通るとオープニングが流れます（記録はしません）。
+        </p>
         {note && <p className="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sky-800">{note}</p>}
       </aside>
 
@@ -138,10 +128,9 @@ export default function InvitationTestPage() {
         step={step}
         onLogin={onLogin}
         onPasscodeSubmit={onPasscodeSubmit}
-        onTeaserEnd={onTeaserEnd}
-        rsvp={<OnboardingForm displayName={DUMMY_DISPLAY_NAME} onSubmit={onRsvpSubmit} />}
+        onOpeningEnd={onOpeningEnd}
+        rsvp={<OnboardingForm displayName={displayName} onSubmit={onRsvpSubmit} />}
         onRetry={restart}
-        teaserSrc={teaserSrc}
       />
     </>
   );

@@ -3,7 +3,7 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { isPasscodeCleared } from "@/lib/passcode-server";
-import { WEDDING } from "@/config/wedding";
+import { invitationConfig } from "@/lib/invitation-server";
 import type { InvitationStatus } from "@/types/invitation";
 
 export const runtime = "nodejs";
@@ -26,9 +26,11 @@ async function _GET(req: Request) {
  * 招待状の中身を返す。
  *
  * ★パスコードを通った人にだけ返す★
- *   名前・会場・住所はクライアントのバンドルに置かず、ここからだけ渡す
- *   （src/config/wedding.ts 参照）。通っていなければ中身なしで cleared: false を返し、
- *   画面はパスコード入力を出す。
+ *   名前・会場・住所はクライアントのバンドルにもリポジトリにも置かず、Firestore の config/invitation から
+ *   読んでここからだけ渡す（src/lib/invitation-server.ts 参照）。通っていなければ中身なしで
+ *   cleared: false を返し、画面はパスコード入力を出す。
+ * ★オープニング用の名前の表記一式も、同じ条件で一緒に返す★（Issue #131）
+ * ★config/invitation が未設定なら ready: false★ 架空の名前は返さない。画面は「準備中」を出す。
  */
 async function handle(req: Request) {
   const { auth, db } = admin();
@@ -58,9 +60,14 @@ async function handle(req: Request) {
 
   const registered = publicSnap.get("isRegistered") === true;
   const cleared = isAdmin || isPasscodeCleared(publicSnap, adminSnap);
-  const res: InvitationStatus = cleared
-    ? { cleared, registered, invitation: WEDDING }
-    : { cleared, registered };
+  const config = cleared ? await invitationConfig() : null;
+  let res: InvitationStatus;
+  if (config) {
+    const { opening, ...invitation } = config;
+    res = { cleared, registered, ready: true, invitation, opening };
+  } else {
+    res = { cleared, registered, ready: false };
+  }
   return NextResponse.json({ ok: true, ...res }, { headers: { "Cache-Control": "private, no-store" } });
 }
 

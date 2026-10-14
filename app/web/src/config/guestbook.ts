@@ -14,6 +14,8 @@ export const GUESTBOOK_PATHS = {
   home: "/guestbook",
   notifications: "/guestbook/notifications",
   settings: "/guestbook/settings",
+  /** マイページから開くオープニング（見返し・リアクションタイムの一発勝負。Issue #131） */
+  opening: "/guestbook/opening",
 } as const;
 
 /**

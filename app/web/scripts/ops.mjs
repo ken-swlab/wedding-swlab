@@ -15,6 +15,13 @@
  *
  *   node scripts/ops.mjs ratelimit                直近の窓の使用状況
  *
+ *   node scripts/ops.mjs invitation status        招待状の設定（config/invitation）があるか・形が正しいか
+ *   node scripts/ops.mjs invitation template      書き方の見本（架空の値の JSON）を出す
+ *   node scripts/ops.mjs invitation check <file>  JSON ファイルの形だけ確かめる（書き込まない）
+ *   node scripts/ops.mjs invitation set <file>    JSON ファイルの内容を config/invitation に入れる
+ *     ★本物の名前・日付・会場を入れた JSON はリポジトリの外に置く★（公開リポジトリ。コミットしない）
+ *     ★このコマンドは値を画面に出さない★ 出すのは項目の名前と件数だけ。
+ *
  * 認証情報は scripts/make-admin.mjs と同じく app/web/.env.local から読む。
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -65,7 +72,50 @@ if (!cmd || cmd === "--help") {
   console.log(`使い方:
   node scripts/ops.mjs maintenance status|on ["文言"]|off
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
-  node scripts/ops.mjs ratelimit`);
+  node scripts/ops.mjs ratelimit
+  node scripts/ops.mjs invitation status|template|check <file>|set <file>`);
+  process.exit(0);
+}
+
+// ---- invitation（Firestore に触れないもの）---------------------------------------
+//   template と check は接続せずに終わる（認証情報が無くても使える）
+// 形の確認はサーバー（src/lib/invitation-server.ts）と同じもの。Node が .ts の型だけ落として読み込む（Node 22.18 以上）。
+// ★読み込むのは invitation のときだけ★ 古い Node でも、メンテナンスの切り替え（インシデント対応）は動くようにしておく
+const parseInvitationConfig =
+  cmd === "invitation" ? (await import("../src/lib/invitation-config.ts")).parseInvitationConfig : null;
+function readInvitationFile(path) {
+  if (!path) {
+    console.error("JSON ファイルのパスを指定してください（例: node scripts/ops.mjs invitation set ~/invitation.json）");
+    process.exit(1);
+  }
+  const abs = resolve(process.cwd(), path);
+  // ★リポジトリの中の JSON は受け付けない★ 本物の名前をコミットしてしまう事故を防ぐ
+  const repoRoot = resolve(HERE, "..", "..", "..");
+  if (abs.startsWith(repoRoot + "/")) {
+    console.error("リポジトリの中のファイルは使えません。本物の値を入れた JSON は、リポジトリの外（ホームなど）に置いてください");
+    process.exit(1);
+  }
+  let data;
+  try {
+    data = JSON.parse(readFileSync(abs, "utf8"));
+  } catch {
+    console.error("JSON として読めませんでした（ファイルの有無と、カンマ・引用符を確かめてください）");
+    process.exit(1);
+  }
+  const parsed = parseInvitationConfig(data);
+  if (!parsed.ok) {
+    console.error(`形が違います。項目: ${parsed.field}（見本: node scripts/ops.mjs invitation template）`);
+    process.exit(1);
+  }
+  return parsed.value;
+}
+if (cmd === "invitation" && rest[0] === "template") {
+  console.log(readFileSync(resolve(HERE, "..", "src", "config", "invitation-sample.json"), "utf8"));
+  process.exit(0);
+}
+if (cmd === "invitation" && rest[0] === "check") {
+  const v = readInvitationFile(rest[1]);
+  console.log(`✅ 形は正しいです（ご挨拶 ${v.greeting.length} 行、名前の表記 ${Object.keys(v.opening.names).length} 通り）。書き込みはしていません`);
   process.exit(0);
 }
 
@@ -92,6 +142,31 @@ if (cmd === "maintenance") {
   console.log(`maintenance : ${snap.get("maintenance") === true ? "ON" : "OFF"}`);
   console.log(`message     : ${snap.get("message") || "(既定の文言)"}`);
   console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
+  process.exit(0);
+}
+
+// ---- invitation -------------------------------------------------------------
+if (cmd === "invitation") {
+  const ref = db.collection("config").doc("invitation");
+  const sub = rest[0] ?? "status";
+  if (sub === "set") {
+    const value = readInvitationFile(rest[1]);
+    // ★丸ごと置き換える★（merge しない）。古い項目を残さない
+    await ref.set({ ...value, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+    console.log("\n✅ config/invitation を更新しました");
+    console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
+  } else if (sub !== "status") {
+    console.error("使い方: node scripts/ops.mjs invitation status|template|check <file>|set <file>");
+    process.exit(1);
+  }
+  const snap = await ref.get();
+  if (!snap.exists) {
+    console.log("config/invitation : 未設定（招待状は「準備中」と表示されます）\n");
+    process.exit(0);
+  }
+  const parsed = parseInvitationConfig(snap.data());
+  console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
+  console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
 }
 

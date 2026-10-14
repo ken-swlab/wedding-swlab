@@ -32,7 +32,7 @@
 | 権限（Custom Claims） | `tags`（配列）と `admin`（真偽）だけ。どちらも、プロジェクト全体で 1 つ | `src/lib/guests-server.ts` |
 | 管理者 | `admin === true` は「新郎新婦」で、すべてを読み書きできる。付けるのは手元のコマンドだけ | `app/web/scripts/make-admin.mjs` |
 | uid | `line:<LINE のユーザー ID>`。LINE のユーザー ID は、LINE のプロバイダーごとに決まる | `src/app/api/auth/line/route.ts` |
-| 招待状の中身 | 新郎新婦の名前・日時・会場が、サーバー専用のソース（`src/config/wedding.ts`）に書いてある | 同左 |
+| 招待状の中身 | 新郎新婦の名前・日時・会場は、Firestore の `config/invitation` にある（サーバーだけが読む。Issue #131 でソースから移した） | `src/lib/invitation-server.ts` |
 | 合言葉 | 環境変数 `WEDDING_PASSCODE` が 1 つ | `src/lib/passcode-server.ts` |
 | タグの語彙 | 組み込みタグ（全員・親族・新郎友人…）はソースに固定。カスタムタグは `tags` コレクション | `src/config/tags.ts` |
 | 投影（`/screen`） | 出すタグは、ビルド時の環境変数 `NEXT_PUBLIC_SCREEN_TAGS` | `src/config/screen.ts` |
