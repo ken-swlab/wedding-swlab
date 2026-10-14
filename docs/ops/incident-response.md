@@ -169,7 +169,7 @@ node scripts/ops.mjs maintenance off                              # 戻す
 - 
 ```
 
-## 7. 当日（2027-05-29）の備え
+## 7. 当日の備え
 
 - 当日の朝に、`python3 scripts/csp-verify.py`、スマホでのログインと写真の投稿、`/screen` の表示を確かめる。
 - 監査ログが書けないと更新系の API が止まる（fail-closed）。可用性を優先するなら、`AUDIT_FAIL_OPEN=true` を事前に入れるかを決めておく（入れるなら理由を残す。[secrets-inventory.md](../security/secrets-inventory.md) §3）。

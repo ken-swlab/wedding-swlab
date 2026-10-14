@@ -25,7 +25,7 @@ import {
 } from "firebase/firestore";
 import { ALLOW, DENY, commentData, postData, table, without } from "./harness.mjs";
 
-const FIXED_DATE = new Date("2027-05-29T03:00:00Z");
+const FIXED_DATE = new Date("2027-01-01T03:00:00Z");
 const many = (n, prefix = "x") => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
 
 const get = (path) => (db) => getDoc(doc(db, path));

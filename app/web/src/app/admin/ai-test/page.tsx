@@ -283,7 +283,7 @@ export default function AiTestPage() {
             </div>
           </section>
 
-          {/* ============ 4: ミニ賢信AI（チャット） ============ */}
+          {/* ============ 4: ミニ新郎AI（チャット） ============ */}
           {/* チャット列。key にゲスト UID を渡すことで、切り替え時に会話が自動リセットされる */}
           <AiTestChat
             key={guestUid}
