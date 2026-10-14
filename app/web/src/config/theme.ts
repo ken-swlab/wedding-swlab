@@ -45,13 +45,16 @@ export type Theme = { id: string; label: string } & Record<ThemeRole, RoleColor>
 
 /**
  * 段階ごとの明るさ（OKLCH の L）と、鮮やかさの配分（いちばん鮮やかな段階を 1 とした比）。
- * base は Tailwind の stone、色のある役割は Tailwind の rose の並びに合わせる
+ * 明るさは、base が Tailwind の stone、色のある役割が Tailwind の rose の並び
  * （無彩色の並びをそのまま色に使うと、500〜600 が暗く濁る）。
  */
 const LADDER: Record<"base" | "color", { lightness: readonly number[]; chroma: readonly number[] }> = {
+  // ★base の鮮やかさは、淡い段階（50〜200 = 背景）にも残す★
+  //   stone と同じ配分（50 で 0.08 倍）にすると、背景が白のままで「砂色」「生成り」にならない。
+  //   THEME_CURRENT は値を直接持っているので、この配分は生成するテーマにだけ効く。
   base: {
     lightness: [0.985, 0.97, 0.923, 0.869, 0.709, 0.553, 0.444, 0.374, 0.268, 0.216, 0.147],
-    chroma: [0.08, 0.08, 0.23, 0.38, 0.77, 1, 0.85, 0.77, 0.54, 0.46, 0.31],
+    chroma: [0.5, 0.6, 0.75, 0.85, 1, 1, 0.95, 0.9, 0.8, 0.7, 0.5],
   },
   color: {
     lightness: [0.969, 0.941, 0.892, 0.81, 0.712, 0.645, 0.586, 0.514, 0.455, 0.41, 0.271],
@@ -157,6 +160,97 @@ export const THEME_CURRENT: Theme = {
   sub: { hue: 135, chroma: 0.13 },
   pop: { hue: 80, chroma: 0.17 },
 };
+
+/** 色相と鮮やかさだけで決まるテーマ（デザイン検討ページのスライダーが動かす値。Issue #130） */
+export type ThemeTuning = Record<ThemeRole, { hue: number; chroma: number }>;
+export type TunedTheme = { id: string; label: string; note: string } & ThemeTuning;
+
+/** スライダーの上限。base は低くする（背景と文字が読めなくならないように） */
+export const CHROMA_MAX: Record<ThemeRole, number> = { base: 0.05, accent: 0.3, sub: 0.3, pop: 0.3 };
+export const CHROMA_STEP = 0.005;
+
+/**
+ * デザインの候補（/admin/design で切り替える）。値は出発点で、スライダーで調整してから決める。
+ * 「フリー」は今の配色に近い値から始める。
+ */
+export const THEME_CANDIDATES: readonly TunedTheme[] = [
+  {
+    id: "spain",
+    label: "スペイン",
+    note: "砂色・生成りに、テラコッタとオリーブ、シェリーの琥珀色",
+    base: { hue: 75, chroma: 0.035 },
+    accent: { hue: 40, chroma: 0.15 },
+    sub: { hue: 115, chroma: 0.09 },
+    pop: { hue: 70, chroma: 0.15 },
+  },
+  {
+    id: "flower",
+    label: "花",
+    note: "ごく淡い白に、ピンク・黄緑・黄の可愛らしい色",
+    base: { hue: 20, chroma: 0.005 },
+    accent: { hue: 355, chroma: 0.17 },
+    sub: { hue: 125, chroma: 0.16 },
+    pop: { hue: 95, chroma: 0.17 },
+  },
+  {
+    id: "natural",
+    label: "ナチュラル",
+    note: "温かいベージュに、茶と緑、苔色",
+    base: { hue: 70, chroma: 0.03 },
+    accent: { hue: 55, chroma: 0.09 },
+    sub: { hue: 145, chroma: 0.11 },
+    pop: { hue: 120, chroma: 0.08 },
+  },
+  {
+    id: "free",
+    label: "フリー",
+    note: "スライダーで自由に決める（今の配色に近い値から）",
+    base: { hue: 60, chroma: 0.01 },
+    accent: { hue: 16, chroma: 0.25 },
+    sub: { hue: 135, chroma: 0.13 },
+    pop: { hue: 80, chroma: 0.17 },
+  },
+];
+
+/** プレビューの保存先（端末の localStorage）と、共有リンクのパラメータ名 */
+export const THEME_PREVIEW_STORAGE_KEY = "wedding:theme-preview";
+export const THEME_PREVIEW_PARAM = "theme";
+/** プレビューを始めた・解除したことを、同じ画面の中で知らせるイベント名 */
+export const THEME_PREVIEW_EVENT = "wedding:theme-preview-change";
+
+const ROLE_CODE: Record<ThemeRole, string> = { base: "b", accent: "a", sub: "s", pop: "p" };
+
+/** 配色を短い文字列にする（URL と localStorage 用）。例: b75-0.035_a40-0.15_s115-0.09_p70-0.15 */
+export function encodeTuning(t: ThemeTuning): string {
+  return THEME_ROLES.map((r) => `${ROLE_CODE[r]}${round(t[r].hue, 1)}-${round(t[r].chroma, 3)}`).join("_");
+}
+
+/**
+ * encodeTuning の逆。形が違えば null。
+ * ★数値だけを受け付け、範囲に切り詰める★ URL から来た値を CSS 変数に入れるので、数値以外は通さない。
+ */
+export function decodeTuning(raw: string | null | undefined): ThemeTuning | null {
+  if (!raw || raw.length > 80) return null;
+  const parts = raw.split("_");
+  if (parts.length !== THEME_ROLES.length) return null;
+  const out = {} as ThemeTuning;
+  for (let i = 0; i < THEME_ROLES.length; i++) {
+    const role = THEME_ROLES[i];
+    const m = /^([a-z])(\d{1,3}(?:\.\d)?)-(0(?:\.\d{1,3})?)$/.exec(parts[i]);
+    if (!m || m[1] !== ROLE_CODE[role]) return null;
+    const hue = Number(m[2]);
+    const chroma = Number(m[3]);
+    if (!(hue >= 0 && hue <= 360)) return null;
+    out[role] = { hue, chroma: Math.min(chroma, CHROMA_MAX[role]) };
+  }
+  return out;
+}
+
+/** config/theme.ts に貼る形（ACTIVE_THEME の行を置き換える） */
+export function exportTheme(id: string, label: string, t: ThemeTuning): string {
+  const line = (r: ThemeRole) => `  ${r}: { hue: ${round(t[r].hue, 1)}, chroma: ${round(t[r].chroma, 3)} },`;
+  return [`export const ACTIVE_THEME: Theme = {`, `  id: ${JSON.stringify(id)},`, `  label: ${JSON.stringify(label)},`, ...THEME_ROLES.map(line), `};`].join("\n");
+}
 
 /** 選べるテーマ。足すときはここに並べる */
 export const THEME_PRESETS: readonly Theme[] = [THEME_CURRENT];

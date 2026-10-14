@@ -96,6 +96,7 @@ export default function AdminPage() {
             <Link href="/admin/ai-test" className={NAV_LINK}>AIシミュレーター →</Link>
             <Link href="/admin/faces" className={NAV_LINK}>顔の名寄せ →</Link>
             <Link href="/admin/invitation_test" className={NAV_LINK}>招待状テスト →</Link>
+            <Link href="/admin/design" className={NAV_LINK}>デザイン検討 →</Link>
             {/* スマホでは 4 列 × 2 段に折り返す（横スクロールさせない） */}
             <div className="grid w-full grid-cols-4 gap-x-2 gap-y-1 text-sm md:ml-auto md:flex md:w-auto md:items-center md:gap-4">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-sky-700">{pending.length}</p><p className="text-[11px] text-stone-400">承認待ち</p></div>
