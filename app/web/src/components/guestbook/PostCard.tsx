@@ -14,6 +14,7 @@ import { RichText } from "./RichText";
 import { openPostSheet } from "./PostDetailSheet";
 import { AuthorAvatar } from "./AuthorAvatar";
 import { useGuestSessionContext } from "./GuestSessionContext";
+import { HeartIcon } from "./HeartIcon";
 import { postJson } from "@/lib/api-client";
 import { useAuthorProfile } from "@/lib/profiles-client";
 
@@ -232,7 +233,7 @@ export function PostCard({
               reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-50"
             }`}
           >
-            <span aria-hidden>{reacted ? "❤️" : "🤍"}</span>
+            <HeartIcon filled={reacted} />
             <span className="tabular-nums">{post.reactionCount}</span>
           </button>
           {detail ? (
