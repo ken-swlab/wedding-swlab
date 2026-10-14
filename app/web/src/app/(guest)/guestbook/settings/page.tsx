@@ -399,6 +399,17 @@ export default function SettingsPage() {
           </span>
           <span aria-hidden className="shrink-0 text-stone-400">›</span>
         </Link>
+        {/* ランキング（Issue #132）。タグの切り替えは、投稿の公開範囲の選択と同じ操作 */}
+        <Link
+          href={GUESTBOOK_PATHS.reaction}
+          className="mt-2 flex min-h-11 touch-manipulation items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 py-3 shadow-sm transition hover:bg-stone-50"
+        >
+          <span className="min-w-0">
+            <span className="block text-sm font-medium text-stone-800">リアクションタイムのランキング</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-stone-500">グループごとに、みんなのタイムを見られます。</span>
+          </span>
+          <span aria-hidden className="shrink-0 text-stone-400">›</span>
+        </Link>
       </section>
 
       <section aria-label="自分の投稿" className="mt-5 border-t border-stone-200 pt-4">

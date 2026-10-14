@@ -19,6 +19,7 @@ import { useAuthorName } from "./AuthorNameProvider";
 import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import type { MediaItem } from "@/types";
+import { TagChips } from "./TagChips";
 
 type Picked = {
   id: string;
@@ -454,24 +455,8 @@ export function Composer({
                 : "1つ以上選んでください"}
           </span>
         </p>
-        <div className="flex flex-wrap gap-1.5">
-          {available.map((t) => {
-            const on = selected.includes(t.id);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => toggleTag(t.id)}
-                aria-pressed={on}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                  on ? t.className : "bg-white text-stone-400 ring-stone-200 hover:bg-stone-50"
-                }`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+        {/* チップの見た目と操作は、ランキングのグループの切り替えと共通（TagChips の★参照） */}
+        <TagChips options={available} selected={selected} onSelect={toggleTag} label="公開範囲" />
         {episodeOn && (
           <p className="mt-1.5 text-[11px] leading-relaxed text-stone-400">
             エピソードもこの範囲の方にだけ使われます。
