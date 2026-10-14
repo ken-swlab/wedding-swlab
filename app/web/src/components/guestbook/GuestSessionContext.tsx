@@ -15,6 +15,11 @@ export function GuestSessionProvider({ value, children }: { value: GuestSession;
   return <GuestSessionContext.Provider value={value}>{children}</GuestSessionContext.Provider>;
 }
 
+/** Provider の外（管理画面など）では null を返す。外でも置く部品（SpaceSwitch）用 */
+export function useOptionalGuestSessionContext(): GuestSession | null {
+  return useContext(GuestSessionContext);
+}
+
 export function useGuestSessionContext(): GuestSession {
   const v = useContext(GuestSessionContext);
   if (!v) throw new Error("GuestSessionProvider の外で呼ばれました");

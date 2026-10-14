@@ -10,6 +10,7 @@ import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
+import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 
 /** スマホではタップ領域を 44px にする */
 const NAV_LINK = "inline-flex min-h-11 touch-manipulation items-center rounded-full border border-stone-200 bg-white px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1";
@@ -90,7 +91,11 @@ export default function AdminPage() {
       <div className="mx-auto max-w-[1600px] px-4 py-4 md:py-8">
         <header className="mb-5">
           <div className="flex flex-wrap items-center gap-2 md:gap-3">
-            <h1 className="w-full font-serif text-xl text-stone-900 md:w-auto">ゲスト管理</h1>
+            <div className="flex w-full items-center gap-1 md:w-auto">
+              <h1 className="font-serif text-xl text-stone-900">ゲスト管理</h1>
+              {/* /guestbook・/guide と同じ切り替え。押すとシートが出て、SNS・ご案内へ移れる */}
+              <SpaceSwitch current="admin" />
+            </div>
             <Link href="/admin/guests" className={NAV_LINK}>招待予定者リスト →</Link>
             <Link href="/admin/episodes" className={NAV_LINK}>エピソード管理 →</Link>
             <Link href="/admin/ai-test" className={NAV_LINK}>AIシミュレーター →</Link>
