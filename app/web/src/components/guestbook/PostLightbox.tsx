@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 import { likePost, toggleReaction } from "@/lib/posts";
 import { useDoubleTap } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";
+import { HeartIcon } from "./HeartIcon";
 import { useMyReaction } from "@/hooks/useMyReaction";
 import { RichText } from "./RichText";
 import { TagBadge } from "./TagBadge";
@@ -233,9 +234,7 @@ export function PostLightbox({
                   reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-100"
                 }`}
               >
-                <span aria-hidden className="text-lg leading-none">
-                  {reacted ? "❤️" : "🤍"}
-                </span>
+                <HeartIcon filled={reacted} className="h-5 w-5" />
                 <span className="tabular-nums font-medium">{post.reactionCount}</span>
               </button>
 

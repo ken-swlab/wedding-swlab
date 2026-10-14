@@ -4,6 +4,7 @@ import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import type { TapPoint } from "@/hooks/useDoubleTap";
 import { HEART_BURST_MS, HEART_BURST_SIZE_PX, LIKE_ERROR_MS } from "@/config/guestbook";
+import { HEART_PATH } from "./HeartIcon";
 
 type Burst = { id: number; x: number; y: number; tilt: number };
 
@@ -100,8 +101,9 @@ function Heart({ burst, onDone }: { burst: Burst; onDone: (id: number) => void }
       className="absolute block opacity-0 will-change-transform"
       style={{ left: burst.x, top: burst.y, width: HEART_BURST_SIZE_PX, height: HEART_BURST_SIZE_PX }}
     >
-      <svg viewBox="0 0 24 24" className="h-full w-full fill-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]">
-        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+      {/* アクセントの色（テーマに従う）。写真の上でも見えるよう白い縁と影を付ける */}
+      <svg viewBox="0 0 24 24" className="h-full w-full fill-accent-500 stroke-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.45)]" strokeWidth={1.2}>
+        <path d={HEART_PATH} />
       </svg>
     </span>
   );
