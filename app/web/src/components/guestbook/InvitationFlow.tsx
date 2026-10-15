@@ -5,6 +5,7 @@ import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
 import { InvitationView } from "@/components/guestbook/InvitationView";
 import { SplashScreen } from "@/components/SplashScreen";
 import { Opening, type OpeningResult } from "@/components/opening/Opening";
+import { EntryFinish } from "@/components/opening/EntryFinish";
 import { openingCast } from "@/lib/opening-names";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
@@ -15,6 +16,7 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
  *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
  *   open     … 招待状の本文と、その下に出欠の回答フォーム（1ページの縦スクロール。Issue #74）
  *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
+ *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。「次へ」で承認待ちへ
  */
 export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
@@ -23,6 +25,7 @@ export type InvitationStep =
   | { kind: "opening"; opening: OpeningContent; displayName: string | null | undefined; note: string }
   | { kind: "preparing" }
   | { kind: "open"; invitation: InvitationContent }
+  | { kind: "finish"; guestName: string }
   | { kind: "error"; message: string };
 
 export type InvitationFlowProps = {
@@ -39,6 +42,8 @@ export type InvitationFlowProps = {
   rsvp: ReactNode;
   /** エラー画面・準備中の画面の「もう一度読み込む」 */
   onRetry: () => void;
+  /** 送信完了（finish）の「次へ」 */
+  onEntryNext?: () => void;
 };
 
 /**
@@ -48,7 +53,7 @@ export type InvitationFlowProps = {
  *   招待状の URL は外に出回る前提。名前などは open の invitation と opening の opening（API がパスコードを
  *   通った人にだけ返す）からだけ描く。ここに定数として書かない。
  */
-export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReaction, onOpeningEnd, rsvp, onRetry }: InvitationFlowProps) {
+export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReaction, onOpeningEnd, rsvp, onRetry, onEntryNext }: InvitationFlowProps) {
   switch (step.kind) {
     case "loading":
       return <SplashScreen phase="booting" />;
@@ -77,6 +82,8 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
         />
       );
     }
+    case "finish":
+      return <EntryFinish guestName={step.guestName} onNext={() => onEntryNext?.()} />;
     case "preparing":
       return (
         <main className="min-h-dvh bg-[#faf9f7] text-stone-800">

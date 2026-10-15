@@ -7,6 +7,7 @@ import { InvitationFlow, type InvitationStep } from "@/components/guestbook/Invi
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { OPENING_NOTE } from "@/config/invitation";
 import { hasSeenOpening, markOpeningSeen } from "@/lib/opening-seen";
+import { classifyDisplayName } from "@/lib/opening-names";
 import type { InvitationContent, InvitationStatus, OpeningContent, ReactionStatus } from "@/types/invitation";
 
 type View =
@@ -15,6 +16,8 @@ type View =
   /** recorded: すでにリアクションタイムの記録があるか（あれば今回は記録しない） */
   | { kind: "opening"; invitation: InvitationContent; opening: OpeningContent; recorded: boolean }
   | { kind: "open"; invitation: InvitationContent }
+  /** 初めて回答を送った直後のエントリー完了（Issue #149） */
+  | { kind: "finish"; guestName: string }
   | { kind: "preparing" }
   | { kind: "error"; message: string };
 
@@ -111,12 +114,15 @@ export default function InvitationPage() {
           ceremony={view.kind === "open" ? view.invitation.ceremony : null}
           onSubmit={async (answer) => {
             await postJson("/api/guest/register", answer);
-            // 承認待ちなら (guest)/layout が /pending に振り分ける（/onboarding と同じ）
-            router.replace("/guestbook");
+            // ★ここは初回の送信だけ★（登録済みの人は開いた時点でゲストブックへ移る）。エントリー完了を出し、
+            //   「次へ」で承認待ちへ（(guest)/layout が /pending に振り分ける。Issue #149）
+            window.scrollTo({ top: 0 });
+            setView({ kind: "finish", guestName: classifyDisplayName(user?.displayName).guest });
           }}
         />
       }
       onRetry={reload}
+      onEntryNext={() => router.replace("/guestbook")}
     />
   );
 }
