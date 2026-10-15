@@ -88,7 +88,7 @@
 | リアクションタイム | 承認されたあと、同じグループ（タグ）のゲストに、ニックネーム・アイコンと並べてランキングで見えます。承認の前は、ご本人だけです |
 | 顔の検出の結果 | 新郎新婦だけ |
 
-写真の URL は、推測しにくい文字列にしていますが、URL を知っている人は、ログインせずに開けます。ほかの方が写っている写真を、本サイトの外に転載しないでください。
+写真の URL は、推測しにくい文字列にしていますが、URL を知っている人は、ログインせずに開けます。【Referer の制限を入れたら: 本サイトの画面からの読み込み以外では開けないようにしていますが、技術的な手段で回避できるため、完全には防げません。】ほかの方が写っている写真を、本サイトの外に転載しないでください。
 
 #### 5. 外部のサービスの利用
 
@@ -157,7 +157,7 @@
 | 2 顔 | `src/app/api/faces/detect/route.ts`、`src/lib/rekognition.ts`（`indexFace`） |
 | 2・4 リアクションタイム | `src/app/api/guest/reaction/route.ts`（記録は 1 回だけ）。ランキングは `src/app/api/guest/reaction/ranking/route.ts`（自分が持つタグだけ。返すのはニックネーム・アイコン・タイム） |
 | 4 見える範囲 | `infra/firestore/firestore.rules`、`.claude/rules/data.md` |
-| 4 写真の URL | 公開バケット（認証なし）。[data-inventory.md](data-inventory.md) §3 |
+| 4 写真の URL | 公開バケット（認証なし）。Referer の制限（抑止。偽装すれば開ける）は案だけで、まだ置いていない。【】の文は、置いたら残し、置かなければ消す（[../security/media-referer.md](../security/media-referer.md)）。[data-inventory.md](data-inventory.md) §3 |
 | 5 外部のサービス | [subprocessors.md](subprocessors.md) |
 | 6 バックアップ・記録の期間 | `infra/terraform/backup.tf`、`audit.tf` |
 | 8 画面から消すと写真のファイルも消える・原本は残る | `src/app/api/posts/[id]/route.ts`・`src/lib/media-delete-server.ts`（公開バケットと Rekognition を消す。原本は消さない。Issue #122・#159）。[data-inventory.md](data-inventory.md) §5 |

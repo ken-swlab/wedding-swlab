@@ -86,7 +86,7 @@
 
 | 質問の例 | 区分 | 回答 | 根拠 |
 |---|---|---|---|
-| 依存するソフトウェアの脆弱性の確認 | 一部実施 | CI で `npm audit`（本番に入る依存の high 以上で失敗）と OSV-Scanner（警告）。PR ごとと毎週。Dependabot が、脆弱性の修正の PR を出す。例外は、理由と 90 日以内の期限が必須（いまは 0 件）。**GitHub の Dependabot の通知には、突き合わせの済んでいないものが残っている**（Issue #116） | `.github/workflows/security.yml`、`.github/audit-ignore.json` |
+| 依存するソフトウェアの脆弱性の確認 | 一部実施 | CI で `npm audit`（本番に入る依存の high 以上で失敗）と OSV-Scanner（警告）。PR ごとと毎週。Dependabot が、脆弱性の修正の PR を出す（Rules のテスト用の依存も対象）。例外は、理由と 90 日以内の期限が必須（いまは 0 件）。修正版の無い指摘（開発用の依存と、音声合成の Python の依存に1件）は、影響を確かめて残している。**GitHub の Dependabot の通知との突き合わせは済んでいない**（Issue #116） | `.github/workflows/security.yml`、`.github/audit-ignore.json` |
 | コードの静的な検査 | 実施済み | Semgrep（指摘があれば PR を失敗にする）、Terraform は Checkov | 同上 |
 | 第三者の脆弱性診断・ペネトレーションテスト | **未実施** | 受けていない（§1） | [certification-roadmap.md](certification-roadmap.md) §2 |
 | 脆弱性の報告の窓口 | 実施済み | 方針と連絡先を公開している（`/.well-known/security.txt`）。受領の返信は 3 営業日以内が目安。報奨金は無い | [disclosure-policy.md](../security/disclosure-policy.md) |

@@ -115,7 +115,7 @@ export default function InvitationPage() {
           onSubmit={async (answer) => {
             await postJson("/api/guest/register", answer);
             // ★ここは初回の送信だけ★（登録済みの人は開いた時点でゲストブックへ移る）。エントリー完了を出し、
-            //   「次へ」で承認待ちへ（(guest)/layout が /pending に振り分ける。Issue #149）
+            //   3 秒かタップで承認待ちへ（(guest)/layout が /pending に振り分ける。Issue #149・#156）
             window.scrollTo({ top: 0 });
             setView({ kind: "finish", guestName: classifyDisplayName(user?.displayName).guest });
           }}

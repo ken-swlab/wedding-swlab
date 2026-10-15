@@ -10,6 +10,7 @@ import {
   SearchFacesByImageCommand,
 } from "@aws-sdk/client-rekognition";
 import sharp from "sharp";
+import { MEDIA_FETCH_REFERER } from "@/config/media-access";
 
 export const MAX_DETECT_BYTES = 5 * 1024 * 1024;
 export const MIN_CONFIDENCE = 90;
@@ -120,7 +121,12 @@ export async function fetchImageBytes(url: string): Promise<Buffer> {
     throw new Error(`許可されていない取得先です: ${parsed.hostname}`);
   }
 
-  const res = await fetch(url, { cache: "no-store", redirect: "error" });
+  // ★Referer を付ける★ 公開バケットはサイトからの読み込みだけを通す（Issue #123。config/media-access.ts）
+  const res = await fetch(url, {
+    cache: "no-store",
+    redirect: "error",
+    headers: { referer: MEDIA_FETCH_REFERER },
+  });
   if (!res.ok) throw new Error(`画像を取得できません (${res.status})`);
 
   const buf = Buffer.from(await res.arrayBuffer());

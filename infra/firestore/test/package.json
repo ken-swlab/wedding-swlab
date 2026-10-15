@@ -2,7 +2,7 @@
   "name": "wedding-firestore-rules-test",
   "private": true,
   "type": "module",
-  "description": "Firestore Security Rules の単体テスト（Issue #101）。エミュレーターだけにつなぐ。app/web の依存とは分けてある。",
+  "description": "Firestore Security Rules の単体テスト（Issue #101）。エミュレーターだけにつなぐ。app/web の依存とは分けてある。 overrides は app/web と同じく、脆弱性のある @grpc/grpc-js と古い uuid を上げるため（Issue #116。メジャー更新が要るものは入れない）。",
   "scripts": {
     "test": "firebase emulators:exec --config ../../../firebase.json --project demo-wedding-rules --only firestore \"node --test\""
   },
@@ -10,5 +10,9 @@
     "@firebase/rules-unit-testing": "^6.0.0",
     "firebase": "^13.0.0",
     "firebase-tools": "^15.33.0"
+  },
+  "overrides": {
+    "uuid@<11.1.1": "^11.1.1",
+    "@grpc/grpc-js": "^1.13.6"
   }
 }

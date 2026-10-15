@@ -29,7 +29,7 @@ Sentry: エラーと CSP 違反の報告先（DSN はビルド時に焼き込み
 | `infra/` | `terraform/`、`firestore/firestore.rules`、`workers/exif-stripper/`、`modal/` |
 | `scripts/`, `app/web/scripts/` | 検証・運用スクリプト |
 | `docs/ROADMAP.md` | 機能のバックログ（データモデルの記述は一部古い。実装と Rules が正） |
-| `docs/security/` | 秘密情報の一覧（`secrets-inventory.md`）・ローテーション手順書・キーレス化の方針・アカウント保護のチェックリスト・CSP の確認と切り戻し（`csp-check.md`）。**値は書かない。** 秘密（環境変数）を足す・やめるときは一覧も直す |
+| `docs/security/` | 秘密情報の一覧（`secrets-inventory.md`）・ローテーション手順書・キーレス化の方針・アカウント保護のチェックリスト・CSP の確認と切り戻し（`csp-check.md`）・公開バケットの Referer の制限の案と切り戻し（`media-referer.md`）。**値は書かない。** 秘密（環境変数）を足す・やめるときは一覧も直す |
 | `docs/privacy/` | データの一覧（`data-inventory.md`）・外部のサービス（`subprocessors.md`）・削除の手順書（`deletion-runbook.md`）・プライバシーポリシーの改訂案（`privacy-policy-draft.md`。未承認）。**個人情報の値・依頼者の情報は書かない。** 保存するデータ・外部のサービスを足す・やめるときは、一覧と改訂案も直す |
 | `docs/ops/` | バックアップと復旧（`backup-restore.md`）・監視とアラート（`alerting.md`）・インシデント対応（`incident-response.md`）。**リポジトリは公開。連絡先・個人情報・事故の詳細は書かない** |
 | `docs/sales/` | 法人向けの資料: チェックシートの回答集（`security-answers.md`）・概要（`security-overview.md`）・診断と認証の方針（`certification-roadmap.md`）・商用で提供する前に決めること（`commercial-readiness.md`）・既存資料の差分（`material-diff.md`）。**「実施済み／一部実施／未実施」を正直に書き、認証取得済み・診断済みと読める表現を使わない。相手の会社名・連絡先・提出した回答は書かない。** 回答の根拠になる実装を変えたら、回答も直す |
@@ -47,6 +47,7 @@ cd infra/workers/exif-stripper && npm run typecheck   # Worker を触ったと�
 cd infra/firestore/test && npm test   # Rules の単体テスト（Rules を変えたら必ず。エミュレーター上で動く）
 cd app/web && npm test           # 単体テスト（tests/*.test.mjs。Node 22.18 以上。いまは名前の表記の判定と config/invitation の形だけ）
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
+python3 scripts/media-referer-check.py <写真の URL>   # 公開バケットの Referer の制限を外から確認（読み取りのみ。Issue #123）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
 ```
 
@@ -70,7 +71,7 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
 ### データと権限（Firestore）
 5. 個人情報の置き場所: `guests` は承認済みゲスト全員が読める（公開名・アイコン・タグだけ）。本名・出欠・アレルギーは `guestPrivate`（本人と管理者）、運営情報は `guestAdmin`（管理者のみ）。本名や LINE 表示名を `guests` / `posts` に書かない。
 6. 見える範囲はタグで決まる（Custom Claims の `tags` と `visibleToTags` が重なれば見える）。Rules はフィルタではないので、クライアントのクエリに `visibleToTags` の条件と Rules の上限以下の `limit()` を必ず付ける。
-7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → `revokeRefreshTokens`）で変える。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。例外はエミュレーターの初期データ（`app/web/scripts/emulator-seed.mjs`。`demo-` のプロジェクトとエミュレーターの接続先が無いと動かない）だけ。
+7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → タグを外すとき・アクセス停止のときは `revokeRefreshTokens`）で変える。タグを足すだけ（承認など）では失効させない（失効させると取り直したトークンも 401 になる。Issue #156）。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。例外はエミュレーターの初期データ（`app/web/scripts/emulator-seed.mjs`。`demo-` のプロジェクトとエミュレーターの接続先が無いと動かない）だけ。
 8. Rules・複合インデックス・TTL の反映は `terraform apply` だけ（`firebase deploy` 禁止）。
 
 ### 画像・メディア

@@ -108,3 +108,16 @@ export const OPENING_COLORS = {
 /** 水しぶきの粒と泡の数 */
 export const SPLASH_DROPS = 26;
 export const DIVE_BUBBLES = 18;
+
+/**
+ * 送信完了（エントリー完了）から承認待ちへ、自動で進むまでの時間 (ms。Issue #156)。
+ * 演出（EVENT 1 ENTRY → FINISH → 名前 → 本文）が出そろってから数える。画面をタップすれば、すぐ進む。
+ * prefers-reduced-motion でも同じ時間で進む（画面下の線の動きだけ省く）。
+ */
+export const ENTRY_AUTO_ADVANCE_MS = 3000;
+
+/**
+ * 承認待ちで、承認が届いてから自動で先へ進めないまま待つ時間 (ms。Issue #156)。
+ * これを過ぎるか、ID トークンの取り直しが失敗したときだけ、「画面が切り替わらない場合はこちら」を出す。
+ */
+export const APPROVAL_STALE_MS = 10_000;

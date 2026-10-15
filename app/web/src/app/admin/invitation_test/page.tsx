@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
+import type { AnswerDraft } from "@/components/guestbook/AnswerFields";
+import { useApprovalAdvance } from "@/hooks/useApprovalAdvance";
 import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
 import { WelcomeCard, WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { WELCOME_DEFAULT_MESSAGE } from "@/config/welcome";
@@ -33,8 +35,31 @@ const WRONG_PASSCODE = "0000";
 /** オープニングと出欠フォームに出す LINE の表示名（ダミー）の初期値。画面で書き換えて、名前の表記合わせを試せる */
 const DUMMY_DISPLAY_NAME = "高橋 太郎";
 
-/** テスト画面の段階。招待状の段階に、本番では別の画面（/pending）になる承認待ちを足したもの */
-type TestStep = InvitationStep | { kind: "pending" } | { kind: "welcome"; run: number };
+/**
+ * 回答フォームに最初から入れておくダミーの回答（Issue #156）。開いてすぐ「送信する」を押せる。書き換えも試せる。
+ * ★架空の値だけ★ 名前は LINE 名のダミー（DUMMY_DISPLAY_NAME）にそろえる。本番の回答フォームには渡さない。
+ */
+const DUMMY_ANSWER: AnswerDraft = {
+  lastName: "高橋",
+  firstName: "太郎",
+  lastKana: "たかはし",
+  firstKana: "たろう",
+  attendance: "both",
+  ceremony: "ceremony",
+  drinkLevel: 2,
+  carFare: false,
+  hasAllergy: false,
+  allergy: "",
+  note: "",
+};
+
+/**
+ * テスト画面の段階。招待状の段階に、本番では別の画面（/pending）になる承認待ちを足したもの。
+ * approval: 「承認されたことにする」を押したか。stuck なら、自動の取り直しを 1 回だけ失敗させる
+ *   （「画面が切り替わらない場合はこちら」を確かめるため）。
+ */
+type TestApproval = null | { stuck: boolean };
+type TestStep = InvitationStep | { kind: "pending"; approval: TestApproval } | { kind: "welcome"; run: number };
 
 /** 承認待ちに出すダミーのリアクションタイム (ms) */
 const DUMMY_REACTION_MS = 210;
@@ -129,7 +154,7 @@ export default function InvitationTestPage() {
     setNote(null);
     if (kind === "finish") setStep({ kind, guestName: classifyDisplayName(displayName).guest });
     else if (kind === "welcome") setStep({ kind, run: Date.now() });
-    else setStep({ kind });
+    else setStep({ kind, approval: null });
   }, [displayName]);
 
   if (loading) {
@@ -172,14 +197,23 @@ export default function InvitationTestPage() {
             </button>
           ))}
         </div>
-        {step.kind === "pending" && (
-          <button
-            type="button"
-            onClick={() => jump("welcome")}
-            className="mt-1.5 min-h-9 touch-manipulation rounded-full bg-emerald-700 px-3 text-white hover:bg-emerald-800"
-          >
-            承認されたことにする（8. 承認後の演出へ）
-          </button>
+        {step.kind === "pending" && step.approval === null && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => setStep({ kind: "pending", approval: { stuck: false } })}
+              className="min-h-9 touch-manipulation rounded-full bg-emerald-700 px-3 text-white hover:bg-emerald-800"
+            >
+              承認されたことにする
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep({ kind: "pending", approval: { stuck: true } })}
+              className="min-h-9 touch-manipulation rounded-full border border-emerald-700 px-3 text-emerald-800 hover:bg-emerald-50"
+            >
+              承認されたことにする（自動で進めない場合）
+            </button>
+          </div>
         )}
         <p className="mt-1.5 leading-relaxed text-stone-500">
           ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。下へスクロールするとこのパネルが消え、ゲストと同じ画面になります。
@@ -244,15 +278,11 @@ export default function InvitationTestPage() {
         // ★welcomeSeenAt を書かない・いいねも保存しない★ 何度でも最初から見られる（key で作り直す）
         <WelcomeTestStage key={step.run} />
       ) : step.kind === "pending" ? (
-        // 本番の /pending と同じ部品。リアクションタイムはダミー、「確認する」「回答を直す」は何も保存しない
-        <PendingApproval
-          reactionMs={DUMMY_REACTION_MS}
-          approvedButStale={false}
-          onRefresh={() => {
-            console.log("[invitation_test] 確認する（ダミー）");
-            setNote("確認しました（ダミー）。本番は承認されていればゲストブックへ進みます");
-            window.scrollTo({ top: 0 });
-          }}
+        <TestPending
+          // 承認の押し方を変えたら作り直す（自動の流れを最初から見る）
+          key={step.approval === null ? "waiting" : step.approval.stuck ? "stuck" : "approved"}
+          approval={step.approval}
+          onApproved={() => jump("welcome")}
           onEdit={() => {
             console.log("[invitation_test] 回答を直す（ダミー）");
             setNote("本番は /guide/questionnaire（回答の修正）を開きます");
@@ -265,16 +295,46 @@ export default function InvitationTestPage() {
           onLogin={onLogin}
           onPasscodeSubmit={onPasscodeSubmit}
           onOpeningEnd={onOpeningEnd}
-          rsvp={<OnboardingForm displayName={displayName} ceremony={currentInvitation.ceremony} onSubmit={onRsvpSubmit} />}
+          rsvp={
+            <OnboardingForm
+              displayName={displayName}
+              ceremony={currentInvitation.ceremony}
+              initialDraft={DUMMY_ANSWER}
+              onSubmit={onRsvpSubmit}
+            />
+          }
           onRetry={restart}
           onEntryNext={() => {
             console.log("[invitation_test] 送信完了 → 承認待ち");
-            setStep({ kind: "pending" });
+            setStep({ kind: "pending", approval: null });
           }}
         />
       )}
     </>
   );
+}
+
+/** テストの「トークンの取り直し」にかける時間 (ms)。本番の取り直しに近い間を置く */
+const DUMMY_REFRESH_MS = 800;
+
+/**
+ * 7. 承認待ち。本番の /pending と同じ部品と、同じ自動の流れ（useApprovalAdvance）。
+ * ★取り直しはダミー★ 何も読み書きしない。成功したら 8. 承認後の演出へ進む（本番は layout が /guestbook へ移す）。
+ *   stuck なら 1 回目は失敗させ、「画面が切り替わらない場合はこちら」を出す。押すと 2 回目で成功する。
+ */
+function TestPending({ approval, onApproved, onEdit }: { approval: TestApproval; onApproved: () => void; onEdit: () => void }) {
+  const failNext = useRef(approval?.stuck === true);
+  const refresh = useCallback(async () => {
+    console.log("[invitation_test] 承認後のトークンの取り直し（ダミー）");
+    await new Promise((r) => setTimeout(r, DUMMY_REFRESH_MS));
+    if (failNext.current) {
+      failNext.current = false;
+      throw new Error("ダミーの失敗（自動で進めない場合の確認）");
+    }
+    onApproved();
+  }, [onApproved]);
+  const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh });
+  return <PendingApproval reactionMs={DUMMY_REACTION_MS} approved={approval !== null} stale={stale} onRetry={retry} onEdit={onEdit} />;
 }
 
 /** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */
