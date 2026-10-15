@@ -166,6 +166,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                   </div>
                   {row.ceremony && <p className="text-xs text-stone-500">{CEREMONY_LABEL[row.ceremony]}</p>}
                   {row.drinkLevel !== null && <p className="text-xs text-stone-500">お酒: {DRINK_LEVELS[row.drinkLevel].label}</p>}
+                  {row.carFare !== null && <p className="text-xs text-stone-500">お車代: {row.carFare ? "希望" : "不要"}</p>}
                   <div>
                     <CardField label="アレルギー">{allergyTextarea(row, true)}</CardField>
                     {noteText(row, true)}
@@ -238,6 +239,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     {attendanceSelect(row, false)}
                     {row.ceremony && <p className="mt-1 text-[10px] text-stone-500">{CEREMONY_LABEL[row.ceremony]}</p>}
                     {row.drinkLevel !== null && <p className="text-[10px] text-stone-500">お酒: {DRINK_LEVELS[row.drinkLevel].label}</p>}
+                    {row.carFare !== null && <p className="text-[10px] text-stone-500">お車代: {row.carFare ? "希望" : "不要"}</p>}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     {allergyTextarea(row, false)}

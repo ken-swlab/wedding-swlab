@@ -19,6 +19,9 @@
  *   node scripts/ops.mjs invitation template      書き方の見本（架空の値の JSON）を出す
  *   node scripts/ops.mjs invitation check <file>  JSON ファイルの形だけ確かめる（書き込まない）
  *   node scripts/ops.mjs invitation set <file>    JSON ファイルの内容を config/invitation に入れる
+ *   node scripts/ops.mjs payment status           会費の金額（config/payment）を出す
+ *   node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000
+ *                                                 会費の金額を変える（指定しない項目は今の値のまま。監査ログに残す）
  *     ★本物の名前・日付・会場を入れた JSON はリポジトリの外に置く★（公開リポジトリ。コミットしない）
  *     ★このコマンドは値を画面に出さない★ 出すのは項目の名前と件数だけ。
  *
@@ -28,7 +31,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applicationDefault, cert, initializeApp } from "firebase-admin/app";
-import { FieldValue, getFirestore } from "firebase-admin/firestore";
+import { randomUUID } from "node:crypto";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -73,7 +77,8 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs maintenance status|on ["文言"]|off
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
-  node scripts/ops.mjs invitation status|template|check <file>|set <file>`);
+  node scripts/ops.mjs invitation status|template|check <file>|set <file>
+  node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]`);
   process.exit(0);
 }
 
@@ -83,6 +88,8 @@ if (!cmd || cmd === "--help") {
 // ★読み込むのは invitation のときだけ★ 古い Node でも、メンテナンスの切り替え（インシデント対応）は動くようにしておく
 const parseInvitationConfig =
   cmd === "invitation" ? (await import("../src/lib/invitation-config.ts")).parseInvitationConfig : null;
+const parsePaymentConfig =
+  cmd === "payment" ? (await import("../src/lib/payment-config.ts")).parsePaymentConfig : null;
 function readInvitationFile(path) {
   if (!path) {
     console.error("JSON ファイルのパスを指定してください（例: node scripts/ops.mjs invitation set ~/invitation.json）");
@@ -167,6 +174,82 @@ if (cmd === "invitation") {
   const parsed = parseInvitationConfig(snap.data());
   console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
+  process.exit(0);
+}
+
+// ---- payment（Issue #148）-----------------------------------------------------
+// 会費の金額。サーバー（src/lib/payment-server.ts）が60秒キャッシュして、招待状の会費と会費タブの内訳に使う
+if (cmd === "payment") {
+  const ref = db.collection("config").doc("payment");
+  const sub = rest[0] ?? "status";
+  const yen = (n) => `${n.toLocaleString("ja-JP")}円`;
+  if (sub === "set") {
+    const flags = { partyYen: "--party", secondYen: "--second", carFareYen: "--car-fare" };
+    const current = (await ref.get()).data() ?? {};
+    const next = {};
+    const changed = [];
+    for (const [key, name] of Object.entries(flags)) {
+      const raw = flag(name);
+      if (raw === undefined) {
+        next[key] = current[key];
+        continue;
+      }
+      if (!/^\d+$/.test(raw)) {
+        console.error(`${name} は 0 以上の整数（円）で指定してください`);
+        process.exit(1);
+      }
+      next[key] = Number(raw);
+      changed.push(key);
+    }
+    if (changed.length === 0) {
+      console.error("変える金額を指定してください（例: node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000）");
+      process.exit(1);
+    }
+    const parsed = parsePaymentConfig(next);
+    if (!parsed.ok) {
+      console.error(`形が違います。項目: ${parsed.field}（初回は3つとも指定してください）`);
+      process.exit(1);
+    }
+    await ref.set({ ...parsed.value, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+
+    /**
+     * ★変更を監査ログに残す★（Issue #148）。形は src/lib/audit.ts と同じ（開始と終了の2件を create()）。
+     *   値は残さず、変えた項目の名前だけ。実行者は ops-cli（サービスアカウントの鍵を持つオーナー）。
+     * ★保持日数は AUDIT_RETENTION_DAYS（src/lib/audit.ts）と同じ 400 日★ 片方だけ変えない。
+     */
+    const requestId = `ops-${randomUUID()}`;
+    const expiresAt = Timestamp.fromMillis(Date.now() + 400 * 86_400_000);
+    const route = "ops.payment.set";
+    await db.collection("auditLogs").doc(`${requestId}-b`).create({
+      requestId, route, method: "CLI", action: "payment.config.set", actorUid: "ops-cli", actorRole: "admin",
+      targetId: "config/payment", fields: changed.sort(), ipHash: null, userAgent: "scripts/ops.mjs",
+      phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
+    });
+    await db.collection("auditLogs").doc(`${requestId}-e`).create({
+      requestId, route, phase: "end", result: "success", status: 200, durationMs: 0,
+      at: FieldValue.serverTimestamp(), expiresAt,
+    });
+    console.log("\n✅ config/payment を更新しました（監査ログに残しました）");
+    console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
+  } else if (sub !== "status") {
+    console.error("使い方: node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]");
+    process.exit(1);
+  }
+  const snap = await ref.get();
+  if (!snap.exists) {
+    console.log("config/payment : 未設定（招待状に会費を出さず、会費タブは「準備中」になります）\n");
+    process.exit(0);
+  }
+  const parsed = parsePaymentConfig(snap.data());
+  if (!parsed.ok) {
+    console.log(`config/payment : 形が違います（項目: ${parsed.field}）\n`);
+    process.exit(0);
+  }
+  const v = parsed.value;
+  console.log(`会食（1次会）: ${yen(v.partyYen)}`);
+  console.log(`2次会       : ${yen(v.secondYen)}`);
+  console.log(`お車代      : ${yen(v.carFareYen)}（差し引く額。招待状には出さない）`);
+  console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
 }
 

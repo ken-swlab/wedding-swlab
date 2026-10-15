@@ -84,6 +84,7 @@ for (const a of accounts) {
       attendance: "both",
       ceremony: "party",
       drinkLevel: 2,
+      carFare: false,
       hasAllergy: false,
       allergy: "",
       note: "",
@@ -106,6 +107,12 @@ const invitationRef = db.collection("config").doc("invitation");
 if (!(await invitationRef.get()).exists) {
   const sample = JSON.parse(readFileSync(new URL("../src/config/invitation-sample.json", import.meta.url), "utf8"));
   await invitationRef.set({ ...sample, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
+}
+
+// 会費の金額（Issue #148）。本番は scripts/ops.mjs payment set で入れる
+const paymentRef = db.collection("config").doc("payment");
+if (!(await paymentRef.get()).exists) {
+  await paymentRef.set({ partyYen: 20000, secondYen: 5000, carFareYen: 10000, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
 }
 
 // 投稿が1件も無いときだけ、詳細画面やコメント欄を試すためのサンプルを置く

@@ -74,6 +74,8 @@ export type GuestPrivate = {
   ceremony: Ceremony | "";
   /** お酒の量 0〜4（Issue #147）。欠席・未回答なら null。★他のゲストに見せない★ */
   drinkLevel: DrinkLevel | null;
+  /** お車代を受け取るか（Issue #148）。欠席・未回答なら null。★他のゲストに見せない★ */
+  carFare: boolean | null;
   /** 食物アレルギーの有無。false なら allergy は空。未回答（登録前・名簿のみ）は null */
   hasAllergy: boolean | null;
   /** ★健康情報★ 公開プロフィールには絶対に置かない */

@@ -20,7 +20,7 @@ const SPACES: { key: AppSpace; icon: string; label: string; sub: string; href: s
     key: "guide",
     icon: "📋",
     label: "ご案内・各種手続き",
-    sub: "当日のご案内・出席者・ご祝儀",
+    sub: "当日のご案内・出席者・会費",
     href: GUIDE_PATHS.home,
   },
 ];

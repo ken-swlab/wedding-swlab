@@ -81,8 +81,8 @@ export default function AdminPage() {
   }, [rows]);
 
   function exportCsv() {
-    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "お酒", "アレルギー", "備考", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "お酒", "お車代", "アレルギー", "備考", "送金", "タグ", "メモ"];
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));

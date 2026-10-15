@@ -4,6 +4,7 @@ import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { isPasscodeCleared } from "@/lib/passcode-server";
 import { invitationConfig } from "@/lib/invitation-server";
+import { paymentConfig } from "@/lib/payment-server";
 import type { InvitationStatus } from "@/types/invitation";
 
 export const runtime = "nodejs";
@@ -30,6 +31,7 @@ async function _GET(req: Request) {
  *   読んでここからだけ渡す（src/lib/invitation-server.ts 参照）。通っていなければ中身なしで
  *   cleared: false を返し、画面はパスコード入力を出す。
  * ★オープニング用の名前の表記一式も、同じ条件で一緒に返す★（Issue #131）
+ * ★会費（会食・2次会）は config/payment から一緒に返す★ お車代の額は返さない（Issue #148）。
  * ★config/invitation が未設定なら ready: false★ 架空の名前は返さない。画面は「準備中」を出す。
  */
 async function handle(req: Request) {
@@ -64,7 +66,10 @@ async function handle(req: Request) {
   let res: InvitationStatus;
   if (config) {
     const { opening, ...invitation } = config;
-    res = { cleared, registered, ready: true, invitation, opening };
+    // 会費は config/payment から（Issue #148）。★お車代の額は返さない★（招待状に出さない）
+    const payment = await paymentConfig();
+    const fee = payment ? { partyYen: payment.partyYen, secondYen: payment.secondYen } : undefined;
+    res = { cleared, registered, ready: true, invitation: fee ? { ...invitation, fee } : invitation, opening };
   } else {
     res = { cleared, registered, ready: false };
   }

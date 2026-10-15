@@ -40,6 +40,7 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
     attendance: (typeof d.attendance === "string" && ATTENDANCE_VALUES.has(d.attendance) ? d.attendance : "unanswered") as Attendance,
     ceremony: (typeof d.ceremony === "string" && CEREMONY_VALUES.has(d.ceremony) ? d.ceremony : "") as Ceremony | "",
     drinkLevel: isDrinkLevel(d.drinkLevel) ? d.drinkLevel : null,
+    carFare: typeof d.carFare === "boolean" ? d.carFare : null,
     hasAllergy: typeof d.hasAllergy === "boolean" ? d.hasAllergy : allergy.trim() ? true : null,
     allergy,
     note: s(d.note),

@@ -366,6 +366,9 @@ table("guestPrivate: 本人と管理者だけ（本名・出欠・アレルギ�
   ["groomFriend", DENY, "お酒（drinkLevel）は他のゲストから読めない", get("guestPrivate/u_guest")],
   ["guest", DENY, "お酒（drinkLevel）を自分で書き換えられない（酒豪タグはサーバーが付ける）", update("guestPrivate/u_guest", { drinkLevel: 0 })],
   ["admin", ALLOW, "お酒（drinkLevel）を読める", get("guestPrivate/u_guest")],
+  // お車代の回答（Issue #148）。会費の内訳は /api/guest/payment が本人の分だけ返す
+  ["brideFriend", DENY, "お車代（carFare）は他のゲストから読めない", get("guestPrivate/u_guest")],
+  ["guest", DENY, "お車代（carFare）を自分で書き換えられない（会費の計算に使う）", update("guestPrivate/u_guest", { carFare: false })],
 ]);
 
 table("guestAdmin: 管理者だけ（運営メモ）", [
@@ -479,6 +482,8 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ...lockedDown("config/invitation", "config/invitation"),
   ["pending", DENY, "config/invitation: 承認前のゲストも読めない", get("config/invitation")],
   ["anon", DENY, "config/invitation: 未ログインは読めない", get("config/invitation")],
+  // 会費の金額（Issue #148）。読むのはサーバーだけ（お車代の額を招待状に出さない）
+  ...lockedDown("config/payment", "config/payment"),
   // リアクションタイム（Issue #131）。読み書きはサーバーの /api/guest/reaction だけ（記録は1回だけ・上書きなし）
   ...lockedDown("reactionTimes", "reactionTimes/u_groom"),
   ["guest", DENY, "reactionTimes: 自分の記録もクライアントからは読めない", get("reactionTimes/u_guest")],
