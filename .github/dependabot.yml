@@ -43,6 +43,20 @@ updates:
       prefix: "chore(deps)"
     labels: [dependencies]
 
+  # Rules の単体テスト（Issue #101）。開発用だけで本番には入らないが、脆弱性の修正 PR は受け取る（Issue #116）。
+  # ★firebase-tools の中の basic-ftp・@opentelemetry/core はメジャー更新が要る★ overrides で上げず、firebase-tools の更新を待つ
+  - package-ecosystem: npm
+    directory: /infra/firestore/test
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "chore(deps)"
+    labels: [dependencies]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:

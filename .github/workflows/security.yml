@@ -159,6 +159,7 @@ jobs:
           osv-scanner scan \
             --lockfile app/web/package-lock.json \
             --lockfile infra/workers/exif-stripper/package-lock.json \
+            --lockfile infra/firestore/test/package-lock.json \
             --format markdown --output-file "$RUNNER_TEMP/osv.md" || code=$?
           {
             echo "### OSV-Scanner（警告のみ）"
