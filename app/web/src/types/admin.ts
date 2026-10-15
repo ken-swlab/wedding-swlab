@@ -15,14 +15,14 @@ export type Attendance = (typeof ATTENDANCE_OPTIONS)[number]["value"];
 
 /**
  * 挙式へのご参加。出欠が「欠席」以外のときだけ聞く（欠席・未回答なら空文字）。
- * 挙式は自由参加。時刻は回答フォームの説明文にも出している（CEREMONY_NOTE）。
+ * ★時刻と案内文はコードに書かない★ config/invitation の ceremony から組み立てる（Issue #146。
+ *   回答フォームは components/guestbook/AnswerFields.tsx の ceremonyFormLabel）。
  */
 export const CEREMONY_OPTIONS = [
-  { value: "ceremony", label: "挙式から",       formLabel: "挙式（15:00〜）から参加する" },
-  { value: "party",    label: "パーティーから", formLabel: "パーティーから参加する" },
+  { value: "ceremony", label: "挙式から" },
+  { value: "party",    label: "パーティーから" },
 ] as const;
 export type Ceremony = (typeof CEREMONY_OPTIONS)[number]["value"];
-export const CEREMONY_NOTE = "15:00からの挙式は自由参加となっております。";
 
 export const CEREMONY_LABEL = Object.fromEntries(
   CEREMONY_OPTIONS.map((o) => [o.value, o.label]),

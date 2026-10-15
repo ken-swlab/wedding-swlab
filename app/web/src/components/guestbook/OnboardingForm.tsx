@@ -10,6 +10,7 @@ import {
   type AnswerDraft,
 } from "@/components/guestbook/AnswerFields";
 import { PROFILE_NICKNAME_MAX } from "@/config/profile";
+import type { CeremonyInfo } from "@/types/invitation";
 
 /** 出欠の回答。POST /api/guest/register の本文 */
 export type OnboardingAnswer = ReturnType<typeof answerPayload> & {
@@ -28,11 +29,14 @@ const inputClass =
 export function OnboardingForm({
   displayName,
   initialNickname,
+  ceremony,
   onSubmit: submit,
 }: {
   /** LINE の表示名。フォームの下に「〜として回答します」と出す（★ニックネームの既定値には使わない★） */
   displayName?: string | null;
   initialNickname?: string;
+  /** 挙式の時刻と案内文（config/invitation）。無ければ時刻なしで聞く */
+  ceremony?: CeremonyInfo | null;
   onSubmit: (answer: OnboardingAnswer) => Promise<void>;
 }) {
   const [draft, setDraft] = useState<AnswerDraft>(EMPTY_ANSWER_DRAFT);
@@ -70,6 +74,7 @@ export function OnboardingForm({
       <AnswerFields
         value={draft}
         onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
+        ceremony={ceremony}
         afterName={
           <Section label="ニックネーム">
             <input

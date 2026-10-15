@@ -8,12 +8,14 @@ import { SplashScreen } from "@/components/SplashScreen";
 import { GuestShell } from "@/components/guestbook/GuestShell";
 import { getJson, postJson } from "@/lib/api-client";
 import type { InvitationStatus } from "@/types/invitation";
+import { useInvitationCeremony } from "@/hooks/useInvitationCeremony";
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, profile } = useGuestSession();
   const needsCheck = profile !== null && !profile.isRegistered;
   const [cleared, setCleared] = useState(false);
+  const ceremony = useInvitationCeremony(!!user);
 
   /**
    * 未登録ならパスコードを通ったかを確かめ、まだなら招待状のページへ戻す。
@@ -45,6 +47,7 @@ export default function OnboardingPage() {
       <OnboardingForm
         displayName={user.displayName}
         initialNickname={profile.nickname}
+        ceremony={ceremony}
         onSubmit={async (answer) => {
           await postJson("/api/guest/register", answer);
           router.replace("/guestbook");

@@ -16,6 +16,7 @@ import {
 } from "@/components/guestbook/AnswerFields";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
+import { useInvitationCeremony } from "@/hooks/useInvitationCeremony";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
@@ -61,6 +62,7 @@ export default function GuideQuestionnairePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ceremony = useInvitationCeremony(!!user);
 
   useEffect(() => {
     if (!user) return;
@@ -133,6 +135,7 @@ export default function GuideQuestionnairePage() {
           <AnswerFields
             value={form}
             onChange={update}
+            ceremony={ceremony}
             attendanceHint={
               attendanceChanged &&
               saved && (

@@ -108,6 +108,7 @@ export default function InvitationPage() {
       rsvp={
         <OnboardingForm
           displayName={user?.displayName}
+          ceremony={view.kind === "open" ? view.invitation.ceremony : null}
           onSubmit={async (answer) => {
             await postJson("/api/guest/register", answer);
             // 承認待ちなら (guest)/layout が /pending に振り分ける（/onboarding と同じ）
