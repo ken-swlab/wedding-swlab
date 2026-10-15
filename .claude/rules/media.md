@@ -24,7 +24,9 @@ paths:
 
 ## キーとバケット
 - 軽量版 `u/{uid}/t/{uuid}.{ext}`（公開バケット `wedding-media`）、原本 `u/{uid}/o/{uuid}.{ext}`（非公開バケット `wedding-originals`）。バケットはサーバーが `kind` から決め、クライアントには選ばせない。
-- 原本と Worker のマーカー（`_linked/`・`_pending/`・`_failed/`・`_skipped/`）を消さない。Worker は原本を移動も削除もしない。
+- 原本と Worker のマーカー（`_linked/`・`_pending/`・`_failed/`・`_skipped/`）を消さない。Worker は原本を移動も削除もしない（原本の削除は Issue #159 で、運用が始まってから決める）。
+- 公開バケットの写真（軽量版 `t/` と高画質版の複製 `o/`）は、投稿の削除と、写真を外す編集のときにサーバーが消す（`src/lib/media-delete-server.ts`。Issue #122）。消すキーは Firestore に保存された値だけ（クライアントから受け取らない）、`deletePublicObjects()` はバケットを公開バケットに固定し `ownsKey()` を通す。本人のほかの投稿（新しい順に 300 件）とアイコンが同じキーを使っていれば消さない。
+- 高画質版は、消す**前**に `deletedMedia/{キーの SHA-256}` に印を置く。webhook はこの印を見て、処理中の Worker が置き直した複製を消し 200 を返す（順番を入れ替えると、削除のあとに複製が残る）。エミュレーターでは R2・Rekognition を呼ばない。
 - 片方だけ変えない: `MAX_ORIGINAL_BYTES` ⇔ `wrangler.toml` の `MAX_BYTES`、webhook の `KEY_RE` ⇔ Worker の `ORIGINAL_KEY_RE`、Worker の `WEBHOOK_SECRET` ⇔ Vercel の `WORKER_WEBHOOK_SECRET`。
 
 ## 表示

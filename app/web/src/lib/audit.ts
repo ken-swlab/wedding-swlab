@@ -93,7 +93,39 @@ export function outcomeOf(status: number): AuditOutcome {
   return "error";
 }
 
-export async function auditEnd(requestId: string, route: string, status: number, durationMs: number) {
+/**
+ * 終了の記録に添える件数（Issue #122。例: 投稿の削除で消した写真の数）。
+ * ★数だけ★ キー名は英字だけ・値は 0 以上の整数だけを残す。キーや uid などの値は入れない。
+ */
+export type AuditCounts = Record<string, number>;
+
+const COUNT_KEY_RE = /^[a-z][A-Za-z]{0,31}$/;
+const MAX_COUNT_KEYS = 10;
+
+/** ハンドラが内部用のヘッダに入れた件数を読む。形が違うものは捨てる */
+export function parseAuditCounts(raw: string | null): AuditCounts | null {
+  if (!raw) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return null;
+  const out: AuditCounts = {};
+  for (const [k, n] of Object.entries(v as Record<string, unknown>).slice(0, MAX_COUNT_KEYS)) {
+    if (COUNT_KEY_RE.test(k) && typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 1_000_000) out[k] = n;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export async function auditEnd(
+  requestId: string,
+  route: string,
+  status: number,
+  durationMs: number,
+  counts: AuditCounts | null = null,
+) {
   const { db } = admin();
   await db
     .collection("auditLogs")
@@ -105,6 +137,7 @@ export async function auditEnd(requestId: string, route: string, status: number,
       result: outcomeOf(status),
       status,
       durationMs,
+      ...(counts ? { counts } : {}),
       at: FieldValue.serverTimestamp(),
       expiresAt: expiresAt(),
     });

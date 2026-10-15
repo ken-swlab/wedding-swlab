@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import {
   MAX_ORIGINAL_BYTES,
@@ -127,4 +127,43 @@ export async function presignPut(
     expiresIn: Number.isFinite(ttl) && ttl > 0 ? ttl : 300,
     signableHeaders: new Set(["content-type", "content-length"]),
   });
+}
+
+/** 公開バケットのオブジェクトの種類。t = 軽量版（と動画）、o = Worker が EXIF を落とした高画質版 */
+export type PublicObject = { key: string; kind: UploadKind };
+
+/**
+ * 公開バケットのオブジェクトを消す（Issue #122）。消せた数と、消せなかったキーを返す。
+ *
+ * ★消すのは公開バケットだけ★ バケットは bucketFor(kind) で選ばず、公開バケットに固定する。
+ *   kind:"original" のキー（u/{uid}/o/）でも、消すのは Worker が公開した複製で、非公開バケットの原本ではない。
+ *   原本とマーカーは消さない（CLAUDE.md ルール 18。原本の削除は Issue #159 で、運用が始まってから決める）。
+ * ★消せるのは、その人の u/{uid}/{t|o}/ の下だけ★ ownsKey() と同じ確認を、ここでもう一度行う。
+ *   キーは Firestore に保存された値から取り、クライアントからは受け取らないこと。
+ *   R2 にはバージョニングが無く、消したら戻せない。
+ * ★失敗しても投げない★ 呼び出し元（投稿の削除）は、R2 の失敗で止めない。残ったキーは呼び出し元がログに出す。
+ */
+export async function deletePublicObjects(
+  uid: string,
+  objects: PublicObject[],
+): Promise<{ deleted: number; failed: string[]; refused: number }> {
+  const bucket = env("R2_BUCKET_PUBLIC");
+  let deleted = 0;
+  let refused = 0;
+  const failed: string[] = [];
+  for (const { key, kind } of objects) {
+    if (!ownsKey(uid, key, kind)) {
+      refused += 1;
+      continue;
+    }
+    try {
+      // 無いキーを消しても成功する（S3 互換の仕様）。まだ公開されていない高画質版もそのまま渡してよい
+      await r2().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      deleted += 1;
+    } catch (e) {
+      console.error("[r2] 公開バケットのオブジェクトを消せませんでした", e);
+      failed.push(key);
+    }
+  }
+  return { deleted, failed, refused };
 }
