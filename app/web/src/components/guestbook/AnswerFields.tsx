@@ -51,18 +51,31 @@ export function asksCeremony(attendance: Attendance): boolean {
 
 /** 必須の項目がそろっているか（検証の本体はサーバーの parseAnswers） */
 export function answerDraftReady(d: AnswerDraft): boolean {
-  return (
-    !!d.lastName.trim() &&
-    !!d.firstName.trim() &&
-    !!d.lastKana.trim() &&
-    !!d.firstKana.trim() &&
-    d.attendance !== "unanswered" &&
-    (!asksCeremony(d.attendance) || d.ceremony !== "") &&
-    (!asksCeremony(d.attendance) || d.drinkLevel !== null) &&
-    (!asksCeremony(d.attendance) || d.carFare !== null) &&
-    d.hasAllergy !== null &&
-    (d.hasAllergy === false || !!d.allergy.trim())
-  );
+  return answerDraftMissing(d).length === 0;
+}
+
+/** 足りない項目（Issue #157 A-3）。画面の上から順に並べる（最初の1つへスクロールする） */
+export type AnswerField = "name" | "attendance" | "ceremony" | "drinkLevel" | "carFare" | "allergy";
+
+export function answerDraftMissing(d: AnswerDraft): AnswerField[] {
+  const out: AnswerField[] = [];
+  if (!d.lastName.trim() || !d.firstName.trim() || !d.lastKana.trim() || !d.firstKana.trim()) out.push("name");
+  if (d.attendance === "unanswered") out.push("attendance");
+  if (asksCeremony(d.attendance) && d.ceremony === "") out.push("ceremony");
+  if (asksCeremony(d.attendance) && d.drinkLevel === null) out.push("drinkLevel");
+  if (asksCeremony(d.attendance) && d.carFare === null) out.push("carFare");
+  if (d.hasAllergy === null || (d.hasAllergy === true && !d.allergy.trim())) out.push("allergy");
+  return out;
+}
+
+/**
+ * 足りない最初の項目までスクロールする。★送信ボタンは押せるままにする★（Issue #157 A-3）
+ *   押せない理由が分からないまま、11 項目の中から探させないため。項目には data-answer-field を付けている。
+ */
+export function scrollToAnswerField(root: HTMLElement | null, field: AnswerField | undefined) {
+  if (!root || !field) return;
+  const el = root.querySelector<HTMLElement>(`[data-answer-field="${field}"]`);
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /**
@@ -109,6 +122,7 @@ export function AnswerFields({
   afterName,
   attendanceHint,
   ceremony,
+  missing,
 }: {
   value: AnswerDraft;
   onChange: (patch: Partial<AnswerDraft>) => void;
@@ -117,158 +131,190 @@ export function AnswerFields({
   attendanceHint?: ReactNode;
   /** 挙式の時刻と案内文（config/invitation。GET /api/guest/invitation から受け取る） */
   ceremony?: CeremonyInfo | null;
+  /** 送信を押したときに足りなかった項目。各項目の下に「〜してください」を出す（Issue #157 A-3） */
+  missing?: readonly AnswerField[];
 }) {
+  const lack = (f: AnswerField) => !!missing?.includes(f);
   return (
-    <div className="space-y-8">
-      <Section label="お名前" required>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            value={value.lastName}
-            onChange={(e) => onChange({ lastName: e.target.value })}
-            maxLength={ANSWER_NAME_PART_MAX}
-            required
-            autoComplete="family-name"
-            aria-label="姓"
-            placeholder="姓（例: 前川）"
-            className={inputClass}
-          />
-          <input
-            value={value.firstName}
-            onChange={(e) => onChange({ firstName: e.target.value })}
-            maxLength={ANSWER_NAME_PART_MAX}
-            required
-            autoComplete="given-name"
-            aria-label="名"
-            placeholder="名（例: 太郎）"
-            className={inputClass}
-          />
-        </div>
-        <p className="mt-1.5 text-[11px] text-stone-400">席次表のご用意に使います。他のゲストには表示されません。</p>
+    <div className="space-y-10">
+      <Group no={1} title="お名前">
+        <Section label="お名前" required field="name" error={lack("name") ? "お名前とふりがなを入力してください" : undefined}>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={value.lastName}
+              onChange={(e) => onChange({ lastName: e.target.value })}
+              maxLength={ANSWER_NAME_PART_MAX}
+              required
+              autoComplete="family-name"
+              aria-label="姓"
+              placeholder="姓（例: 前川）"
+              className={inputClass}
+            />
+            <input
+              value={value.firstName}
+              onChange={(e) => onChange({ firstName: e.target.value })}
+              maxLength={ANSWER_NAME_PART_MAX}
+              required
+              autoComplete="given-name"
+              aria-label="名"
+              placeholder="名（例: 太郎）"
+              className={inputClass}
+            />
+          </div>
+          <p className="mt-1.5 text-[11px] text-stone-400">席次表のご用意に使います。他のゲストには表示されません。</p>
 
-        <p className="mt-5 flex items-center gap-2 text-xs font-medium text-stone-600">
-          ふりがな
-          <RequiredBadge />
-        </p>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            value={value.lastKana}
-            onChange={(e) => onChange({ lastKana: e.target.value })}
-            maxLength={ANSWER_NAME_PART_MAX}
-            required
-            aria-label="せい"
-            placeholder="せい（例: まえかわ）"
-            className={inputClass}
-          />
-          <input
-            value={value.firstKana}
-            onChange={(e) => onChange({ firstKana: e.target.value })}
-            maxLength={ANSWER_NAME_PART_MAX}
-            required
-            aria-label="めい"
-            placeholder="めい（例: たろう）"
-            className={inputClass}
-          />
-        </div>
-      </Section>
+          <p className="mt-5 flex items-center gap-2 text-xs font-medium text-stone-600">
+            ふりがな
+            <RequiredBadge />
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={value.lastKana}
+              onChange={(e) => onChange({ lastKana: e.target.value })}
+              maxLength={ANSWER_NAME_PART_MAX}
+              required
+              aria-label="せい"
+              placeholder="せい（例: まえかわ）"
+              className={inputClass}
+            />
+            <input
+              value={value.firstKana}
+              onChange={(e) => onChange({ firstKana: e.target.value })}
+              maxLength={ANSWER_NAME_PART_MAX}
+              required
+              aria-label="めい"
+              placeholder="めい（例: たろう）"
+              className={inputClass}
+            />
+          </div>
+        </Section>
 
-      {afterName}
+        {afterName}
+      </Group>
 
-      <Section label="ご出欠" required>
-        <div className="grid grid-cols-1 gap-2">
-          {ATTENDANCE_OPTIONS.filter((o) => o.value !== "unanswered").map((o) => (
-            <Choice
-              key={o.value}
-              on={value.attendance === o.value}
-              onClick={() => onChange({ attendance: o.value })}
-            >
-              {o.formLabel}
-            </Choice>
-          ))}
-        </div>
-        {attendanceHint}
-        {/* ★出欠が未選択でも、挙式の質問があることが分かるようにする★（Issue #146。選択肢は出席を選んでから） */}
-        {value.attendance === "unanswered" && (
-          <p className="mt-1.5 text-[11px] text-stone-400">ご出席の方には、挙式へのご参加もうかがいます</p>
-        )}
-      </Section>
-
-      {asksCeremony(value.attendance) && (
-        <Section label="挙式へのご参加" required>
-          {ceremony?.note && <p className="mb-2 text-[13px] leading-relaxed text-stone-500">{ceremony.note}</p>}
+      <Group no={2} title="ご出欠">
+        <Section label="ご出欠" required field="attendance" error={lack("attendance") ? "ご出欠を選んでください" : undefined}>
           <div className="grid grid-cols-1 gap-2">
-            {CEREMONY_OPTIONS.map((o) => (
-              <Choice key={o.value} on={value.ceremony === o.value} onClick={() => onChange({ ceremony: o.value })}>
-                {ceremonyFormLabel(o.value, ceremony)}
+            {ATTENDANCE_OPTIONS.filter((o) => o.value !== "unanswered").map((o) => (
+              <Choice
+                key={o.value}
+                on={value.attendance === o.value}
+                onClick={() => onChange({ attendance: o.value })}
+              >
+                {o.formLabel}
               </Choice>
             ))}
           </div>
+          {attendanceHint}
+          {/* ★出欠が未選択でも、挙式の質問があることが分かるようにする★（Issue #146。選択肢は出席を選んでから） */}
+          {value.attendance === "unanswered" && (
+            <p className="mt-1.5 text-[11px] text-stone-400">ご出席の方には、挙式へのご参加もうかがいます</p>
+          )}
         </Section>
-      )}
 
-      {asksCeremony(value.attendance) && (
-        <Section label="お酒はどれくらい飲みますか？" required>
-          <p className="mb-1 text-[11px] text-stone-400">乾杯のご準備に使います。この内容は新郎新婦とご本人だけが見られます。</p>
-          <DrinkSlider value={value.drinkLevel} onChange={(v) => onChange({ drinkLevel: v })} />
-        </Section>
-      )}
+        {asksCeremony(value.attendance) && (
+          <Section label="挙式へのご参加" required field="ceremony" error={lack("ceremony") ? "挙式へのご参加を選んでください" : undefined}>
+            {ceremony?.note && <p className="mb-2 text-[13px] leading-relaxed text-stone-500">{ceremony.note}</p>}
+            <div className="grid grid-cols-1 gap-2">
+              {CEREMONY_OPTIONS.map((o) => (
+                <Choice key={o.value} on={value.ceremony === o.value} onClick={() => onChange({ ceremony: o.value })}>
+                  {ceremonyFormLabel(o.value, ceremony)}
+                </Choice>
+              ))}
+            </div>
+          </Section>
+        )}
+      </Group>
 
-      {asksCeremony(value.attendance) && (
-        <Section label="お車代について" required>
-          {/* ★条件や金額は書かない★（Issue #148。希望する人にはお渡しする、というスタンス） */}
-          <p className="text-[13px] leading-relaxed text-stone-500">
-            せっかく足を運んでいただくので、お車代をご用意しています。遠い・近いは気にせず、ご希望の方はお気軽にお知らせください。
-          </p>
-          <p className="mb-2 mt-3 text-sm font-medium text-stone-700">お車代をお受け取りになりますか？</p>
+      <Group no={3} title="当日のこと">
+        {asksCeremony(value.attendance) && (
+          <Section label="お酒はどれくらい飲みますか？" required field="drinkLevel" error={lack("drinkLevel") ? "お酒の量を選んでください" : undefined}>
+            <p className="mb-1 text-[11px] text-stone-400">乾杯のご準備に使います。この内容は新郎新婦とご本人だけが見られます。</p>
+            <DrinkSlider value={value.drinkLevel} onChange={(v) => onChange({ drinkLevel: v })} />
+          </Section>
+        )}
+
+        {asksCeremony(value.attendance) && (
+          <Section label="お車代について" required field="carFare" error={lack("carFare") ? "お車代を受け取るかを選んでください" : undefined}>
+            {/* ★条件や金額は書かない★（Issue #148。希望する人にはお渡しする、というスタンス） */}
+            <p className="text-[13px] leading-relaxed text-stone-500">
+              せっかく足を運んでいただくので、お車代をご用意しています。遠い・近いは気にせず、ご希望の方はお気軽にお知らせください。
+            </p>
+            <p className="mb-2 mt-3 text-sm font-medium text-stone-700">お車代をお受け取りになりますか？</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Choice on={value.carFare === true} onClick={() => onChange({ carFare: true })}>
+                はい
+              </Choice>
+              <Choice on={value.carFare === false} onClick={() => onChange({ carFare: false })}>
+                いいえ
+              </Choice>
+            </div>
+            <p className="mt-1.5 text-[11px] text-stone-400">お車代は会費から差し引いてお渡しします。</p>
+          </Section>
+        )}
+
+        <Section label="食物アレルギー" required field="allergy" error={lack("allergy") ? (value.hasAllergy ? "アレルギーの内容を入力してください" : "食物アレルギーの有無を選んでください") : undefined}>
           <div className="grid grid-cols-2 gap-2">
-            <Choice on={value.carFare === true} onClick={() => onChange({ carFare: true })}>
+            <Choice on={value.hasAllergy === true} onClick={() => onChange({ hasAllergy: true })}>
               はい
             </Choice>
-            <Choice on={value.carFare === false} onClick={() => onChange({ carFare: false })}>
-              いいえ
+            <Choice on={value.hasAllergy === false} onClick={() => onChange({ hasAllergy: false })}>
+              特になし
             </Choice>
           </div>
-          <p className="mt-1.5 text-[11px] text-stone-400">お車代は会費から差し引いてお渡しします。</p>
+          {value.hasAllergy === true && (
+            <textarea
+              value={value.allergy}
+              onChange={(e) => onChange({ allergy: e.target.value })}
+              rows={3}
+              maxLength={ANSWER_ALLERGY_MAX}
+              required
+              aria-label="食物アレルギーの内容"
+              placeholder="例：えび、かに"
+              className={`${inputClass} resize-none leading-relaxed`}
+            />
+          )}
+          <p className="mt-1.5 text-[11px] text-stone-400">この内容は新郎新婦とご本人だけが見られます。</p>
         </Section>
-      )}
+      </Group>
 
-      <Section label="食物アレルギー" required>
-        <div className="grid grid-cols-2 gap-2">
-          <Choice on={value.hasAllergy === true} onClick={() => onChange({ hasAllergy: true })}>
-            はい
-          </Choice>
-          <Choice on={value.hasAllergy === false} onClick={() => onChange({ hasAllergy: false })}>
-            特になし
-          </Choice>
-        </div>
-        {value.hasAllergy === true && (
+      <Group no={4} title="メッセージ">
+        <Section label="備考・連絡事項">
+          <p className="text-[13px] leading-relaxed text-stone-500">
+            その他、新郎新婦へ伝えておきたい事や連絡事項があればご記入ください。
+          </p>
           <textarea
-            value={value.allergy}
-            onChange={(e) => onChange({ allergy: e.target.value })}
+            value={value.note}
+            onChange={(e) => onChange({ note: e.target.value })}
             rows={3}
-            maxLength={ANSWER_ALLERGY_MAX}
-            required
-            aria-label="食物アレルギーの内容"
-            placeholder="例：えび、かに"
+            maxLength={ANSWER_NOTE_MAX}
+            aria-label="備考・連絡事項"
             className={`${inputClass} resize-none leading-relaxed`}
           />
-        )}
-        <p className="mt-1.5 text-[11px] text-stone-400">この内容は新郎新婦とご本人だけが見られます。</p>
-      </Section>
-
-      <Section label="備考・連絡事項">
-        <p className="text-[13px] leading-relaxed text-stone-500">
-          その他、新郎新婦へ伝えておきたい事や連絡事項があればご記入ください。
-        </p>
-        <textarea
-          value={value.note}
-          onChange={(e) => onChange({ note: e.target.value })}
-          rows={3}
-          maxLength={ANSWER_NOTE_MAX}
-          aria-label="備考・連絡事項"
-          className={`${inputClass} resize-none leading-relaxed`}
-        />
-      </Section>
+        </Section>
+      </Group>
     </div>
+  );
+}
+
+/** まとまりの数（見出しの「1/4」の分母） */
+const GROUP_COUNT = 4;
+
+/**
+ * 項目のまとまりの見出し（Issue #157 B-3）。1 枚のカードのまま、4 つに区切って「いまどこか」を見せる。
+ * ★段階に分けて画面を切り替える形にはしない★（オーナーの判断）戻る・直すの作りを増やさない。
+ */
+function Group({ no, title, children }: { no: number; title: string; children: ReactNode }) {
+  return (
+    <section aria-label={title} className="space-y-8">
+      <h3 className="flex items-baseline gap-2 border-b border-stone-200 pb-2 text-sm font-semibold text-stone-800">
+        <span className="text-[11px] font-medium tabular-nums tracking-wider text-stone-500">
+          {no}/{GROUP_COUNT}
+        </span>
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
 
@@ -276,15 +322,32 @@ function RequiredBadge() {
   return <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-medium text-rose-600">必須</span>;
 }
 
-/** 項目のまとまり。見出しに「必須」「任意」を付ける */
-export function Section({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+/** 項目のまとまり。見出しに「必須」「任意」を付ける。error は足りないときの案内（送信を押したあとだけ） */
+export function Section({
+  label,
+  required,
+  field,
+  error,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  field?: AnswerField;
+  error?: string;
+  children: ReactNode;
+}) {
   return (
-    <fieldset>
+    <fieldset data-answer-field={field} className="scroll-mt-6">
       <legend className="mb-1.5 flex items-center gap-2 text-xs font-medium text-stone-600">
         {label}
         {required ? <RequiredBadge /> : <span className="text-[10px] font-normal text-stone-400">任意</span>}
       </legend>
       {children}
+      {error && (
+        <p role="alert" className="mt-2 text-[12px] font-medium text-rose-600">
+          {error}
+        </p>
+      )}
     </fieldset>
   );
 }

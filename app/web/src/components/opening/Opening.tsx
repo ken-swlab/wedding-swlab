@@ -94,7 +94,7 @@ export function Opening({
     >
       {scene === "call" && <CallScene date={date} venue={venue} onDone={() => setScene("lanes")} />}
       {scene === "lanes" && <LaneScene couple={couple} guestName={guestName} onDone={() => setScene("start")} />}
-      {scene === "start" && <StartScene onResult={onResult} />}
+      {scene === "start" && <StartScene onResult={onResult} onSkip={() => finish(true)} />}
       {scene === "dive" && <DiveScene reactionMs={reactionMs} note={note} onDone={() => finish(false)} />}
 
       {/* スキップは常に右上に出す。押すと記録なしで先へ進む（すでにタイムが出ていれば、そのタイムは残る） */}

@@ -59,6 +59,10 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
     ceremony = { startAt, gatherAt, note };
   }
 
+  // 承認待ちの画面に出す、確認までの目安（Issue #157 B-4）。任意。空なら出さない
+  const approvalNote = text(d.approvalNote ?? "", true);
+  if (approvalNote === null) return { ok: false, field: "approvalNote" };
+
   const o = d.opening as Record<string, unknown> | undefined;
   if (!o || typeof o !== "object") return { ok: false, field: "opening" };
   const date = text(o.date);
@@ -88,6 +92,7 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       venueMapUrl,
       greeting,
       ...(ceremony ? { ceremony } : {}),
+      ...(approvalNote ? { approvalNote } : {}),
       opening: { date, venue, names: names as CoupleNames },
     },
   };

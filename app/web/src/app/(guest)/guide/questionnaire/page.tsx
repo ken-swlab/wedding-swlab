@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -10,14 +10,16 @@ import { GuideShell } from "@/components/guide/GuideShell";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import {
   AnswerFields,
-  answerDraftReady,
+  answerDraftMissing,
   answerPayload,
+  scrollToAnswerField,
   type AnswerDraft,
 } from "@/components/guestbook/AnswerFields";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useInvitationCeremony } from "@/hooks/useInvitationCeremony";
 import { isDrinkLevel } from "@/config/drink";
+import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
@@ -61,6 +63,8 @@ export default function GuideQuestionnairePage() {
   // 承認待ちの人は承認待ちの画面から来る（Issue #149）。ご案内のタブは出さず、戻り先も承認待ちにする
   const approved = !!profile?.isApproved && tags.length > 0;
   const Shell = approved ? GuideShell : PendingShell;
+  // 承認待ち（黒）の「回答を直す」から来たら、暗転から浮かび上がる（Issue #157 B-5）
+  const darkEntry = useDarkEntry();
   const [saved, setSaved] = useState<AnswerDraft | null>(null);
   const [form, setForm] = useState<AnswerDraft | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -68,6 +72,9 @@ export default function GuideQuestionnairePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 保存を押したあとだけ、足りない項目に案内を出す（Issue #157 A-3）
+  const [tried, setTried] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const ceremony = useInvitationCeremony(!!user);
 
   useEffect(() => {
@@ -97,11 +104,18 @@ export default function GuideQuestionnairePage() {
   // 比べるのは送る形（前後の空白や、隠れた項目に残った値の違いで「変更あり」にしない）
   const changed = !!form && !!saved && JSON.stringify(answerPayload(form)) !== JSON.stringify(answerPayload(saved));
   const attendanceChanged = !!form && !!saved && form.attendance !== saved.attendance;
-  const canSave = changed && !!form && answerDraftReady(form) && !busy;
+  const missing = form ? answerDraftMissing(form) : [];
+  // ★足りない項目があっても保存は押せる★ 押したら、足りない最初の項目へスクロールする（Issue #157 A-3）
+  const canSave = changed && !busy;
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canSave) return;
+    if (missing.length > 0) {
+      setTried(true);
+      scrollToAnswerField(formRef.current, missing[0]);
+      return;
+    }
     if (attendanceChanged) setConfirming(true);
     else void save();
   }
@@ -128,6 +142,7 @@ export default function GuideQuestionnairePage() {
 
   return (
     <Shell>
+      <ScreenFade from={darkEntry} />
       <h1 className="mb-4 font-serif text-xl tracking-wide text-stone-900">出欠・アンケート</h1>
 
       {loadError ? (
@@ -137,11 +152,12 @@ export default function GuideQuestionnairePage() {
       ) : !form ? (
         <div className="h-80 animate-pulse rounded-2xl bg-stone-200/60" />
       ) : (
-        <form onSubmit={onSubmit} className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
+        <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
           <AnswerFields
             value={form}
             onChange={update}
             ceremony={ceremony}
+            missing={tried ? missing : undefined}
             attendanceHint={
               attendanceChanged &&
               saved && (

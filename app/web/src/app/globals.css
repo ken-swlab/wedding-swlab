@@ -294,6 +294,49 @@ body {
   animation: welcome-fade-in 0.5s ease-out both;
 }
 
+/* オープニングの「長押しで構える」で待ち続けている人に、丸を脈打たせる（Issue #157 A-2） */
+@keyframes start-idle-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.45); }
+  50% { box-shadow: 0 0 0 14px rgba(255, 255, 255, 0); }
+}
+
+.start-idle-pulse {
+  animation: start-idle-pulse 1.2s ease-out infinite;
+}
+
+/* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */
+@keyframes screen-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes screen-fade-glow {
+  from { opacity: 0.9; transform: translate(-50%, -50%) scale(0.05); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(2.2); }
+}
+
+/* 明るい画面から黒い画面へ（送信完了）。黒が 0.4 秒で満ちる */
+@keyframes screen-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.screen-fade {
+  animation: screen-fade 0.45s ease-out both;
+}
+
+.screen-fade:has(.screen-fade-glow) {
+  animation: screen-fade 0.35s ease-out 0.45s both;
+}
+
+.screen-fade-glow {
+  animation: screen-fade-glow 0.6s ease-in both;
+}
+
+.screen-fade-in {
+  animation: screen-fade-in 0.4s ease-out both;
+}
+
 .invitation-rise {
   animation: invitation-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -306,7 +349,17 @@ body {
   .invitation-rise,
   .passcode-shake,
   .drink-stamp,
+  .start-idle-pulse,
   .entry-finish-blink {
     animation: none;
+  }
+
+  /* 光の広がりは省き、黒が溶けるだけにする */
+  .screen-fade-glow {
+    display: none;
+  }
+
+  .screen-fade:has(.screen-fade-glow) {
+    animation: screen-fade 0.45s ease-out both;
   }
 }

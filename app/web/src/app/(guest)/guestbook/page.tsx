@@ -30,6 +30,7 @@ import {
 } from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
+import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
 import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { getJson, postJson } from "@/lib/api-client";
@@ -38,6 +39,8 @@ import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
 
 export default function GuestbookPage() {
   const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSessionContext();
+  // 承認待ち（黒）から来たら、光が広がってタイムラインが現れる（Issue #157 B-5）
+  const darkEntry = useDarkEntry();
 
   // ★posts は1本しか購読しない★
   //   購読は guestbook/layout.tsx（GuestbookDataProvider）が持つ。
@@ -146,6 +149,7 @@ export default function GuestbookPage() {
 
   return (
     <AuthorNameProvider value={authorName}>
+      <ScreenFade from={darkEntry} />
       {welcome && welcomeRunning && view === "timeline" && (
         <WelcomeMoment
           content={welcome}

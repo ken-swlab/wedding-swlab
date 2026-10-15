@@ -98,7 +98,8 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
       aria-modal="true"
       aria-labelledby="entry-finish-title"
       onClick={advance}
-      className="fixed inset-0 z-[100] flex cursor-pointer touch-manipulation flex-col items-center justify-center overflow-y-auto px-6 text-center"
+      // 明るい回答フォームから、黒が満ちるように切り替える（Issue #157 B-5）
+      className="screen-fade-in fixed inset-0 z-[100] flex cursor-pointer touch-manipulation flex-col items-center justify-center overflow-y-auto px-6 text-center"
       style={{ background: "#000", color: OPENING_COLORS.ink, paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
     >
       <div className="w-full max-w-[22rem]" style={{ fontFamily: MONO }}>
@@ -126,10 +127,13 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
       </div>
 
       <div className="mt-10 w-full max-w-[22rem]" style={show(4)}>
-        <p className="text-[15px] leading-[1.9]">
+        {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1） */}
+        <p className="text-balance text-[15px] leading-[1.9]">
           エントリー、完了です。
           <br />
-          新郎新婦の確認が終わると、次のステージへ進めます。
+          新郎新婦の確認が終わると、
+          <br />
+          次のステージへ進めます。
         </p>
       </div>
 

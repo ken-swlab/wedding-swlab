@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Mous
 import { createPortal } from "react-dom";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
-import { WELCOME_AFTER_LIKE_MS, WELCOME_FLY_MS, WELCOME_TAP_HINT_MS } from "@/config/welcome";
+import { WELCOME_AFTER_LIKE_MS, WELCOME_FLY_MS } from "@/config/welcome";
 import type { WelcomeContent } from "@/types/welcome";
 import { useHeartBursts } from "./HeartBurst";
 import { WelcomeCard } from "./WelcomeCard";
 
 /**
  * 段階:
- *   arrive … 画面が暗くなり「新郎新婦から、思い出の写真が届きました」→ 写真のカード →「ダブルタップでいいね」
+ *   arrive … 画面が暗くなり「新郎新婦から、思い出の写真が届きました」→ 写真のカード →「タップでいいね」
  *   fly    … ハートのあと、カードが縮みながらタイムラインの一番上（WelcomePinned）へ移る（FLIP）
  *   guide1 … 「ここがタイムライン。みんなの写真がここに流れてきます」（固定した投稿を照らす）
  *   guide2 … 「＋ から、あなたも写真を投稿できます」（＋ボタンを照らす）
@@ -41,7 +41,8 @@ function spotOf(el: Element | null): Spot | null {
  *
  * ★ダブルタップは useDoubleTap（click の時刻と位置）で見分ける★ 写真の箱は touch-action: manipulation で、
  *   iOS のダブルタップでの拡大と競合させない。
- * ★4 秒ダブルタップが無ければ「タップでいいね」★ 押すとダブルタップと同じ流れ。
+ * ★いいねの案内は「タップでいいね」のボタンだけ★（Issue #157 A-4）写真のダブルタップでも同じ流れになるが、
+ *   案内はしない（「ダブルタップでいいね」の文字とボタンが同時に出て、どちらを押すか迷わせていた）。
  * ★スキップは右上に出す★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
  * ★動かすのは transform と opacity だけ★ prefers-reduced-motion では、引き込みの動きを省いてフェードで切り替える。
  */
@@ -61,7 +62,6 @@ export function WelcomeMoment({
   const [phase, setPhase] = useState<Phase>("arrive");
   const [cardOn, setCardOn] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [tapHint, setTapHint] = useState(false);
   const [spot, setSpot] = useState<Spot | null>(null);
   const [fading, setFading] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -84,14 +84,10 @@ export function WelcomeMoment({
     };
   }, []);
 
-  // 届く → 写真が現れる。4 秒たってもいいねが無ければ「タップでいいね」
+  // 届く → 写真が現れる（「タップでいいね」も一緒に出す）
   useEffect(() => {
     const a = setTimeout(() => setCardOn(true), 900);
-    const b = setTimeout(() => setTapHint(true), 900 + WELCOME_TAP_HINT_MS);
-    return () => {
-      clearTimeout(a);
-      clearTimeout(b);
-    };
+    return () => clearTimeout(a);
   }, []);
 
   const finish = useCallback((skipped: boolean) => {
@@ -143,7 +139,6 @@ export function WelcomeMoment({
       if (likedRef.current) return;
       likedRef.current = true;
       setLiked(true);
-      setTapHint(false);
       // ★本物の投稿のときだけ保存する★ 失敗しても演出は続ける（ハートの層が短く知らせる）
       handlers.current.onLike?.().then((ok) => {
         if (!ok) hearts.fail();
@@ -209,8 +204,7 @@ export function WelcomeMoment({
               <WelcomeCard content={content} liked={liked} photoOverlay={hearts.layer} onPhotoClick={onPhotoClick} />
             </div>
             <div className={`mt-5 flex min-h-12 flex-col items-center gap-2 transition-opacity duration-300 ${cardOn && phase === "arrive" ? "opacity-100" : "opacity-0"}`}>
-              {!liked && <p className="text-sm font-medium text-white">ダブルタップでいいね</p>}
-              {tapHint && !liked && (
+              {!liked && (
                 <button
                   type="button"
                   onClick={onTapButton}

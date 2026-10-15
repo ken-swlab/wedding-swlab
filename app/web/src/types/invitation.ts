@@ -18,6 +18,8 @@ export type InvitationContent = {
    * ★お車代の額は入れない★（招待状に書かない）
    */
   fee?: { partyYen: number; secondYen: number };
+  /** 承認待ちの画面に出す、確認までの目安（Issue #157 B-4。例: 通常、1〜2 日以内に確認します。）。未設定なら出さない */
+  approvalNote?: string;
 };
 
 /** 挙式の時刻と案内。時刻は "HH:MM" */
