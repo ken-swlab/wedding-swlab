@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
+import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { SAMPLE_INVITATION } from "@/config/wedding";
 import { OPENING_NOTE } from "@/config/invitation";
 import { classifyDisplayName } from "@/lib/opening-names";
@@ -28,13 +29,21 @@ const WRONG_PASSCODE = "0000";
 /** オープニングと出欠フォームに出す LINE の表示名（ダミー）の初期値。画面で書き換えて、名前の表記合わせを試せる */
 const DUMMY_DISPLAY_NAME = "高橋 太郎";
 
-const STEP_LABEL: Record<InvitationStep["kind"], string> = {
+/** テスト画面の段階。招待状の段階に、本番では別の画面（/pending）になる承認待ちを足したもの */
+type TestStep = InvitationStep | { kind: "pending" };
+
+/** 承認待ちに出すダミーのリアクションタイム (ms) */
+const DUMMY_REACTION_MS = 210;
+
+const STEP_LABEL: Record<TestStep["kind"], string> = {
   entrance: "1-2. 入り口・LINE ログイン",
   loading: "読み込み中",
   passcode: "3. パスコード",
   opening: "4. オープニング",
   preparing: "準備中",
   open: "5. 招待状・出欠の回答",
+  finish: "6. 送信完了",
+  pending: "7. 承認待ち",
   error: "エラー",
 };
 
@@ -47,7 +56,7 @@ const STEP_LABEL: Record<InvitationStep["kind"], string> = {
  */
 export default function InvitationTestPage() {
   const { user, isAdmin, loading } = useGuestSession();
-  const [step, setStep] = useState<InvitationStep>({ kind: "entrance", busy: false, message: null });
+  const [step, setStep] = useState<TestStep>({ kind: "entrance", busy: false, message: null });
   const [note, setNote] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState(DUMMY_DISPLAY_NAME);
   const [source, setSource] = useState<Source>("live");
@@ -106,9 +115,15 @@ export default function InvitationTestPage() {
   const onRsvpSubmit = useCallback(async (answer: OnboardingAnswer) => {
     console.log("[invitation_test] 出欠の回答を送信（ダミー）", answer.attendance);
     await new Promise((r) => setTimeout(r, 400));
-    setNote("送信しました（ダミー）。本番はここでゲストブック（承認待ちなら /pending）へ進みます");
     window.scrollTo({ top: 0 });
-  }, []);
+    setStep({ kind: "finish", guestName: classifyDisplayName(displayName).guest });
+  }, [displayName]);
+
+  /** 上部の段階表示から直接開く（6・7） */
+  const jump = useCallback((kind: "finish" | "pending") => {
+    setNote(null);
+    setStep(kind === "finish" ? { kind, guestName: classifyDisplayName(displayName).guest } : { kind });
+  }, [displayName]);
 
   if (loading) {
     return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
@@ -135,6 +150,20 @@ export default function InvitationTestPage() {
           <button type="button" onClick={restart} className="min-h-9 touch-manipulation rounded-full bg-stone-900 px-3 text-white hover:bg-stone-700">
             最初から
           </button>
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <span className="shrink-0">直接開く:</span>
+          {(["finish", "pending"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => jump(k)}
+              aria-pressed={step.kind === k}
+              className={`min-h-9 touch-manipulation rounded-full px-3 ${step.kind === k ? "bg-stone-900 text-white" : "border border-stone-200 text-stone-700 hover:bg-stone-100"}`}
+            >
+              {STEP_LABEL[k]}
+            </button>
+          ))}
         </div>
         <p className="mt-1.5 leading-relaxed text-stone-500">
           ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。下へスクロールするとこのパネルが消え、ゲストと同じ画面になります。
@@ -195,14 +224,36 @@ export default function InvitationTestPage() {
       </aside>
 
       {/* 本番の /invitation と同じ組み合わせ（開催概要の下に OnboardingForm） */}
-      <InvitationFlow
-        step={step}
-        onLogin={onLogin}
-        onPasscodeSubmit={onPasscodeSubmit}
-        onOpeningEnd={onOpeningEnd}
-        rsvp={<OnboardingForm displayName={displayName} ceremony={currentInvitation.ceremony} onSubmit={onRsvpSubmit} />}
-        onRetry={restart}
-      />
+      {step.kind === "pending" ? (
+        // 本番の /pending と同じ部品。リアクションタイムはダミー、「確認する」「回答を直す」は何も保存しない
+        <PendingApproval
+          reactionMs={DUMMY_REACTION_MS}
+          approvedButStale={false}
+          onRefresh={() => {
+            console.log("[invitation_test] 確認する（ダミー）");
+            setNote("確認しました（ダミー）。本番は承認されていればゲストブックへ進みます");
+            window.scrollTo({ top: 0 });
+          }}
+          onEdit={() => {
+            console.log("[invitation_test] 回答を直す（ダミー）");
+            setNote("本番は /guide/questionnaire（回答の修正）を開きます");
+            window.scrollTo({ top: 0 });
+          }}
+        />
+      ) : (
+        <InvitationFlow
+          step={step}
+          onLogin={onLogin}
+          onPasscodeSubmit={onPasscodeSubmit}
+          onOpeningEnd={onOpeningEnd}
+          rsvp={<OnboardingForm displayName={displayName} ceremony={currentInvitation.ceremony} onSubmit={onRsvpSubmit} />}
+          onRetry={restart}
+          onEntryNext={() => {
+            console.log("[invitation_test] 送信完了 → 承認待ち");
+            setStep({ kind: "pending" });
+          }}
+        />
+      )}
     </>
   );
 }

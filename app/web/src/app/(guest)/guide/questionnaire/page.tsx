@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -57,7 +57,10 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
  *   アレルギーなどは確認なしで保存する。どちらの変更も管理画面に「変更あり」と出る（answers-server の★参照）。
  */
 export default function GuideQuestionnairePage() {
-  const { user } = useGuestSessionContext();
+  const { user, profile, tags } = useGuestSessionContext();
+  // 承認待ちの人は承認待ちの画面から来る（Issue #149）。ご案内のタブは出さず、戻り先も承認待ちにする
+  const approved = !!profile?.isApproved && tags.length > 0;
+  const Shell = approved ? GuideShell : PendingShell;
   const [saved, setSaved] = useState<AnswerDraft | null>(null);
   const [form, setForm] = useState<AnswerDraft | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -124,7 +127,7 @@ export default function GuideQuestionnairePage() {
   }
 
   return (
-    <GuideShell>
+    <Shell>
       <h1 className="mb-4 font-serif text-xl tracking-wide text-stone-900">出欠・アンケート</h1>
 
       {loadError ? (
@@ -175,10 +178,10 @@ export default function GuideQuestionnairePage() {
       )}
 
       <Link
-        href={GUIDE_PATHS.home}
+        href={approved ? GUIDE_PATHS.home : "/pending"}
         className="mt-4 flex min-h-11 touch-manipulation items-center justify-center rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
       >
-        ご案内に戻る
+        {approved ? "ご案内に戻る" : "承認待ちの画面に戻る"}
       </Link>
 
       {confirming && saved && form && (
@@ -189,7 +192,16 @@ export default function GuideQuestionnairePage() {
           onConfirm={() => void save()}
         />
       )}
-    </GuideShell>
+    </Shell>
+  );
+}
+
+/** 承認待ちの人に出す枠（ご案内のタブを出さない） */
+function PendingShell({ children }: { children: ReactNode }) {
+  return (
+    <main className="min-h-dvh bg-stone-50">
+      <div className="mx-auto max-w-xl px-4 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-[calc(1.5rem+env(safe-area-inset-top))]">{children}</div>
+    </main>
   );
 }
 

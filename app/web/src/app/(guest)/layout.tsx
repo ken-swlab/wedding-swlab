@@ -8,7 +8,7 @@ import { useGuestSession } from "@/hooks/useGuestSession";
 import { SplashScreen } from "@/components/SplashScreen";
 import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext";
 import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
-import { isGuidePath } from "@/config/guide";
+import { GUIDE_PATHS, isGuidePath } from "@/config/guide";
 
 /**
  * ★ゲスト画面の振り分けをここ1箇所に集める★
@@ -36,6 +36,11 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
    * 一律に追い出すと修正ができなくなる。
    */
   const mayStayOnOnboarding = pathname === "/onboarding" && profile?.isRegistered === true;
+  /**
+   * ★承認待ちの人も「回答を直す」（/guide/questionnaire）には入れる★（Issue #149）
+   *   ほかの /guide 以下は承認後だけ。書き込みは /api/guest/questionnaire（登録済みかを確かめる）。
+   */
+  const pendingMayEdit = pathname === GUIDE_PATHS.questionnaire && profile?.isRegistered === true;
 
   let dest: string | null = null;
   if (ready) {
@@ -46,7 +51,7 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
     else if (!profile) dest = "/onboarding";
     else if (!profile.isRegistered) dest = "/onboarding";
     else if (mayStayOnOnboarding) dest = "/onboarding";
-    else if (!(profile.isApproved && tags.length > 0)) dest = "/pending";
+    else if (!(profile.isApproved && tags.length > 0)) dest = pendingMayEdit ? pathname : "/pending";
     // 承認済みなら /guestbook 以下の画面（通知・設定・投稿の詳細）と、案内モード（/guide 以下）にも留まれる
     else dest = isGuestbookPath(pathname) || isGuidePath(pathname) ? pathname : GUESTBOOK_PATHS.home;
   }
