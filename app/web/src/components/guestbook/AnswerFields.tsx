@@ -22,6 +22,8 @@ export type AnswerDraft = {
   ceremony: Ceremony | "";
   /** お酒の量 0〜4（Issue #147）。未選択は null */
   drinkLevel: DrinkLevel | null;
+  /** お車代を受け取るか（Issue #148）。未選択は null */
+  carFare: boolean | null;
   /** 未選択は null */
   hasAllergy: boolean | null;
   allergy: string;
@@ -36,6 +38,7 @@ export const EMPTY_ANSWER_DRAFT: AnswerDraft = {
   attendance: "unanswered",
   ceremony: "",
   drinkLevel: null,
+  carFare: null,
   hasAllergy: null,
   allergy: "",
   note: "",
@@ -56,6 +59,7 @@ export function answerDraftReady(d: AnswerDraft): boolean {
     d.attendance !== "unanswered" &&
     (!asksCeremony(d.attendance) || d.ceremony !== "") &&
     (!asksCeremony(d.attendance) || d.drinkLevel !== null) &&
+    (!asksCeremony(d.attendance) || d.carFare !== null) &&
     d.hasAllergy !== null &&
     (d.hasAllergy === false || !!d.allergy.trim())
   );
@@ -63,7 +67,7 @@ export function answerDraftReady(d: AnswerDraft): boolean {
 
 /**
  * API（/api/guest/register・/api/guest/questionnaire）に送る本文。
- * ★隠れている項目の値は送らない★ 欠席なら挙式・お酒、「特になし」ならアレルギーの詳細を空にする
+ * ★隠れている項目の値は送らない★ 欠席なら挙式・お酒・お車代、「特になし」ならアレルギーの詳細を空にする
  *   （選び直す前に入れた値が残っていても保存しない。サーバーの parseAnswers も同じく捨てる）。
  */
 export function answerPayload(d: AnswerDraft) {
@@ -75,6 +79,7 @@ export function answerPayload(d: AnswerDraft) {
     attendance: d.attendance,
     ceremony: asksCeremony(d.attendance) ? d.ceremony : "",
     drinkLevel: asksCeremony(d.attendance) ? d.drinkLevel : null,
+    carFare: asksCeremony(d.attendance) ? d.carFare : null,
     hasAllergy: d.hasAllergy === true,
     allergy: d.hasAllergy ? d.allergy.trim() : "",
     note: d.note.trim(),
@@ -94,7 +99,7 @@ const inputClass =
   "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-base text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
 
 /**
- * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・お酒・アレルギー・備考）。
+ * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・お酒・お車代・アレルギー・備考）。
  * 招待状（OnboardingForm）と /guide/questionnaire で共通。送信ボタンと送信処理は呼び出し側が持つ。
  * afterName: ふりがなの下に差し込む欄（招待状のニックネーム）。
  */
@@ -204,6 +209,25 @@ export function AnswerFields({
         <Section label="お酒はどれくらい飲みますか？" required>
           <p className="mb-1 text-[11px] text-stone-400">乾杯のご準備に使います。この内容は新郎新婦とご本人だけが見られます。</p>
           <DrinkSlider value={value.drinkLevel} onChange={(v) => onChange({ drinkLevel: v })} />
+        </Section>
+      )}
+
+      {asksCeremony(value.attendance) && (
+        <Section label="お車代について" required>
+          {/* ★条件や金額は書かない★（Issue #148。希望する人にはお渡しする、というスタンス） */}
+          <p className="text-[13px] leading-relaxed text-stone-500">
+            せっかく足を運んでいただくので、お車代をご用意しています。遠い・近いは気にせず、ご希望の方はお気軽にお知らせください。
+          </p>
+          <p className="mb-2 mt-3 text-sm font-medium text-stone-700">お車代をお受け取りになりますか？</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Choice on={value.carFare === true} onClick={() => onChange({ carFare: true })}>
+              はい
+            </Choice>
+            <Choice on={value.carFare === false} onClick={() => onChange({ carFare: false })}>
+              いいえ
+            </Choice>
+          </div>
+          <p className="mt-1.5 text-[11px] text-stone-400">お車代は会費から差し引いてお渡しします。</p>
         </Section>
       )}
 

@@ -13,6 +13,11 @@ export type InvitationContent = {
   greeting: readonly string[];
   /** 挙式の時刻と案内（Issue #146）。未設定なら開催概要に挙式の行を出さない */
   ceremony?: CeremonyInfo;
+  /**
+   * 会費（Issue #148）。config/invitation ではなく config/payment から API が足す。未設定なら出さない。
+   * ★お車代の額は入れない★（招待状に書かない）
+   */
+  fee?: { partyYen: number; secondYen: number };
 };
 
 /** 挙式の時刻と案内。時刻は "HH:MM" */

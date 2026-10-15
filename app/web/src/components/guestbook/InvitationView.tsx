@@ -8,9 +8,11 @@ function delay(sec: number): CSSProperties {
   return { animationDelay: `${sec}s` };
 }
 
+const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
+
 /** パスコードを通った人に見せる招待状の本文。中身は GET /api/guest/invitation から受け取る */
 export function InvitationView({ invitation }: { invitation: InvitationContent }) {
-  const { groom, bride, dateLabel, receptionAt, venueName, venueAddress, venueMapUrl, greeting, ceremony } = invitation;
+  const { groom, bride, dateLabel, receptionAt, venueName, venueAddress, venueMapUrl, greeting, ceremony, fee } = invitation;
 
   return (
     <article>
@@ -67,6 +69,15 @@ export function InvitationView({ invitation }: { invitation: InvitationContent }
               </dd>
             )}
           </div>
+          {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない */}
+          {fee && (
+            <div>
+              <dt className="text-[11px] tracking-widest text-stone-400">会費</dt>
+              <dd className="mt-1 text-stone-700">
+                会食 {yen(fee.partyYen)} ／ 2次会 {yen(fee.secondYen)}
+              </dd>
+            </div>
+          )}
         </dl>
       </section>
     </article>

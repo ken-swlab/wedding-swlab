@@ -3,6 +3,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { DUMMY_PAYMENT, PAYMENT_STATUSES, PAYMENT_STATUS_LABEL, type PaymentStatus } from "@/config/payment";
+import { getJson } from "@/lib/api-client";
+import { ATTENDANCE_OPTIONS, type Attendance } from "@/types/admin";
+import type { PaymentStatusResponse } from "@/types/payment";
+import { PaymentBreakdown } from "./PaymentBreakdown";
 
 type Method = "paypay" | "cotra" | "bank";
 
@@ -15,20 +19,47 @@ const METHODS: { key: Method; label: string }[] = [
 const card = "rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm";
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
+/** 表示確認で選べる出欠（管理者の自分の回答のまま＝null） */
+type Preview = { attendance: Attendance; carFare: boolean } | null;
+
 /**
- * ご祝儀タブの UI モック（Issue #73）。送金状況は useState だけで持ち、Firestore にも API にも繋がない。
+ * 会費タブ（Issue #73 のモック → #148 で内訳だけ本物）。
+ *   内訳と合計は GET /api/guest/payment から受け取る本物の計算（金額は config/payment）。
+ *   送金先と送金状況はまだモック（useState だけで持ち、Firestore にも API にも繋がない）。
  *
  * ★管理者だけに出す★ 送金先はダミー（config/payment.ts）。ゲストが本物と思って送金しないよう、
- *   呼び出し側（/guide/payment）で isAdmin のときだけ描画する。
+ *   呼び出し側（/guide/payment）で isAdmin のときだけ描画する。送金先を本物にしたらゲストにも出す。
  */
 export function PaymentMock() {
   const [status, setStatus] = useState<PaymentStatus>("unpaid");
+  const [preview, setPreview] = useState<Preview>(null);
+  const [data, setData] = useState<PaymentStatusResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const q = preview ? `?attendance=${preview.attendance}&carFare=${preview.carFare ? 1 : 0}` : "";
+    getJson<PaymentStatusResponse>(`/api/guest/payment${q}`)
+      .then((r) => {
+        if (cancelled) return;
+        setData(r);
+        setError(null);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "読み込みに失敗しました");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preview]);
 
   return (
     <>
       <DebugStatusSwitch status={status} onChange={setStatus} />
-      <h1 className="mb-4 font-serif text-xl tracking-wide text-stone-900">ご祝儀</h1>
-      {status === "unpaid" && <UnpaidView onPaid={() => setStatus("pending")} />}
+      <DebugPreviewSwitch preview={preview} onChange={setPreview} />
+      <h1 className="mb-4 font-serif text-xl tracking-wide text-stone-900">会費</h1>
+      {error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
+      {status === "unpaid" && (data ? <UnpaidView data={data} onPaid={() => setStatus("pending")} /> : !error && <div className="h-40 animate-pulse rounded-2xl bg-stone-200/60" />)}
       {status === "pending" && (
         <StatusMessage icon="⏳" tone="amber">
           送金完了、新郎新婦確認待ち
@@ -69,17 +100,44 @@ function DebugStatusSwitch({ status, onChange }: { status: PaymentStatus; onChan
   );
 }
 
-function UnpaidView({ onPaid }: { onPaid: () => void }) {
+/** 表示確認用: 出欠とお車代を差し替えて内訳を見る（計算はサーバー。管理者だけが差し替えられる） */
+function DebugPreviewSwitch({ preview, onChange }: { preview: Preview; onChange: (p: Preview) => void }) {
+  const attendance = preview?.attendance ?? "";
+  return (
+    <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5 text-[10px] text-stone-500">
+      <span className="text-stone-400">内訳の確認</span>
+      <select
+        aria-label="出欠（表示確認用）"
+        value={attendance}
+        onChange={(e) => onChange(e.target.value ? { attendance: e.target.value as Attendance, carFare: preview?.carFare ?? false } : null)}
+        className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[10px]"
+      >
+        <option value="">自分の回答</option>
+        {ATTENDANCE_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <label className={`flex items-center gap-1 ${preview ? "" : "opacity-40"}`}>
+        <input
+          type="checkbox"
+          disabled={!preview}
+          checked={preview?.carFare ?? false}
+          onChange={(e) => preview && onChange({ ...preview, carFare: e.target.checked })}
+        />
+        お車代
+      </label>
+    </div>
+  );
+}
+
+function UnpaidView({ data, onPaid }: { data: PaymentStatusResponse; onPaid: () => void }) {
   const [method, setMethod] = useState<Method>("paypay");
   const [confirmingPaypay, setConfirmingPaypay] = useState(false);
   const { bank } = DUMMY_PAYMENT;
 
   return (
     <div className="space-y-4">
-      <section className={`${card} text-center`}>
-        <p className="text-xs text-stone-500">あなたのお支払い金額</p>
-        <p className="mt-1 font-serif text-3xl tracking-wide text-stone-900">{yen(DUMMY_PAYMENT.amountYen)}</p>
-      </section>
+      <PaymentBreakdown data={data} />
 
       <section className={card}>
         <p className="mb-3 text-xs font-medium text-stone-600">送金の方法をお選びください</p>
@@ -157,7 +215,7 @@ function UnpaidView({ onPaid }: { onPaid: () => void }) {
         送金を終えたら押してください。新郎新婦が確認するまで「確認待ち」と表示されます。
       </p>
 
-      {confirmingPaypay && <ConfirmPaypay onCancel={() => setConfirmingPaypay(false)} />}
+      {confirmingPaypay && <ConfirmPaypay amountYen={data.totalYen} onCancel={() => setConfirmingPaypay(false)} />}
     </div>
   );
 }
@@ -208,7 +266,7 @@ function CopyRow({ label, value }: { label: string; value: string }) {
  * PayPay のリンクを開く前の確認。★document.body へ Portal で出す★（ボトムナビ z-40 より上に確実に重ねる）
  * OK はリンク（<a>）にして、ポップアップブロックに掛からないようにする。
  */
-function ConfirmPaypay({ onCancel }: { onCancel: () => void }) {
+function ConfirmPaypay({ amountYen, onCancel }: { amountYen: number; onCancel: () => void }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -234,7 +292,7 @@ function ConfirmPaypay({ onCancel }: { onCancel: () => void }) {
         style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
       >
         <h2 id="confirm-paypay-title" className="text-base font-semibold text-stone-900">
-          {yen(DUMMY_PAYMENT.amountYen)}のリンクを開きますか？
+          {yen(amountYen)}のリンクを開きますか？
         </h2>
         <p className="mt-2 text-xs leading-relaxed text-stone-500">PayPay の送金画面へ移動します。</p>
         <div className="mt-5 grid grid-cols-2 gap-2">

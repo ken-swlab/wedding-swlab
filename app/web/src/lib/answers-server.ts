@@ -21,6 +21,8 @@ export type Answers = {
   ceremony: Ceremony | "";
   /** お酒の量 0〜4（Issue #147）。欠席なら null */
   drinkLevel: DrinkLevel | null;
+  /** お車代を受け取るか（Issue #148）。欠席なら null */
+  carFare: boolean | null;
   hasAllergy: boolean;
   /** hasAllergy が false なら "" */
   allergy: string;
@@ -35,6 +37,7 @@ export type AnswersBody = {
   attendance?: unknown;
   ceremony?: unknown;
   drinkLevel?: unknown;
+  carFare?: unknown;
   hasAllergy?: unknown;
   allergy?: unknown;
   note?: unknown;
@@ -44,7 +47,7 @@ export type AnswersBody = {
  * 回答を検証する。/api/guest/register と /api/guest/questionnaire の共通。
  * 不正なら画面に出してよい文言を返す（{ error }）。
  *
- * ★欠席なら挙式・お酒、アレルギーが「特になし」なら詳細を、送られてきても捨てる★
+ * ★欠席なら挙式・お酒・お車代、アレルギーが「特になし」なら詳細を、送られてきても捨てる★
  *   フォームで選び直したときに隠れた入力欄の値が残っていても、保存される値を選択と食い違わせない。
  */
 export function parseAnswers(body: AnswersBody): { answers: Answers } | { error: string } {
@@ -84,6 +87,12 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
     drinkLevel = body.drinkLevel;
   }
 
+  let carFare: Answers["carFare"] = null;
+  if (attendance !== "declined") {
+    if (typeof body.carFare !== "boolean") return { error: "お車代をお受け取りになるか選んでください" };
+    carFare = body.carFare;
+  }
+
   if (typeof body.hasAllergy !== "boolean") return { error: "食物アレルギーの有無を選んでください" };
   const hasAllergy = body.hasAllergy;
   const allergy = hasAllergy ? str(body.allergy) : "";
@@ -104,6 +113,7 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
       attendance,
       ceremony,
       drinkLevel,
+      carFare,
       hasAllergy,
       allergy,
       note,
@@ -123,6 +133,7 @@ export function answersPrivatePatch(a: Answers): Record<string, unknown> {
     attendance: a.attendance,
     ceremony: a.ceremony,
     drinkLevel: a.drinkLevel,
+    carFare: a.carFare,
     hasAllergy: a.hasAllergy,
     allergy: a.allergy,
     note: a.note,

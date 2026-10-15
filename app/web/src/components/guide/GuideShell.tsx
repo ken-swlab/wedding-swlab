@@ -13,7 +13,7 @@ import { GUIDE_PATHS } from "@/config/guide";
 const NAV: { key: string; label: string; icon: string; href: string | null; also?: string[] }[] = [
   { key: "home", label: "ご案内", icon: "✉", href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire] },
   { key: "guests", label: "出席者・座席", icon: "◎", href: GUIDE_PATHS.guests },
-  { key: "payment", label: "ご祝儀", icon: "¥", href: GUIDE_PATHS.payment },
+  { key: "payment", label: "会費", icon: "¥", href: GUIDE_PATHS.payment },
   // まだ画面が無い。押せないタブとして「予定」を見せる
   { key: "ai", label: "ミニAI", icon: "✦", href: null },
 ];

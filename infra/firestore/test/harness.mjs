@@ -119,8 +119,8 @@ async function seed(db) {
     if (!PEOPLE[who]) continue;
     const { uid, claims } = PEOPLE[who];
     writes.push(put(`guests/${uid}`, { nickname: who, tags: claims.tags ?? [], isApproved: (claims.tags ?? []).length > 0 }));
-    // drinkLevel（お酒。Issue #147）も他のゲストに見せない値として入れておく
-    writes.push(put(`guestPrivate/${uid}`, { attendance: "attend", drinkLevel: 4, isActive: who !== "suspended" }));
+    // drinkLevel（お酒。Issue #147）・carFare（お車代。Issue #148）も他のゲストに見せない値として入れておく
+    writes.push(put(`guestPrivate/${uid}`, { attendance: "attend", drinkLevel: 4, carFare: true, isActive: who !== "suspended" }));
     writes.push(put(`guestAdmin/${uid}`, { aiMemo: "memo" }));
     writes.push(put(`notifications/${uid}/items/n_unread`, { type: "mention", fromUid: "u_admin", postId: "p_all", read: false }));
     writes.push(put(`notifications/${uid}/items/n_read`, { type: "mention", fromUid: "u_admin", postId: "p_all", read: true }));
@@ -163,6 +163,7 @@ async function seed(db) {
   writes.push(put("guests/u_guest/secret/x1", { a: 1 }));
   // サーバーだけが読み書きする場所（Issue #131）。データがあっても読めないことを確かめるために置く
   writes.push(put("config/invitation", { groom: "（テスト）新郎", bride: "（テスト）新婦" }));
+  writes.push(put("config/payment", { partyYen: 20000, secondYen: 5000, carFareYen: 10000 }));
   writes.push(put("reactionTimes/u_guest", { uid: "u_guest", reactionMs: 250 }));
   writes.push(put("reactionTimes/u_groom", { uid: "u_groom", reactionMs: 300 }));
   writes.push(put("posts/p_all/secret/x1", { a: 1 }));
