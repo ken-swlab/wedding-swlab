@@ -11,6 +11,17 @@ export type InvitationContent = {
   /** Google マップの共有 URL（空なら出さない） */
   venueMapUrl: string;
   greeting: readonly string[];
+  /** 挙式の時刻と案内（Issue #146）。未設定なら開催概要に挙式の行を出さない */
+  ceremony?: CeremonyInfo;
+};
+
+/** 挙式の時刻と案内。時刻は "HH:MM" */
+export type CeremonyInfo = {
+  startAt: string;
+  /** 集合の時刻（空なら出さない） */
+  gatherAt: string;
+  /** 案内文（例: 任意参加であること・入場できる時刻。空なら出さない） */
+  note: string;
 };
 
 /** オープニング演出「招集」に出す文字（Issue #131） */

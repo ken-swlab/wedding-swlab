@@ -10,7 +10,7 @@ function delay(sec: number): CSSProperties {
 
 /** パスコードを通った人に見せる招待状の本文。中身は GET /api/guest/invitation から受け取る */
 export function InvitationView({ invitation }: { invitation: InvitationContent }) {
-  const { groom, bride, dateLabel, receptionAt, venueName, venueAddress, venueMapUrl, greeting } = invitation;
+  const { groom, bride, dateLabel, receptionAt, venueName, venueAddress, venueMapUrl, greeting, ceremony } = invitation;
 
   return (
     <article>
@@ -45,6 +45,16 @@ export function InvitationView({ invitation }: { invitation: InvitationContent }
             <dd className="mt-1 text-stone-700">{dateLabel}</dd>
             <dd className="mt-0.5 text-[13px] text-stone-500">{receptionAt}</dd>
           </div>
+          {/* 挙式（Issue #146）。時刻と案内文は config/invitation の ceremony。未設定なら出さない */}
+          {ceremony && (
+            <div>
+              <dt className="text-[11px] tracking-widest text-stone-400">挙式</dt>
+              <dd className="mt-1 text-stone-700">
+                {ceremony.startAt} 開始{ceremony.gatherAt ? `（${ceremony.gatherAt} 集合）` : ""}
+              </dd>
+              {ceremony.note && <dd className="mt-0.5 text-[13px] leading-relaxed text-stone-500">※{ceremony.note}</dd>}
+            </div>
+          )}
           <div>
             <dt className="text-[11px] tracking-widest text-stone-400">会場</dt>
             <dd className="mt-1 text-stone-700">{venueName}</dd>

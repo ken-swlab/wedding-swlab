@@ -7,6 +7,7 @@
   "venueAddress": "（ダミー）住所",
   "venueMapUrl": "",
   "greeting": ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
+  "ceremony": { "startAt": "12:00", "gatherAt": "11:45", "note": "（ダミー）挙式は任意参加です。開始の1時間前から会場に入れます。" },
   "opening": {
     "date": "20XX.XX.XX",
     "venue": "（かいじょう）",

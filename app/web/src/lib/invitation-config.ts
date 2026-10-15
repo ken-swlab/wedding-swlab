@@ -13,6 +13,8 @@ import type { InvitationConfig } from "@/types/invitation";
 /** 1項目の長さの上限。壊れた値や貼り間違いをそのまま画面に流さないため */
 const MAX_TEXT = 200;
 const MAX_GREETING_LINES = 20;
+/** 挙式の時刻の形（例: 15:15） */
+const TIME_RE = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 
 function text(v: unknown, allowEmpty = false): string | null {
   if (typeof v !== "string") return null;
@@ -43,6 +45,20 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
     greeting.push(v);
   }
 
+  // 挙式（Issue #146）は任意。あるときは開始の時刻が要る
+  let ceremony: InvitationConfig["ceremony"];
+  if (d.ceremony !== undefined) {
+    const c = d.ceremony as Record<string, unknown> | null;
+    if (!c || typeof c !== "object") return { ok: false, field: "ceremony" };
+    const startAt = text(c.startAt);
+    const gatherAt = text(c.gatherAt ?? "", true);
+    const note = text(c.note ?? "", true);
+    if (startAt === null || !TIME_RE.test(startAt)) return { ok: false, field: "ceremony.startAt" };
+    if (gatherAt === null || (gatherAt && !TIME_RE.test(gatherAt))) return { ok: false, field: "ceremony.gatherAt" };
+    if (note === null) return { ok: false, field: "ceremony.note" };
+    ceremony = { startAt, gatherAt, note };
+  }
+
   const o = d.opening as Record<string, unknown> | undefined;
   if (!o || typeof o !== "object") return { ok: false, field: "opening" };
   const date = text(o.date);
@@ -71,6 +87,7 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       venueAddress: out.venueAddress,
       venueMapUrl,
       greeting,
+      ...(ceremony ? { ceremony } : {}),
       opening: { date, venue, names: names as CoupleNames },
     },
   };

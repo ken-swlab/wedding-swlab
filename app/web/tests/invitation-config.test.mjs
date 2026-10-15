@@ -47,3 +47,34 @@ test("地図の URL は https だけ通す。余分な項目は捨てる", () =>
   assert.equal(r.value.venueMapUrl, "https://maps.app.goo.gl/example");
   assert.equal("extra" in r.value, false);
 });
+
+test("挙式（ceremony）は任意。あるときは時刻の形を確かめる（Issue #146）", () => {
+  const ok = sample();
+  assert.deepEqual(parseInvitationConfig(ok).value.ceremony, ok.ceremony);
+
+  const none = sample();
+  delete none.ceremony;
+  const r = parseInvitationConfig(none);
+  assert.equal(r.ok, true);
+  assert.equal("ceremony" in r.value, false);
+
+  const noGather = sample();
+  noGather.ceremony = { startAt: "9:30" };
+  assert.deepEqual(parseInvitationConfig(noGather).value.ceremony, { startAt: "9:30", gatherAt: "", note: "" });
+
+  const broken = [
+    [(d) => (d.ceremony = null), "ceremony"],
+    [(d) => (d.ceremony = "15:15"), "ceremony"],
+    [(d) => delete d.ceremony.startAt, "ceremony.startAt"],
+    [(d) => (d.ceremony.startAt = "25:00"), "ceremony.startAt"],
+    [(d) => (d.ceremony.startAt = "15時15分"), "ceremony.startAt"],
+    [(d) => (d.ceremony.gatherAt = "3pm"), "ceremony.gatherAt"],
+    [(d) => (d.ceremony.note = 1), "ceremony.note"],
+    [(d) => (d.ceremony.note = "あ".repeat(201)), "ceremony.note"],
+  ];
+  for (const [mutate, field] of broken) {
+    const d = sample();
+    mutate(d);
+    assert.deepEqual(parseInvitationConfig(d), { ok: false, field }, field);
+  }
+});

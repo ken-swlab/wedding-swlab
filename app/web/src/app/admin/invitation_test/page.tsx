@@ -200,7 +200,7 @@ export default function InvitationTestPage() {
         onLogin={onLogin}
         onPasscodeSubmit={onPasscodeSubmit}
         onOpeningEnd={onOpeningEnd}
-        rsvp={<OnboardingForm displayName={displayName} onSubmit={onRsvpSubmit} />}
+        rsvp={<OnboardingForm displayName={displayName} ceremony={currentInvitation.ceremony} onSubmit={onRsvpSubmit} />}
         onRetry={restart}
       />
     </>
