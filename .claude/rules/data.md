@@ -24,7 +24,7 @@ paths:
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
 | `tags` | サインイン済み | サーバー |
-| `config/runtime`・`rateLimits`・`auditLogs`・`redeemAttempts` | なし | サーバー |
+| `config/runtime`・`rateLimits`・`auditLogs`・`redeemAttempts`・`deletedMedia` | なし | サーバー |
 
 - `reactionTimes/{uid}`（オープニングのリアクションタイム。Issue #131）と `config/invitation`（新郎新婦の名前・会場）は Rules に書かない = クライアントからは管理者も読み書きできない。読み書きはサーバーの `/api/guest/reaction`・`/api/guest/invitation` だけ。`reactionTimes` は最初の 1 回だけ作り、上書きしない。名前を入れない。ランキング（`/api/guest/reaction/ranking?tag=`）は、呼び出した人が Custom Claims でそのタグを持つときだけ返す（承認前は 403）。返すのは順位・ニックネーム・アイコン・タイムだけで、uid・本名・LINE の情報は返さない。
 - 上にないパスはすべて拒否。コレクションやフィールドを足すときは、先に「誰が読めるか」を決めて Rules を書く。
@@ -52,13 +52,14 @@ paths:
 - `createPost` のフィールドは `validPost()` の `hasAll` / `hasOnly` と一致させる（片方だけ変えると全投稿が失敗する）。`createdAt` は `serverTimestamp()`。
 - `mentionUids`（@メンションの相手の uid、最大 10）は posts / comments の任意のキー。相手がいるときだけ付け、通知は `/api/notifications/mention` が作る（クライアントから `notifications` へ書かない）。
 - `media` 配列の更新はトランザクションで行う（同時に終わると書き負ける）。原本の状態を `published` / `skipped` から戻さない。
-- 本人による投稿の編集（本文・写真）と削除は `/api/posts/[id]`（PATCH / DELETE）だけで行う。クライアントから `posts` の本文を書き換えたり `deleteDoc` したりしない（削除はコメント・いいね・faces をまとめて消す。R2 のオブジェクトは消さない）。編集した投稿には `editedAt` が付く（「編集済」の判定に `updatedAt` を使わない）。
+- 本人による投稿の編集（本文・写真）と削除は `/api/posts/[id]`（PATCH / DELETE）だけで行う。クライアントから `posts` の本文を書き換えたり `deleteDoc` したりしない（削除はコメント・いいね・faces をまとめて消し、公開バケットの写真と Rekognition の顔も消す。非公開バケットの原本とマーカーは消さない。Issue #122）。編集した投稿には `editedAt` が付く（「編集済」の判定に `updatedAt` を使わない）。
 - カウンタ（`reactionCount` / `commentCount`）は `increment(±1)` と `updatedAt` だけを更新する。
 
 ## インデックスと TTL
 - 複合インデックスは Terraform の `google_firestore_index` で管理する（`firestore_rules.tf`・`faces.tf`・`episodes.tf`・`screen.tf`）。新しいクエリの形には index を足し、PR に「terraform apply が必要」と書く。
 - `infra/firestore/firestore.indexes.json` の posts(authorUid, createdAt) だけは Terraform 管理外（webhook が使う）。
-- TTL は `rateLimits.expiresAt` と `auditLogs.expiresAt`（Timestamp 型でなければ消えない）。監査ログ（`auditLogs`）は `create()` だけで、更新・削除しない。
+- TTL は `rateLimits.expiresAt` と `auditLogs.expiresAt`（Timestamp 型でなければ消えない）。監査ログ（`auditLogs`）は `create()` だけで、更新・削除しない。終了の記録に件数（`counts`。数だけ）を添えたいルートは、応答ヘッダ `x-audit-counts`（`config/audit.ts`）に JSON で入れる。`withGuard` が読んで外す。
+- `deletedMedia`（投稿の削除で消した高画質版の印。Issue #122）は消さない・TTL を付けない（端末に残った原本が、何日もあとに送られて公開されうる）。
 
 ## タグ
 - 組み込みタグは `src/config/tags.ts`（`all` / `guest` / `couple` / `family` / `friends_groom` / `friends_bride` / `colleagues` / `ceremony` / `after_party` など）。承認時に `all` と `guest` が付く。

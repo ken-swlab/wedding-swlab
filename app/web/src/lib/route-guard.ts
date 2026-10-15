@@ -5,7 +5,8 @@ import { ipAddress } from "@vercel/functions";
 import * as Sentry from "@sentry/nextjs";
 import { admin } from "@/lib/firebase-admin";
 import { checkRateLimit, type RateLimitRule } from "@/lib/rate-limit";
-import { auditBegin, auditEnd, bodyFields, hashIp, type ActorRole } from "@/lib/audit";
+import { AUDIT_COUNTS_HEADER } from "@/config/audit";
+import { auditBegin, auditEnd, bodyFields, hashIp, parseAuditCounts, type ActorRole, type AuditCounts } from "@/lib/audit";
 import { runtimeConfig } from "@/lib/runtime-config";
 import { usingEmulator } from "@/lib/emulator";
 
@@ -252,12 +253,20 @@ export function withGuard(opts: GuardOptions, handler: Handler) {
       }
 
       // ---- 8. 監査ログ（終了）: 応答を返してから書く ---------------------
+      // ★件数のヘッダは、ここで必ず外す★（監査ログ用の内部の値。ブラウザへ返さない）
+      let counts: AuditCounts | null = null;
+      try {
+        counts = parseAuditCounts(res.headers.get(AUDIT_COUNTS_HEADER));
+        res.headers.delete(AUDIT_COUNTS_HEADER);
+      } catch {
+        /* ヘッダが不変の応答（fetch の応答をそのまま返すルート）は、件数を付けていない */
+      }
       if (audited) {
         const status = res.status;
         const ms = Date.now() - started;
         after(async () => {
           try {
-            await auditEnd(requestId, opts.name, status, ms);
+            await auditEnd(requestId, opts.name, status, ms, counts);
           } catch (e) {
             // 開始記録は残っているので、欠けても「途中で落ちた」ことは分かる
             Sentry.captureException(e, { tags: { stage: "audit-end" } });

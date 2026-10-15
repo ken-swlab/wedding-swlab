@@ -495,6 +495,8 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ["guest", DENY, "reactionTimes: 自分の記録を書き換えられない", update("reactionTimes/u_guest", { reactionMs: 100 })],
   ["pending", DENY, "reactionTimes: 承認前のゲストも書けない", set("reactionTimes/u_pending", { uid: "u_pending", reactionMs: 100 })],
   ...lockedDown("redeemAttempts", "redeemAttempts/x1"),
+  // 投稿の削除で消した高画質版の印（Issue #122）。webhook だけが読む。消した写真のキーのハッシュが ID
+  ...lockedDown("deletedMedia", "deletedMedia/d1"),
 ]);
 
 table("Rules に書かれていないパス（既定拒否）", [

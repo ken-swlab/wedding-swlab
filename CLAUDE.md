@@ -87,7 +87,7 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
 
 ### デプロイとインフラ
 17. `main` への push は本番デプロイ。`vercel --prod` / `vercel deploy` は使わない（100MB 上限）。作業はブランチと PR で行う。
-18. 取り消せない操作をしない: `audit_bucket_locked` / `pii_access_bucket_locked` を true にする、`pii_access_minimize` を変える、`prevent_destroy` を外す、R2 の原本・マーカーや監査ログを消す。`terraform apply` はオーナーが実行する。
+18. 取り消せない操作をしない: `audit_bucket_locked` / `pii_access_bucket_locked` を true にする、`pii_access_minimize` を変える、`prevent_destroy` を外す、R2 の原本・マーカーや監査ログを消す（公開バケットの写真は、投稿の削除・写真を外す編集で、サーバーが消す。Issue #122。原本の削除は Issue #159 で、運用が始まってから決める）。`terraform apply` はオーナーが実行する。
 19. Vercel Firewall は設定済み（変更はオーナーだけ）: `ai-bots` deny、`bot-protection` log、`api-flood-guard` は `/api/` を IP + JA4 ごとに 60 秒 1,200 回で rate_limit（`/api/hooks/` は対象外）。Worker の webhook と LINE のリンクプレビューを止める変更をしない。
 20. `wedding.sw-lab.net` の Cloudflare プロキシを ON にしない（Vercel の Firewall と実 IP の取得が壊れる）。R2 のカスタムドメイン（wedding-media.sw-lab.net）は Cloudflare 経由のままでよい。
 

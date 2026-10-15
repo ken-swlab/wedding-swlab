@@ -4,6 +4,8 @@ import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import type { MediaItem } from "@/types";
 import { withGuard } from "@/lib/route-guard";
+import { isDeletedOriginal } from "@/lib/media-delete-server";
+import { deletePublicObjects } from "@/lib/r2-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +84,25 @@ async function _POST(req: Request) {
     const uid = m[1];
 
     const status = body.status === "skipped" ? "skipped" : "published";
+
+    /**
+     * ★投稿の削除で消された写真なら、置き直された複製を消して 200 を返す★（Issue #122）
+     *   Worker が公開バケットへ複製している間に投稿が消されると、削除のあとに複製が置き直される。
+     *   削除の API は消す前に「削除の印」を置くので、ここで見つけて消す。
+     *   200 を返すと Worker は _linked/ を付けて、このキーの処理を終える（202 だと再送が続き、やがて隔離される）。
+     *   消すのに失敗したら 500 を返し、次の回の Worker に再送させる（そのときにもう一度消す）。
+     *   投稿を探すより先に見る（写真を外しただけで投稿が残っている場合も、ここで止める）。
+     */
+    if (await isDeletedOriginal(key)) {
+      if (status === "published") {
+        const r = await deletePublicObjects(uid, [{ key, kind: "original" }]);
+        if (r.deleted !== 1) {
+          console.error("[hook] 削除済みの投稿の写真を、公開バケットから消せませんでした");
+          return fail("サーバー内部エラー", 500);
+        }
+      }
+      return NextResponse.json({ ok: true, matched: false, deleted: true });
+    }
 
     // ★公開 URL はサーバーが組み立てる★
     //   Worker から URL を受け取ると、秘密が漏れたときに

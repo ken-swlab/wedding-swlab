@@ -135,7 +135,7 @@
 | 利用目的・プライバシーポリシー | **未実施** | 文面の案はある。**未承認で、アプリの中にページも無い** | [privacy-policy-draft.md](../privacy/privacy-policy-draft.md) |
 | 保存期間 | **未実施** | **決まっていない。**ゲストのデータは、消すまで残る（自動で消えるのは、ログとバックアップだけ）。案は 3 つある | [deletion-runbook.md](../privacy/deletion-runbook.md) §4 |
 | 削除の依頼への対応 | 一部実施 | 1 人分を消す手順書がある（データベース・写真・顔の特徴・ログインのアカウント）。**通しで試していない。手作業で、一部は横断して探せない** | [deletion-runbook.md](../privacy/deletion-runbook.md) §2・§6 |
-| 削除しても残るもの | 一部実施 | 文書にしている: 投稿を消しても写真（R2）は残る（改善は Issue #122）。バックアップに最長 14 週。監査ログは 400 日（消せない） | [data-inventory.md](../privacy/data-inventory.md) §5 |
+| 削除しても残るもの | 一部実施 | 文書にしている: 投稿を消すと、公開側の写真と顔の特徴は消える（Issue #122）。非公開の原本は残る（Issue #159）。配信のキャッシュは自動では消さない。バックアップに最長 14 週。監査ログは 400 日（消せない） | [data-inventory.md](../privacy/data-inventory.md) §5 |
 | 契約終了時の返却・消去 | **未実施** | すべてを消す順番は書いてある。**消去の証明の様式や、返却の形式は、決めていない** | [deletion-runbook.md](../privacy/deletion-runbook.md) §4 |
 | 位置情報の扱い | 一部実施 | 写真の原本は非公開の場所に置き、EXIF を落とした複製だけを公開する。**動画は、位置情報がついたまま公開側に出ている**（Issue #29） | `.claude/rules/media.md`、Issue #29 |
 | 公開側の写真へのアクセス | 一部実施 | 公開側の写真は、推測しにくい URL だが、**URL を知っていればログインなしで開ける**（改善は Issue #123） | [data-inventory.md](../privacy/data-inventory.md) §3 |

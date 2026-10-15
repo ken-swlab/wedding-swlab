@@ -4,10 +4,12 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { PublicError, safeMessage } from "@/lib/public-error";
 import { rebuildDetectedUserIds } from "@/lib/faces-server";
+import { cleanupRemovedMedia, type MediaCleanup } from "@/lib/media-delete-server";
 import { ownsKey, publicUrlOf } from "@/lib/r2-server";
 import { extractTags, MAX_POST_LENGTH } from "@/lib/text";
 import { POST_ID_RE } from "@/config/guestbook";
 import { MAX_MEDIA_PER_POST, NEW_MEDIA_KEY_RE, POSTS_API_PATH_RE } from "@/config/post-edit";
+import { AUDIT_COUNTS_HEADER } from "@/config/audit";
 import type { MediaItem } from "@/types";
 
 export const runtime = "nodejs";
@@ -16,6 +18,15 @@ export const maxDuration = 30;
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
+}
+
+/** 監査ログに残す件数（withGuard が読んで外す。ブラウザには返らない） */
+function withCounts(res: NextResponse, c: MediaCleanup): NextResponse {
+  res.headers.set(
+    AUDIT_COUNTS_HEADER,
+    JSON.stringify({ r2Deleted: c.deleted, r2Failed: c.failed, r2Kept: c.kept, facesDeleted: c.faces }),
+  );
+  return res;
 }
 
 /** URL のパス（/api/posts/{id}）から投稿の ID を取り出す。★形を確かめてから doc() に渡す★ */
@@ -90,7 +101,9 @@ async function _PATCH(req: Request) {
  *   読んで書くまでをトランザクションにする（原本の紐付け・webhook と同時に走ると書き負ける）。
  * ★editedAt は、本文か写真が実際に変わったときだけ付ける★ 何も変えない保存では何も書かない。
  *   updatedAt はいいね・コメントでも動くので、「編集済」の判定には使えない。
- * ★R2 のオブジェクトは消さない★ 外した写真の軽量版・原本・Worker のマーカーは残す（CLAUDE.md ルール 18）。
+ * ★外した写真は、公開バケットから消す★（Issue #122）軽量版と高画質版の複製、Rekognition の顔。
+ *   非公開バケットの原本と Worker のマーカーは残す（CLAUDE.md ルール 18。lib/media-delete-server.ts）。
+ *   R2 の失敗で編集は失敗にしない（ログに残す）。
  */
 async function update(req: Request) {
   const { db } = admin();
@@ -161,22 +174,34 @@ async function update(req: Request) {
       // 足した写真があれば顔の検出をやり直す（クライアントが /api/faces/detect を呼ぶ）
       ...(addedImage ? { faceDetectionStatus: "pending" } : {}),
     });
-    return { kind: "changed" as const, textChanged, mediaChanged, addedImage, oldPaths };
+    const removed = oldMedia.filter((m) => !paths.includes(m.storagePath));
+    return { kind: "changed" as const, textChanged, mediaChanged, addedImage, oldPaths, removed };
   });
 
   if (result.kind === "error") return result.res;
   if (result.kind === "same") return NextResponse.json({ ok: true, changed: false });
 
   // 顔の記録を新しい写真の並びに合わせる。失敗しても編集は成立している（ログに残し、応答は成功）
+  let removedFaceIds: string[] = [];
   if (result.mediaChanged || result.textChanged) {
     try {
-      await syncFaces(postId, result.oldPaths, paths, text, result.mediaChanged);
+      removedFaceIds = await syncFaces(postId, result.oldPaths, paths, text, result.mediaChanged);
     } catch (e) {
       console.error("[posts/update] 顔の記録の更新に失敗", postId, e);
     }
   }
 
-  return NextResponse.json({ ok: true, changed: true, detectFaces: result.addedImage });
+  const res = NextResponse.json({ ok: true, changed: true, detectFaces: result.addedImage });
+  if (result.removed.length === 0) return res;
+  const cleanup = await cleanupRemovedMedia({
+    uid,
+    postId,
+    removed: result.removed,
+    awsFaceIds: removedFaceIds,
+    keepPostId: null,
+    logLabel: "posts/update",
+  });
+  return withCounts(res, cleanup);
 }
 
 /**
@@ -188,15 +213,23 @@ async function update(req: Request) {
  * ★位置がずれた写真の顔は、ID と mediaIndex を付け替える★（ID は {postId}_{mediaIndex}_{n}）
  *   そのままだと、あとの再検出が別の写真の顔を上書きする。削除を先に、作成をあとに積む
  *   （付け替え先の ID が、同じバッチで消す ID と重なることがある）。
+ * 消した顔のうち Rekognition に登録済みのもの（awsFaceId）を返す。呼び出し元が Rekognition からも消す。
  */
-async function syncFaces(postId: string, oldPaths: string[], newPaths: string[], text: string, mediaChanged: boolean) {
+async function syncFaces(
+  postId: string,
+  oldPaths: string[],
+  newPaths: string[],
+  text: string,
+  mediaChanged: boolean,
+): Promise<string[]> {
   const { db } = admin();
   const snap = await db.collection("faces").where("postId", "==", postId).get();
-  if (snap.empty) return;
+  if (snap.empty) return [];
 
   const postText = text.slice(0, 120);
   const batch = db.batch();
   const moved: { id: string; data: FirebaseFirestore.DocumentData }[] = [];
+  const removedFaceIds: string[] = [];
   let remaining = 0;
 
   for (const d of snap.docs) {
@@ -204,6 +237,8 @@ async function syncFaces(postId: string, oldPaths: string[], newPaths: string[],
     const next = newPaths.indexOf(oldPaths[index] ?? "");
     if (next < 0) {
       batch.delete(d.ref);
+      const awsFaceId = d.get("awsFaceId");
+      if (typeof awsFaceId === "string" && awsFaceId) removedFaceIds.push(awsFaceId);
       continue;
     }
     remaining += 1;
@@ -218,9 +253,11 @@ async function syncFaces(postId: string, oldPaths: string[], newPaths: string[],
   for (const m of moved) batch.set(db.collection("faces").doc(m.id), m.data);
   await batch.commit();
 
-  if (!mediaChanged) return;
-  await db.collection("posts").doc(postId).update({ faceCount: remaining });
-  await rebuildDetectedUserIds(postId);
+  if (mediaChanged) {
+    await db.collection("posts").doc(postId).update({ faceCount: remaining });
+    await rebuildDetectedUserIds(postId);
+  }
+  return removedFaceIds;
 }
 
 async function _DELETE(req: Request) {
@@ -241,8 +278,10 @@ async function _DELETE(req: Request) {
  *   マイページ・検索・スクリーン・顔の判定のすべてに「削除済みを除く」条件が要り、漏れると出てしまう。
  *   クライアントから投稿だけを消すと、コメントといいねが孤児として残る。
  * ★顔の記録（faces）も消す★ 写真の切り抜き位置と本文の冒頭を持っている。
- * ★R2 のオブジェクトは消さない★ 軽量版・原本・Worker のマーカーは残す（CLAUDE.md ルール 18）。
- *   あとから Worker の webhook が来ても、投稿が見つからなければ 202 を返すだけ（/api/hooks/original-published）。
+ * ★公開バケットの写真も消す★（Issue #122）軽量版と高画質版の複製、Rekognition の顔。
+ *   非公開バケットの原本と Worker のマーカーは残す（CLAUDE.md ルール 18。原本は Issue #159）。
+ *   処理中の Worker があとから複製を置き直しても、webhook が「削除の印」を見て消す（lib/media-delete-server.ts）。
+ *   R2・Rekognition の失敗で削除は失敗にしない（投稿は消え、残ったものはログに出る）。
  */
 async function remove(req: Request) {
   const { db } = admin();
@@ -256,17 +295,32 @@ async function remove(req: Request) {
   const snap = await postRef.get();
   // 見つからない・他人の投稿は区別しない
   if (!snap.exists || snap.get("authorUid") !== who.uid) return fail("削除できない投稿です", 403);
+  // ★消す写真のキーは、削除の前に Firestore から読んだ値だけを使う★（クライアントからは受け取らない）
+  const media = (Array.isArray(snap.get("media")) ? snap.get("media") : []) as MediaItem[];
 
   await db.recursiveDelete(postRef);
 
   const faces = await db.collection("faces").where("postId", "==", postId).get();
+  const awsFaceIds: string[] = [];
   if (!faces.empty) {
     const batch = db.batch();
-    for (const d of faces.docs) batch.delete(d.ref);
+    for (const d of faces.docs) {
+      batch.delete(d.ref);
+      const awsFaceId = d.get("awsFaceId");
+      if (typeof awsFaceId === "string" && awsFaceId) awsFaceIds.push(awsFaceId);
+    }
     await batch.commit();
   }
 
-  return NextResponse.json({ ok: true });
+  const cleanup = await cleanupRemovedMedia({
+    uid: who.uid,
+    postId,
+    removed: media,
+    awsFaceIds,
+    keepPostId: postId,
+    logLabel: "posts/delete",
+  });
+  return withCounts(NextResponse.json({ ok: true }), cleanup);
 }
 
 // ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
