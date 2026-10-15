@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { useScrollRestore } from "@/hooks/useScrollRestore";
@@ -30,6 +30,11 @@ import {
 } from "@/config/guestbook";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
+import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
+import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
+import { getJson, postJson } from "@/lib/api-client";
+import { likePost } from "@/lib/posts";
+import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
 
 export default function GuestbookPage() {
   const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSessionContext();
@@ -65,6 +70,32 @@ export default function GuestbookPage() {
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  /**
+   * 承認後の初回の演出（Issue #150）。出すかはサーバーが決める（GET /api/guest/welcome）。
+   * ★出し始めたらすぐ welcomeSeenAt を記録する★ 途中で閉じても、端末を変えても二度出さない。
+   * ★演出の直後だけ、その投稿をタイムラインの一番上に固定する★ この state だけで持つので、
+   *   再読み込みすると通常の並び（投稿日時の順）に戻る。
+   */
+  const [welcome, setWelcome] = useState<WelcomeContent | null>(null);
+  const [welcomeRunning, setWelcomeRunning] = useState(false);
+  const [pin, setPin] = useState<{ content: WelcomeContent; hidden: boolean } | null>(null);
+  const uid = user?.uid;
+  useEffect(() => {
+    if (!uid || tags.length === 0) return;
+    let cancelled = false;
+    getJson<WelcomeStatus>("/api/guest/welcome")
+      .then((r) => {
+        if (cancelled || !r.show || !r.content) return;
+        setWelcome(r.content);
+        setWelcomeRunning(true);
+        postJson("/api/guest/welcome", {}).catch((e: unknown) => console.error("[guestbook] 演出の記録に失敗しました", e));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [uid, tags.length]);
 
   // ★振り分けは (guest)/layout.tsx が行う★
   //   未登録・未承認・停止の判定はすべて layout 側に集約したので、
@@ -115,6 +146,19 @@ export default function GuestbookPage() {
 
   return (
     <AuthorNameProvider value={authorName}>
+      {welcome && welcomeRunning && view === "timeline" && (
+        <WelcomeMoment
+          content={welcome}
+          onLike={welcome.postId ? () => likePost(welcome.postId!, user.uid).then(() => true, (e: unknown) => { console.error(e); return false; }) : undefined}
+          onPin={() => setPin({ content: welcome, hidden: true })}
+          onReveal={() => setPin((p) => (p ? { ...p, hidden: false } : p))}
+          onDone={({ liked }) => {
+            setWelcomeRunning(false);
+            // スキップ（いいねしていない）なら固定しない
+            if (!liked) setPin(null);
+          }}
+        />
+      )}
       <GuestbookShell>
           <div className="space-y-4">
             <UploadStatusBar upload={upload} serverPending={serverPending} />
@@ -138,8 +182,15 @@ export default function GuestbookPage() {
                     <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
                   </div>
                 )}
+                {pin && !searching && <WelcomePinned content={pin.content} hidden={pin.hidden} />}
                 {searching && !loading && !error && posts.length === 0 ? null : (
-                  <Timeline posts={posts} loading={loading} error={error} user={user} />
+                  <Timeline
+                    // 固定して出している投稿は、二重に並べない
+                    posts={pin?.content.postId ? posts.filter((p) => p.id !== pin.content.postId) : posts}
+                    loading={loading}
+                    error={error}
+                    user={user}
+                  />
                 )}
                 {!searching && hasMore && posts.length > 0 && (
                   <LoadMore loading={loadingMore} onClick={() => void loadMore()} />

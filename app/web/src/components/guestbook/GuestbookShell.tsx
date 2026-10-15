@@ -170,6 +170,8 @@ function Header({ compact }: { compact: boolean }) {
         <Link
           href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
           aria-label="新しく投稿する"
+          // 承認後の初回の演出（Issue #150）の2つ目の案内で照らす
+          data-welcome-plus=""
           className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
         >
           <span aria-hidden>＋</span>

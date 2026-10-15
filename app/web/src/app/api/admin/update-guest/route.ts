@@ -122,6 +122,17 @@ async function handle(req: Request) {
   }
   batch.set(db.collection("guests").doc(uid), publicPatch, { merge: true });
 
+  /**
+   * ★承認したら、承認後の初回の演出（Issue #150）の印を付ける★
+   *   GET /api/guest/welcome は、この印があってまだ見ていない人にだけ演出を出す。
+   *   この仕組みより前に承認された人には付かない（オーナーの判断）。一度付いたら付け直さない。
+   */
+  if (body.isApproved === true) {
+    const privateRef = db.collection("guestPrivate").doc(uid);
+    const priv = await privateRef.get();
+    if (priv.get("welcomeDueAt") == null) batch.set(privateRef, { welcomeDueAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+
   if (body.attendance !== undefined || body.allergy !== undefined || body.paymentStatus !== undefined || body.isActive !== undefined) {
     const privatePatch: Record<string, unknown> = { uid, updatedAt: FieldValue.serverTimestamp() };
     if (body.attendance !== undefined) privatePatch.attendance = body.attendance;

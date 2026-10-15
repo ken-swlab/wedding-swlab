@@ -6,6 +6,10 @@ import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
+import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
+import { WelcomeCard, WelcomePinned } from "@/components/guestbook/WelcomeCard";
+import { WELCOME_DEFAULT_MESSAGE } from "@/config/welcome";
+import type { WelcomeContent } from "@/types/welcome";
 import { SAMPLE_INVITATION } from "@/config/wedding";
 import { OPENING_NOTE } from "@/config/invitation";
 import { classifyDisplayName } from "@/lib/opening-names";
@@ -30,7 +34,7 @@ const WRONG_PASSCODE = "0000";
 const DUMMY_DISPLAY_NAME = "高橋 太郎";
 
 /** テスト画面の段階。招待状の段階に、本番では別の画面（/pending）になる承認待ちを足したもの */
-type TestStep = InvitationStep | { kind: "pending" };
+type TestStep = InvitationStep | { kind: "pending" } | { kind: "welcome"; run: number };
 
 /** 承認待ちに出すダミーのリアクションタイム (ms) */
 const DUMMY_REACTION_MS = 210;
@@ -44,6 +48,7 @@ const STEP_LABEL: Record<TestStep["kind"], string> = {
   open: "5. 招待状・出欠の回答",
   finish: "6. 送信完了",
   pending: "7. 承認待ち",
+  welcome: "8. 承認後の演出",
   error: "エラー",
 };
 
@@ -120,9 +125,11 @@ export default function InvitationTestPage() {
   }, [displayName]);
 
   /** 上部の段階表示から直接開く（6・7） */
-  const jump = useCallback((kind: "finish" | "pending") => {
+  const jump = useCallback((kind: "finish" | "pending" | "welcome") => {
     setNote(null);
-    setStep(kind === "finish" ? { kind, guestName: classifyDisplayName(displayName).guest } : { kind });
+    if (kind === "finish") setStep({ kind, guestName: classifyDisplayName(displayName).guest });
+    else if (kind === "welcome") setStep({ kind, run: Date.now() });
+    else setStep({ kind });
   }, [displayName]);
 
   if (loading) {
@@ -153,7 +160,7 @@ export default function InvitationTestPage() {
         </div>
         <div className="mt-1.5 flex items-center gap-1.5">
           <span className="shrink-0">直接開く:</span>
-          {(["finish", "pending"] as const).map((k) => (
+          {(["finish", "pending", "welcome"] as const).map((k) => (
             <button
               key={k}
               type="button"
@@ -165,6 +172,15 @@ export default function InvitationTestPage() {
             </button>
           ))}
         </div>
+        {step.kind === "pending" && (
+          <button
+            type="button"
+            onClick={() => jump("welcome")}
+            className="mt-1.5 min-h-9 touch-manipulation rounded-full bg-emerald-700 px-3 text-white hover:bg-emerald-800"
+          >
+            承認されたことにする（8. 承認後の演出へ）
+          </button>
+        )}
         <p className="mt-1.5 leading-relaxed text-stone-500">
           ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。下へスクロールするとこのパネルが消え、ゲストと同じ画面になります。
         </p>
@@ -224,7 +240,10 @@ export default function InvitationTestPage() {
       </aside>
 
       {/* 本番の /invitation と同じ組み合わせ（開催概要の下に OnboardingForm） */}
-      {step.kind === "pending" ? (
+      {step.kind === "welcome" ? (
+        // ★welcomeSeenAt を書かない・いいねも保存しない★ 何度でも最初から見られる（key で作り直す）
+        <WelcomeTestStage key={step.run} />
+      ) : step.kind === "pending" ? (
         // 本番の /pending と同じ部品。リアクションタイムはダミー、「確認する」「回答を直す」は何も保存しない
         <PendingApproval
           reactionMs={DUMMY_REACTION_MS}
@@ -255,5 +274,54 @@ export default function InvitationTestPage() {
         />
       )}
     </>
+  );
+}
+
+/** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */
+const TEST_WELCOME: WelcomeContent = { postId: null, message: WELCOME_DEFAULT_MESSAGE, media: null, reactionCount: 0, authorPhotoURL: null };
+
+/**
+ * 8. 承認後の演出（Issue #150）を、ゲストブックに似せた背景の上で流す。
+ * ★本物のタイムラインは読まない★ 背景はダミーのカードと＋ボタン（data-welcome-plus）だけ。
+ */
+function WelcomeTestStage() {
+  const [running, setRunning] = useState(true);
+  const [pin, setPin] = useState<{ hidden: boolean } | null>(null);
+  return (
+    <div className="min-h-dvh bg-stone-50">
+      <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
+          <p className="flex-1 font-serif text-xl text-stone-900">GB</p>
+          <span
+            data-welcome-plus=""
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white"
+            aria-label="新しく投稿する（ダミー）"
+          >
+            <span aria-hidden>＋</span>
+          </span>
+        </div>
+      </header>
+      <main className="mx-auto max-w-xl space-y-4 px-4 pb-24 pt-4">
+        <div className="h-24 rounded-2xl border border-stone-200/80 bg-white shadow-sm" aria-hidden />
+        {pin && <WelcomePinned content={TEST_WELCOME} hidden={pin.hidden} />}
+        {[0, 1].map((i) => (
+          <div key={i} className="opacity-60" aria-hidden>
+            <WelcomeCard content={{ ...TEST_WELCOME, message: "（ダミー）ほかのゲストの投稿" }} liked={false} />
+          </div>
+        ))}
+      </main>
+      {running && (
+        <WelcomeMoment
+          content={TEST_WELCOME}
+          onPin={() => setPin({ hidden: true })}
+          onReveal={() => setPin((p) => (p ? { hidden: false } : p))}
+          onDone={(r) => {
+            console.log("[invitation_test] 承認後の演出が終了", r);
+            setRunning(false);
+            if (!r.liked) setPin(null);
+          }}
+        />
+      )}
+    </div>
   );
 }
