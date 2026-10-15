@@ -164,6 +164,7 @@ async function seed(db) {
   // サーバーだけが読み書きする場所（Issue #131）。データがあっても読めないことを確かめるために置く
   writes.push(put("config/invitation", { groom: "（テスト）新郎", bride: "（テスト）新婦" }));
   writes.push(put("config/payment", { partyYen: 20000, secondYen: 5000, carFareYen: 10000 }));
+  writes.push(put("config/welcome", { defaultPostId: "p_all" }));
   writes.push(put("reactionTimes/u_guest", { uid: "u_guest", reactionMs: 250 }));
   writes.push(put("reactionTimes/u_groom", { uid: "u_groom", reactionMs: 300 }));
   writes.push(put("posts/p_all/secret/x1", { a: 1 }));

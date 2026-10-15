@@ -369,6 +369,8 @@ table("guestPrivate: 本人と管理者だけ（本名・出欠・アレルギ�
   // お車代の回答（Issue #148）。会費の内訳は /api/guest/payment が本人の分だけ返す
   ["brideFriend", DENY, "お車代（carFare）は他のゲストから読めない", get("guestPrivate/u_guest")],
   ["guest", DENY, "お車代（carFare）を自分で書き換えられない（会費の計算に使う）", update("guestPrivate/u_guest", { carFare: false })],
+  // 承認後の初回の演出（Issue #150）。見たかどうかの記録は /api/guest/welcome だけが書く
+  ["guest", DENY, "演出を見た記録（welcomeSeenAt）を自分で消せない・書けない", update("guestPrivate/u_guest", { welcomeSeenAt: null })],
 ]);
 
 table("guestAdmin: 管理者だけ（運営メモ）", [
@@ -484,6 +486,8 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ["anon", DENY, "config/invitation: 未ログインは読めない", get("config/invitation")],
   // 会費の金額（Issue #148）。読むのはサーバーだけ（お車代の額を招待状に出さない）
   ...lockedDown("config/payment", "config/payment"),
+  // 承認後の初回の演出（Issue #150）。タグ → 投稿 ID はサーバーだけが読む
+  ...lockedDown("config/welcome", "config/welcome"),
   // リアクションタイム（Issue #131）。読み書きはサーバーの /api/guest/reaction だけ（記録は1回だけ・上書きなし）
   ...lockedDown("reactionTimes", "reactionTimes/u_groom"),
   ["guest", DENY, "reactionTimes: 自分の記録もクライアントからは読めない", get("reactionTimes/u_guest")],

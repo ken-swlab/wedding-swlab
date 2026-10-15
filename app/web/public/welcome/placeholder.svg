@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="仮の写真（花束の絵）">
+  <!-- Issue #150 の仮の画像。人物や実在の写真は使わない。本物は config/welcome で投稿に差し替える -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fdf2f4"/>
+      <stop offset="1" stop-color="#f6e7d8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <rect width="800" height="600" fill="url(#glow)"/>
+  <g fill="#e9c46a" opacity="0.55">
+    <circle cx="110" cy="90" r="6"/><circle cx="690" cy="120" r="5"/><circle cx="640" cy="470" r="7"/>
+    <circle cx="160" cy="470" r="5"/><circle cx="740" cy="300" r="4"/><circle cx="60" cy="300" r="4"/>
+  </g>
+  <!-- 茎とリボン -->
+  <g stroke="#6a994e" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M400 330 L380 520"/><path d="M400 330 L410 525"/><path d="M400 330 L440 515"/>
+    <path d="M400 330 L355 510"/>
+  </g>
+  <path d="M362 455 Q400 480 440 452 L452 478 Q400 505 350 480 Z" fill="#d97b8f"/>
+  <path d="M398 470 l-40 52 l22 -2 l14 22 z M402 470 l40 52 l-22 -2 l-14 22 z" fill="#c9667c"/>
+  <!-- 葉 -->
+  <g fill="#8ab17d">
+    <ellipse cx="320" cy="300" rx="44" ry="18" transform="rotate(-30 320 300)"/>
+    <ellipse cx="482" cy="296" rx="44" ry="18" transform="rotate(30 482 296)"/>
+  </g>
+  <!-- 花 -->
+  <g>
+    <g transform="translate(400 250)">
+      <g fill="#f4a6b7"><circle r="38" cx="0" cy="-34"/><circle r="38" cx="32" cy="-10"/><circle r="38" cx="20" cy="28"/><circle r="38" cx="-20" cy="28"/><circle r="38" cx="-32" cy="-10"/></g>
+      <circle r="22" fill="#f7d6a0"/>
+    </g>
+    <g transform="translate(320 222) scale(0.7)">
+      <g fill="#fbe3e8"><circle r="38" cx="0" cy="-34"/><circle r="38" cx="32" cy="-10"/><circle r="38" cx="20" cy="28"/><circle r="38" cx="-20" cy="28"/><circle r="38" cx="-32" cy="-10"/></g>
+      <circle r="22" fill="#f2c57c"/>
+    </g>
+    <g transform="translate(486 226) scale(0.72)">
+      <g fill="#f8c8a8"><circle r="38" cx="0" cy="-34"/><circle r="38" cx="32" cy="-10"/><circle r="38" cx="20" cy="28"/><circle r="38" cx="-20" cy="28"/><circle r="38" cx="-32" cy="-10"/></g>
+      <circle r="22" fill="#f6dfa4"/>
+    </g>
+    <g transform="translate(372 170) scale(0.5)">
+      <g fill="#ffffff"><circle r="38" cx="0" cy="-34"/><circle r="38" cx="32" cy="-10"/><circle r="38" cx="20" cy="28"/><circle r="38" cx="-20" cy="28"/><circle r="38" cx="-32" cy="-10"/></g>
+      <circle r="22" fill="#f2c57c"/>
+    </g>
+    <g transform="translate(440 168) scale(0.48)">
+      <g fill="#f4a6b7"><circle r="38" cx="0" cy="-34"/><circle r="38" cx="32" cy="-10"/><circle r="38" cx="20" cy="28"/><circle r="38" cx="-20" cy="28"/><circle r="38" cx="-32" cy="-10"/></g>
+      <circle r="22" fill="#f7d6a0"/>
+    </g>
+  </g>
+</svg>
