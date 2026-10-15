@@ -8,6 +8,8 @@ paths:
   - "app/web/src/instrumentation*.ts"
   - "app/web/src/sentry.*.ts"
   - "scripts/csp-*.py"
+  - "scripts/media-referer-check.py"
+  - "app/web/src/config/media-access.ts"
 ---
 
 # CSP・Sentry・セキュリティヘッダ
@@ -33,3 +35,8 @@ paths:
 - 画像最適化は使わない: `images.unoptimized: true`、`remotePatterns: []`、ダミーの `localPatterns`（Vercel の新しいビルド経路では `unoptimized` だけだと `/_next/image` が残るため）。
 - `/api/health` の `X-Build` はコミットの短縮 SHA。デプロイ完了の確認に使う（本文には何も足さない）。
 - HSTS は Vercel が付けるので足さない。
+
+## Cloudflare（公開バケット wedding-media.sw-lab.net）
+- R2 のカスタムドメインなので Cloudflare を通る。`wedding.sw-lab.net` 本体は DNS のみ（CLAUDE.md ルール 20）。
+- Referer の制限（Issue #123）: WAF のカスタムルール `media-referer-guard` の案と、置く順番・切り戻しは `docs/security/media-referer.md`。**まだ置いていない。**置く・外すのはオーナー。式の `https://wedding.sw-lab.net/` は `MEDIA_FETCH_REFERER` とそろえる。
+- 外から確かめる: `python3 scripts/media-referer-check.py <テスト用のゲストの写真の URL> [--expect strict|lenient|off]`（読み取りのみ。URL をリポジトリに書かない）。

@@ -126,7 +126,7 @@ MEDIA_CODE="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://$ME
 if [ "$MEDIA_CODE" = "000" ]; then
   ng "$MEDIA_HOST に接続できない"
 else
-  ok "$MEDIA_HOST 応答あり (HTTP $MEDIA_CODE / R2 カスタムドメインは 404 が正常)"
+  ok "$MEDIA_HOST 応答あり (HTTP $MEDIA_CODE / R2 カスタムドメインは 404 が正常。Referer の制限を置いたあとは 403。docs/security/media-referer.md)"
 fi
 
 sec "4. Vercel Production 環境変数"
@@ -185,7 +185,7 @@ MEDIA_CODE="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://$ME
 if [ "$MEDIA_CODE" = "000" ]; then
   ng "$MEDIA_HOST に接続できない"
 else
-  ok "$MEDIA_HOST 応答あり (HTTP $MEDIA_CODE / R2 カスタムドメインは 404 が正常)"
+  ok "$MEDIA_HOST 応答あり (HTTP $MEDIA_CODE / R2 カスタムドメインは 404 が正常。Referer の制限を置いたあとは 403。docs/security/media-referer.md)"
 fi
 
 sec "4. Vercel Production 環境変数"

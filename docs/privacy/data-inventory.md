@@ -43,7 +43,7 @@
 | データ | 置き場所 | 中身 | 見られる人 | 保持（現状） | 消し方 |
 |---|---|---|---|---|---|
 | ログインのアカウント | Firebase Authentication | uid、**LINE の表示名**、LINE のアイコンの URL、Custom Claims（タグ・`admin`）、最終ログイン | 管理者（コンソール）・サーバー | 期限なし | 管理者（コンソール）。[runbook §2](deletion-runbook.md) |
-| 写真・動画（軽量版） | R2 `wedding-media`（**公開**。`u/{uid}/t/…`） | 端末で縮めた JPEG、動画。本人が上げたアイコン画像もここ | **URL を知っていれば誰でも**（URL は推測しにくいが、認証は無い） | 期限なし。**投稿を消しても残る** | オーナー（Cloudflare）。§5 |
+| 写真・動画（軽量版） | R2 `wedding-media`（**公開**。`u/{uid}/t/…`） | 端末で縮めた JPEG、動画。本人が上げたアイコン画像もここ | **URL を知っていれば誰でも**（URL は推測しにくいが、認証は無い。Referer でサイトからの読み込みだけに絞る案がある。置いても、偽装すれば開ける。[media-referer.md](../security/media-referer.md)。**まだ置いていない**） | 期限なし。**投稿を消しても残る** | オーナー（Cloudflare）。§5 |
 | 写真（高画質版） | R2 `wedding-media`（公開。`u/{uid}/o/…`） | Worker が EXIF を落とした複製 | 同上 | 同上 | 同上 |
 | 写真（原本） | R2 `wedding-originals`（**非公開**。`u/{uid}/o/…`） | **EXIF つきのまま**（撮影日時・機種・**位置情報**が入りうる） | オーナー（Cloudflare）・サーバー・Worker | 期限なし。投稿を消しても残る | オーナー（Cloudflare）。§5 |
 | Worker の印（マーカー） | R2 `wedding-originals`（`_linked/`・`_pending/`・`_failed/`・`_skipped/` の下に、原本と同じキー） | 処理の状態。キーに uid が入る | 同上 | 期限なし | 同上 |
