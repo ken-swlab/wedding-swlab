@@ -32,6 +32,7 @@ paths:
 - `next/image` はすべて `unoptimized`（next.config.ts）。軽くしたいときは `/_next/image` を戻さず、アップロード時に小さい版を作る方向で考える。
 - `/screen` の写真は意図して `<img>`（遅延と画質のため）。
 - 配信元のホストを足すときは `src/lib/csp.ts` の `img-src` / `media-src` に足す。
+- 公開バケットは、Cloudflare の WAF で Referer がサイトでない読み込みを拒否する案がある（Issue #123。`docs/security/media-referer.md`。置くのはオーナー）。**サーバーから公開 URL を読むときは `MEDIA_FETCH_REFERER`（`src/config/media-access.ts`）を Referer に付ける**（`fetchImageBytes` が付けている。付け忘れると、ルールを置いた瞬間に顔検出が止まる）。公開 URL を外部のサービス（AI など）に渡して読ませる作りにしない（Referer が付かない）。
 
 ## 顔検出
 - 投稿のあと `/api/faces/detect {postId}` を待たずに呼ぶ。サーバーは 202 を返してから Rekognition で処理する。
