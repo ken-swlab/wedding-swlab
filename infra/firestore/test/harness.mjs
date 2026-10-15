@@ -119,7 +119,8 @@ async function seed(db) {
     if (!PEOPLE[who]) continue;
     const { uid, claims } = PEOPLE[who];
     writes.push(put(`guests/${uid}`, { nickname: who, tags: claims.tags ?? [], isApproved: (claims.tags ?? []).length > 0 }));
-    writes.push(put(`guestPrivate/${uid}`, { attendance: "attend", isActive: who !== "suspended" }));
+    // drinkLevel（お酒。Issue #147）も他のゲストに見せない値として入れておく
+    writes.push(put(`guestPrivate/${uid}`, { attendance: "attend", drinkLevel: 4, isActive: who !== "suspended" }));
     writes.push(put(`guestAdmin/${uid}`, { aiMemo: "memo" }));
     writes.push(put(`notifications/${uid}/items/n_unread`, { type: "mention", fromUid: "u_admin", postId: "p_all", read: false }));
     writes.push(put(`notifications/${uid}/items/n_read`, { type: "mention", fromUid: "u_admin", postId: "p_all", read: true }));

@@ -8,6 +8,8 @@ import {
   type Ceremony,
 } from "@/types/admin";
 import type { CeremonyInfo } from "@/types/invitation";
+import type { DrinkLevel } from "@/config/drink";
+import { DrinkSlider } from "@/components/guestbook/DrinkSlider";
 import { ANSWER_ALLERGY_MAX, ANSWER_NAME_PART_MAX, ANSWER_NOTE_MAX } from "@/config/answers";
 
 /** フォームで入力中の回答。送るときは answerPayload で API の本文にする */
@@ -18,6 +20,8 @@ export type AnswerDraft = {
   firstKana: string;
   attendance: Attendance;
   ceremony: Ceremony | "";
+  /** お酒の量 0〜4（Issue #147）。未選択は null */
+  drinkLevel: DrinkLevel | null;
   /** 未選択は null */
   hasAllergy: boolean | null;
   allergy: string;
@@ -31,6 +35,7 @@ export const EMPTY_ANSWER_DRAFT: AnswerDraft = {
   firstKana: "",
   attendance: "unanswered",
   ceremony: "",
+  drinkLevel: null,
   hasAllergy: null,
   allergy: "",
   note: "",
@@ -50,6 +55,7 @@ export function answerDraftReady(d: AnswerDraft): boolean {
     !!d.firstKana.trim() &&
     d.attendance !== "unanswered" &&
     (!asksCeremony(d.attendance) || d.ceremony !== "") &&
+    (!asksCeremony(d.attendance) || d.drinkLevel !== null) &&
     d.hasAllergy !== null &&
     (d.hasAllergy === false || !!d.allergy.trim())
   );
@@ -57,7 +63,7 @@ export function answerDraftReady(d: AnswerDraft): boolean {
 
 /**
  * API（/api/guest/register・/api/guest/questionnaire）に送る本文。
- * ★隠れている項目の値は送らない★ 欠席なら挙式、「特になし」ならアレルギーの詳細を空にする
+ * ★隠れている項目の値は送らない★ 欠席なら挙式・お酒、「特になし」ならアレルギーの詳細を空にする
  *   （選び直す前に入れた値が残っていても保存しない。サーバーの parseAnswers も同じく捨てる）。
  */
 export function answerPayload(d: AnswerDraft) {
@@ -68,6 +74,7 @@ export function answerPayload(d: AnswerDraft) {
     firstKana: d.firstKana.trim(),
     attendance: d.attendance,
     ceremony: asksCeremony(d.attendance) ? d.ceremony : "",
+    drinkLevel: asksCeremony(d.attendance) ? d.drinkLevel : null,
     hasAllergy: d.hasAllergy === true,
     allergy: d.hasAllergy ? d.allergy.trim() : "",
     note: d.note.trim(),
@@ -87,7 +94,7 @@ const inputClass =
   "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-base text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
 
 /**
- * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・アレルギー・備考）。
+ * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・お酒・アレルギー・備考）。
  * 招待状（OnboardingForm）と /guide/questionnaire で共通。送信ボタンと送信処理は呼び出し側が持つ。
  * afterName: ふりがなの下に差し込む欄（招待状のニックネーム）。
  */
@@ -190,6 +197,13 @@ export function AnswerFields({
               </Choice>
             ))}
           </div>
+        </Section>
+      )}
+
+      {asksCeremony(value.attendance) && (
+        <Section label="お酒はどれくらい飲みますか？" required>
+          <p className="mb-1 text-[11px] text-stone-400">乾杯のご準備に使います。この内容は新郎新婦とご本人だけが見られます。</p>
+          <DrinkSlider value={value.drinkLevel} onChange={(v) => onChange({ drinkLevel: v })} />
         </Section>
       )}
 

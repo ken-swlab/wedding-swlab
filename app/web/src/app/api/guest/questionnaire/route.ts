@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
+import { syncHeavyDrinkerTag } from "@/lib/drink-tag-server";
 import { safeMessage } from "@/lib/public-error";
 import { answerChangePatch, answersPrivatePatch, parseAnswers, type AnswersBody } from "@/lib/answers-server";
 
@@ -77,6 +78,18 @@ async function handle(req: Request) {
   const change = answerChangePatch(privateSnap, adminSnap, answers);
   if (change) batch.set(adminRef, { uid, ...change }, { merge: true });
   await batch.commit();
+
+  /**
+   * ★お酒を変えたら、承認済みの人の酒豪タグを付け外しする★（Issue #147。承認前は承認のときに反映）
+   *   回答は保存済みなので、タグの更新に失敗しても回答の保存は成功として返す。
+   */
+  if ((privateSnap.get("drinkLevel") ?? null) !== answers.drinkLevel) {
+    try {
+      await syncHeavyDrinkerTag(uid, answers.drinkLevel);
+    } catch (e) {
+      console.error("[guest/questionnaire] 酒豪タグの更新に失敗しました", e);
+    }
+  }
 
   return NextResponse.json({ ok: true, changed: change !== null });
 }

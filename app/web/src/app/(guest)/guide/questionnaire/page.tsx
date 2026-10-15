@@ -17,6 +17,7 @@ import {
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useInvitationCeremony } from "@/hooks/useInvitationCeremony";
+import { isDrinkLevel } from "@/config/drink";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
@@ -38,6 +39,7 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
     firstKana,
     attendance: (typeof d.attendance === "string" && ATTENDANCE_VALUES.has(d.attendance) ? d.attendance : "unanswered") as Attendance,
     ceremony: (typeof d.ceremony === "string" && CEREMONY_VALUES.has(d.ceremony) ? d.ceremony : "") as Ceremony | "",
+    drinkLevel: isDrinkLevel(d.drinkLevel) ? d.drinkLevel : null,
     hasAllergy: typeof d.hasAllergy === "boolean" ? d.hasAllergy : allergy.trim() ? true : null,
     allergy,
     note: s(d.note),

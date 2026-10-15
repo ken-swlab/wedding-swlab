@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import { COUPLE_TAG, TAG_DEFS, tagDef } from "@/config/tags";
+import { COUPLE_TAG, tagDef } from "@/config/tags";
+import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
 import {
@@ -78,9 +79,11 @@ export function Composer({
    * ★「新郎新婦」は、自分がそのタグを持っていなくても選べる★（新郎新婦あての投稿。Issue #97）
    *   ほかのタグは、自分が持っているものだけ（Rules の tagsInMyScope と同じ）。
    */
+  // ★カスタムタグも選べる★（「酒豪」など。Issue #147）。選べるかは管理画面のタグ管理（selectable）で決め、アーカイブ済みは出さない
+  const { allTags } = useTags();
   const available = useMemo(
-    () => TAG_DEFS.filter((t) => t.selectable && (tags.includes(t.id) || t.id === COUPLE_TAG)),
-    [tags],
+    () => allTags.filter((t) => t.selectable && !t.archived && (tags.includes(t.id) || t.id === COUPLE_TAG)),
+    [allTags, tags],
   );
   const [selected, setSelected] = useState<string[]>(() =>
     tags.includes("all") ? ["all"] : tags.slice(0, 1),

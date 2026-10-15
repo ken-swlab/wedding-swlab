@@ -8,6 +8,7 @@ import { db } from "@/lib/firebase";
 import type {
   Attendance, Ceremony, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
 } from "@/types/admin";
+import { isDrinkLevel } from "@/config/drink";
 
 const PAGE = 500;
 
@@ -62,6 +63,7 @@ export function useAdminGuests(enabled: boolean) {
           uid: d.id,
           attendance: (v.attendance ?? "unanswered") as Attendance,
           ceremony: (v.ceremony ?? "") as Ceremony | "",
+          drinkLevel: isDrinkLevel(v.drinkLevel) ? v.drinkLevel : null,
           hasAllergy: typeof v.hasAllergy === "boolean" ? v.hasAllergy : null,
           allergy: v.allergy ?? "",
           note: v.note ?? "",
@@ -131,6 +133,7 @@ export function useAdminGuests(enabled: boolean) {
             ...p,
             attendance: v?.attendance ?? "unanswered",
             ceremony: v?.ceremony ?? "",
+            drinkLevel: v?.drinkLevel ?? null,
             hasAllergy: v?.hasAllergy ?? null,
             allergy: v?.allergy ?? "",
             note: v?.note ?? "",

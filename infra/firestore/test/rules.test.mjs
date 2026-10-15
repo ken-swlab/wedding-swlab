@@ -362,6 +362,10 @@ table("guestPrivate: 本人と管理者だけ（本名・出欠・アレルギ�
   ["guest", DENY, "作れない", set("guestPrivate/u_new", { attendance: "attend" })],
   ["guest", DENY, "消せない", del("guestPrivate/u_guest")],
   ["admin", DENY, "管理者もクライアントからは書けない", update("guestPrivate/u_guest", { attendance: "absent" })],
+  // お酒の回答（Issue #147）。本人と管理者だけが読め、書くのはサーバー（/api/guest/register・questionnaire）だけ
+  ["groomFriend", DENY, "お酒（drinkLevel）は他のゲストから読めない", get("guestPrivate/u_guest")],
+  ["guest", DENY, "お酒（drinkLevel）を自分で書き換えられない（酒豪タグはサーバーが付ける）", update("guestPrivate/u_guest", { drinkLevel: 0 })],
+  ["admin", ALLOW, "お酒（drinkLevel）を読める", get("guestPrivate/u_guest")],
 ]);
 
 table("guestAdmin: 管理者だけ（運営メモ）", [

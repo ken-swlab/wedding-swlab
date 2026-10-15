@@ -5,6 +5,7 @@ import { TagPicker } from "@/components/admin/TagPicker";
 import { CARD_BUTTON, CARD_INPUT, CARD_SELECT, CARD_TEXTAREA, CardField, CardToggle, MobileSaveBar } from "@/components/admin/MobileCard";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
+import { DRINK_LEVELS } from "@/config/drink";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "nickname" | "tags" | "attendance" | "allergy" | "paymentStatus" | "aiMemo">>;
@@ -164,6 +165,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     <CardField label="送金">{paymentSelect(row, true)}</CardField>
                   </div>
                   {row.ceremony && <p className="text-xs text-stone-500">{CEREMONY_LABEL[row.ceremony]}</p>}
+                  {row.drinkLevel !== null && <p className="text-xs text-stone-500">お酒: {DRINK_LEVELS[row.drinkLevel].label}</p>}
                   <div>
                     <CardField label="アレルギー">{allergyTextarea(row, true)}</CardField>
                     {noteText(row, true)}
@@ -235,6 +237,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     {ackBadge(row, false)}
                     {attendanceSelect(row, false)}
                     {row.ceremony && <p className="mt-1 text-[10px] text-stone-500">{CEREMONY_LABEL[row.ceremony]}</p>}
+                    {row.drinkLevel !== null && <p className="text-[10px] text-stone-500">お酒: {DRINK_LEVELS[row.drinkLevel].label}</p>}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">
                     {allergyTextarea(row, false)}
