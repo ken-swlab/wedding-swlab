@@ -9,7 +9,7 @@ import { DRINK_LEVEL_MAX, HEAVY_DRINKER_TAG } from "@/config/drink";
  *
  * ★付けるのは承認済みの人だけ★ 承認前の人は、承認のとき（/api/admin/update-guest）に反映する。
  *   承認前の Claims にタグを付けると、承認を待たずに投稿が見えてしまう（Rules の canSee）。
- * ★Claims は applyGuestTags() で変える★（マージ → 900 バイト以下 → revokeRefreshTokens）。
+ * ★Claims は applyGuestTags() で変える★（マージ → 900 バイト以下 → タグを外すときだけ revokeRefreshTokens）。
  *   guests.tags と claimsUpdatedAt も一緒に書き、本人の画面にタグの変更を届ける。
  */
 
@@ -49,8 +49,9 @@ export async function withHeavyDrinkerTag(db: Firestore, uid: string, tags: stri
 
 /**
  * 回答を保存したあと、承認済みの人の酒豪タグを付け外しする。
- * ★変わるときだけ Claims を書く★ applyGuestTags はリフレッシュトークンを失効させるので、
- *   回答を保存するたびに呼ばない。
+ * ★変わるときだけ Claims を書く★ タグを外すとき（「大量」から下げたとき）は applyGuestTags が
+ *   リフレッシュトークンを失効させ、ログインし直すまで API が 401 になるので、回答を保存するたびに呼ばない。
+ *   付けるときは失効させない（Issue #156）。
  */
 export async function syncHeavyDrinkerTag(uid: string, drinkLevel: unknown): Promise<void> {
   const { db } = admin();
