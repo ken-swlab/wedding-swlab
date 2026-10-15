@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   AnswerFields,
   EMPTY_ANSWER_DRAFT,
   Section,
-  answerDraftReady,
+  answerDraftMissing,
   answerPayload,
+  scrollToAnswerField,
   type AnswerDraft,
 } from "@/components/guestbook/AnswerFields";
 import { PROFILE_NICKNAME_MAX } from "@/config/profile";
@@ -49,12 +50,21 @@ export function OnboardingForm({
   const [nickname, setNickname] = useState(initialNickname || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 送信を押したあとだけ、足りない項目に案内を出す（開いた直後から赤くしない）
+  const [tried, setTried] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const ready = answerDraftReady(draft);
+  const missing = answerDraftMissing(draft);
+  const ready = missing.length === 0;
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (busy || !ready) return;
+    if (busy) return;
+    if (!ready) {
+      setTried(true);
+      scrollToAnswerField(formRef.current, missing[0]);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -67,13 +77,19 @@ export function OnboardingForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
+    // ★noValidate★ ブラウザの「入力してください」の吹き出しではなく、足りない項目の案内を出す（Issue #157 A-3）
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <div className="mb-8 text-center">
         <h2 className="font-serif text-lg text-stone-900">ご出席のご確認</h2>
-        <p className="mt-2 text-sm leading-relaxed text-stone-500">
-          ご入力いただいた内容を新郎新婦が確認のうえ、
+        {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1。iOS の Safari は word-break: auto-phrase に未対応） */}
+        <p className="mt-2 text-balance text-sm leading-relaxed text-stone-500">
+          ご回答のあと、新郎新婦が確認すると
           <br />
-          ゲストブックを開放いたします。
+          「ゲストブック」が開きます。
+        </p>
+        {/* ゲストブックで何ができるかを具体的に（Issue #157 B-2） */}
+        <p className="mt-3 rounded-xl bg-stone-50 px-4 py-3 text-left text-[12.5px] leading-relaxed text-stone-600">
+          ゲストブックは、この日のための、ゲスト限定のページです。写真を投稿したり、ほかのゲストの写真を見たりできます。
         </p>
       </div>
 
@@ -81,6 +97,7 @@ export function OnboardingForm({
         value={draft}
         onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
         ceremony={ceremony}
+        missing={tried ? missing : undefined}
         afterName={
           <Section label="ニックネーム">
             <input
@@ -104,10 +121,16 @@ export function OnboardingForm({
         </p>
       )}
 
+      {!ready && (
+        <p className="mt-8 text-center text-[12px] text-stone-500" aria-live="polite">
+          あと {missing.length} 項目です
+        </p>
+      )}
+
       <button
         type="submit"
-        disabled={busy || !ready}
-        className="mt-8 min-h-12 w-full touch-manipulation rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+        disabled={busy}
+        className={`${ready ? "mt-8" : "mt-2"} min-h-12 w-full touch-manipulation rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40`}
       >
         {busy ? "送信中…" : "送信する"}
       </button>

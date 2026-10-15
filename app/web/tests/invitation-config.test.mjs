@@ -78,3 +78,22 @@ test("挙式（ceremony）は任意。あるときは時刻の形を確かめる
     assert.deepEqual(parseInvitationConfig(d), { ok: false, field }, field);
   }
 });
+
+test("承認の目安（approvalNote）は任意。文字列で 200 文字まで（Issue #157 B-4）", () => {
+  const ok = sample();
+  assert.equal(parseInvitationConfig(ok).value.approvalNote, ok.approvalNote);
+
+  for (const empty of [undefined, ""]) {
+    const d = sample();
+    d.approvalNote = empty;
+    const r = parseInvitationConfig(d);
+    assert.equal(r.ok, true);
+    assert.equal("approvalNote" in r.value, false);
+  }
+
+  for (const bad of [1, ["x"], "あ".repeat(201)]) {
+    const d = sample();
+    d.approvalNote = bad;
+    assert.deepEqual(parseInvitationConfig(d), { ok: false, field: "approvalNote" });
+  }
+});

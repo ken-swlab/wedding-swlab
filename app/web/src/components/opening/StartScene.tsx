@@ -35,14 +35,20 @@ const WORDS = ["Take", "your", "marks"] as const;
  *   contextmenu を止めている。ここでは pointerdown を preventDefault する。
  * ★タッチはネイティブのイベントで聞く★ passive でない pointerdown が要る（preventDefault するため）。
  *
+ * ★止まったままにしない★（Issue #157 A-2）案内を出してから一度も指を置かないまま idleEmphasis（5 秒）で
+ *   丸と案内を大きくし、idleSkip（10 秒）で「スキップして招待状へ」を下に大きめに出す（右上のスキップと同じ）。
+ *
  * onResult: 有効なタイム（ms の整数）か、反応なしの null。1回だけ呼ぶ。
+ * onSkip: 「スキップして招待状へ」。
  */
-export function StartScene({ onResult }: { onResult: (reactionMs: number | null) => void }) {
+export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number | null) => void; onSkip: () => void }) {
   const [words, setWords] = useState(0);
   const [hint, setHint] = useState(false);
   const [tense, setTense] = useState(false);
   const [markHidden, setMarkHidden] = useState(false);
   const [foul, setFoul] = useState<string | null>(null);
+  // 0: ふつう → 1: 案内を大きく → 2: スキップを大きく出す（一度も指を置かないまま待っているとき）
+  const [idle, setIdle] = useState<0 | 1 | 2>(0);
 
   const root = useRef<HTMLElement>(null);
   const flash = useRef<HTMLDivElement>(null);
@@ -64,6 +70,8 @@ export function StartScene({ onResult }: { onResult: (reactionMs: number | null)
     let stanceTimer: ReturnType<typeof setTimeout> | null = null;
     let startTimer: ReturnType<typeof setTimeout> | null = null;
     let noReactionTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleTimers: ReturnType<typeof setTimeout>[] | null = null;
+    let touched = false;
     let frame = 0;
     let startAt = 0;
 
@@ -79,6 +87,10 @@ export function StartScene({ onResult }: { onResult: (reactionMs: number | null)
       hold = "ready";
       pointer = null;
       setHint(true);
+      // 初めて案内を出したときだけ、待ち続けている人への案内を仕込む
+      if (!touched && !idleTimers) {
+        idleTimers = [t.after(OPENING_TIMING.idleEmphasis, () => setIdle(1)), t.after(OPENING_TIMING.idleSkip, () => setIdle(2))];
+      }
     }
 
     function finish(reactionMs: number | null) {
@@ -125,6 +137,11 @@ export function StartScene({ onResult }: { onResult: (reactionMs: number | null)
     function onDown(e: PointerEvent) {
       if (hold !== "ready" || (e.target instanceof Element && e.target.closest("button"))) return;
       e.preventDefault();
+      if (!touched) {
+        touched = true;
+        idleTimers?.forEach((h) => t.clear(h));
+        setIdle(0);
+      }
       hold = "stance";
       pointer = e.pointerId;
       setHint(false);
@@ -206,12 +223,29 @@ export function StartScene({ onResult }: { onResult: (reactionMs: number | null)
           ))}
         </p>
         <div className="absolute inset-x-0 bottom-[14%] flex flex-col items-center gap-3 transition-opacity duration-300" style={{ opacity: hint ? 1 : 0 }}>
-          <span aria-hidden className="relative block h-16 w-16 rounded-full border-2 border-white/70">
-            <span ref={ring} className="absolute inset-[14px] rounded-full bg-white/85" />
-          </span>
-          <p className="text-sm tracking-[0.1em] text-white/85">長押しで構える</p>
-          <p className="text-xs tracking-[0.08em] text-white/60">START の合図で指を離す</p>
+          <div className="flex items-center gap-3">
+            <span
+              aria-hidden
+              className={`relative block h-16 w-16 rounded-full border-2 border-white/70 transition-transform duration-500 motion-reduce:transition-none ${idle >= 1 ? "start-idle-pulse scale-125" : ""}`}
+            >
+              <span ref={ring} className="absolute inset-[14px] rounded-full bg-white/85" />
+            </span>
+            <PressIcon />
+          </div>
+          <p className={`tracking-[0.1em] text-white/90 transition-[font-size] ${idle >= 1 ? "mt-2 text-lg font-bold" : "text-sm"}`}>長押しで構える</p>
+          <p className={`tracking-[0.08em] text-white/70 ${idle >= 1 ? "text-sm" : "text-xs"}`}>START の合図で指を離す</p>
         </div>
+        {idle >= 2 && (
+          <div className="welcome-fade-in absolute inset-x-6 flex justify-center" style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+            <button
+              type="button"
+              onClick={onSkip}
+              className="min-h-12 w-full max-w-[20rem] touch-manipulation rounded-full border border-white/40 bg-white/15 px-6 text-[15px] font-medium text-white"
+            >
+              スキップして招待状へ
+            </button>
+          </div>
+        )}
       </div>
 
       <div ref={flash} aria-hidden className="pointer-events-none absolute inset-0 z-20 bg-white opacity-0" />
@@ -231,5 +265,17 @@ export function StartScene({ onResult }: { onResult: (reactionMs: number | null)
         )}
       </div>
     </section>
+  );
+}
+
+/** 長押しの指の絵（Issue #157 A-2）。丸の横に添える */
+function PressIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 32 32" className="h-9 w-9 text-white/80" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 15V6.5a2 2 0 0 1 4 0V14" />
+      <path d="M16 13.5v-1.5a2 2 0 0 1 4 0V15" />
+      <path d="M20 14a2 2 0 0 1 4 0v4.5c0 4.7-3.3 8.5-8 8.5h-1.2c-2.4 0-4.2-1-5.6-2.9L5.6 19.2a2 2 0 0 1 3.1-2.5L12 20" />
+      <path d="M9 4.5a6 6 0 0 1 10 0" opacity="0.6" />
+    </svg>
   );
 }

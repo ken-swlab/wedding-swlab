@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm, type OnboardingAnswer } from "@/components/guestbook/OnboardingForm";
-import { PendingApproval } from "@/components/guestbook/PendingApproval";
+import { PendingApproval, pendingAnswerSummary } from "@/components/guestbook/PendingApproval";
 import type { AnswerDraft } from "@/components/guestbook/AnswerFields";
 import { useApprovalAdvance } from "@/hooks/useApprovalAdvance";
 import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
@@ -282,6 +282,7 @@ export default function InvitationTestPage() {
           // 承認の押し方を変えたら作り直す（自動の流れを最初から見る）
           key={step.approval === null ? "waiting" : step.approval.stuck ? "stuck" : "approved"}
           approval={step.approval}
+          approvalNote={currentInvitation.approvalNote ?? null}
           onApproved={() => jump("welcome")}
           onEdit={() => {
             console.log("[invitation_test] 回答を直す（ダミー）");
@@ -322,7 +323,17 @@ const DUMMY_REFRESH_MS = 800;
  * ★取り直しはダミー★ 何も読み書きしない。成功したら 8. 承認後の演出へ進む（本番は layout が /guestbook へ移す）。
  *   stuck なら 1 回目は失敗させ、「画面が切り替わらない場合はこちら」を出す。押すと 2 回目で成功する。
  */
-function TestPending({ approval, onApproved, onEdit }: { approval: TestApproval; onApproved: () => void; onEdit: () => void }) {
+function TestPending({
+  approval,
+  approvalNote,
+  onApproved,
+  onEdit,
+}: {
+  approval: TestApproval;
+  approvalNote: string | null;
+  onApproved: () => void;
+  onEdit: () => void;
+}) {
   const failNext = useRef(approval?.stuck === true);
   const refresh = useCallback(async () => {
     console.log("[invitation_test] 承認後のトークンの取り直し（ダミー）");
@@ -334,7 +345,17 @@ function TestPending({ approval, onApproved, onEdit }: { approval: TestApproval;
     onApproved();
   }, [onApproved]);
   const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh });
-  return <PendingApproval reactionMs={DUMMY_REACTION_MS} approved={approval !== null} stale={stale} onRetry={retry} onEdit={onEdit} />;
+  return (
+    <PendingApproval
+      reactionMs={DUMMY_REACTION_MS}
+      approved={approval !== null}
+      stale={stale}
+      onRetry={retry}
+      onEdit={onEdit}
+      approvalNote={approvalNote}
+      answerSummary={pendingAnswerSummary(DUMMY_ANSWER.attendance, DUMMY_ANSWER.ceremony)}
+    />
+  );
 }
 
 /** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */

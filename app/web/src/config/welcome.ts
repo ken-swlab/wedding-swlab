@@ -13,9 +13,6 @@ export const WELCOME_DEFAULT_MESSAGE = "来てくれて、ありがとう";
 /** 投稿者の表示 */
 export const WELCOME_AUTHOR_NAME = "新郎新婦";
 
-/** ダブルタップが無いまま、この時間がたったら「タップでいいね」を出す (ms) */
-export const WELCOME_TAP_HINT_MS = 4000;
-
 /** タイムラインへ引き込む動きの長さ (ms)。0.6〜0.8 秒 */
 export const WELCOME_FLY_MS = 700;
 
