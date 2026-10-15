@@ -16,7 +16,7 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
  *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
  *   open     … 招待状の本文と、その下に出欠の回答フォーム（1ページの縦スクロール。Issue #74）
  *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
- *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。「次へ」で承認待ちへ
+ *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。3 秒かタップで承認待ちへ（Issue #156）
  */
 export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
@@ -42,7 +42,7 @@ export type InvitationFlowProps = {
   rsvp: ReactNode;
   /** エラー画面・準備中の画面の「もう一度読み込む」 */
   onRetry: () => void;
-  /** 送信完了（finish）の「次へ」 */
+  /** 送信完了（finish）から承認待ちへ進む（自動・タップ。Issue #156） */
   onEntryNext?: () => void;
 };
 

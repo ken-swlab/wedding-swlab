@@ -30,6 +30,7 @@ export function OnboardingForm({
   displayName,
   initialNickname,
   ceremony,
+  initialDraft,
   onSubmit: submit,
 }: {
   /** LINE の表示名。フォームの下に「〜として回答します」と出す（★ニックネームの既定値には使わない★） */
@@ -37,9 +38,14 @@ export function OnboardingForm({
   initialNickname?: string;
   /** 挙式の時刻と案内文（config/invitation）。無ければ時刻なしで聞く */
   ceremony?: CeremonyInfo | null;
+  /**
+   * 入力欄の初期値（Issue #156）。★管理者のテスト画面（/admin/invitation_test）のダミーの回答だけが渡す★
+   * 本番の招待状は渡さない（空欄から始める）。
+   */
+  initialDraft?: AnswerDraft;
   onSubmit: (answer: OnboardingAnswer) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<AnswerDraft>(EMPTY_ANSWER_DRAFT);
+  const [draft, setDraft] = useState<AnswerDraft>(initialDraft ?? EMPTY_ANSWER_DRAFT);
   const [nickname, setNickname] = useState(initialNickname || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
