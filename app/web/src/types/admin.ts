@@ -1,4 +1,5 @@
 import type { Timestamp } from "firebase/firestore";
+import type { DrinkLevel } from "@/config/drink";
 
 /**
  * 出欠。label は管理画面の短い表記、formLabel は回答フォームの表記（Issue #74 で4択に変更）。
@@ -71,6 +72,8 @@ export type GuestPrivate = {
   attendance: Attendance;
   /** 挙式から出るか。出欠が欠席・未回答なら "" */
   ceremony: Ceremony | "";
+  /** お酒の量 0〜4（Issue #147）。欠席・未回答なら null。★他のゲストに見せない★ */
+  drinkLevel: DrinkLevel | null;
   /** 食物アレルギーの有無。false なら allergy は空。未回答（登録前・名簿のみ）は null */
   hasAllergy: boolean | null;
   /** ★健康情報★ 公開プロフィールには絶対に置かない */

@@ -83,6 +83,7 @@ for (const a of accounts) {
       kana: `かいはつ ${a.key}`,
       attendance: "both",
       ceremony: "party",
+      drinkLevel: 2,
       hasAllergy: false,
       allergy: "",
       note: "",

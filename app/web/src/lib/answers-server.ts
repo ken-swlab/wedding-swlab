@@ -1,6 +1,7 @@
 import { FieldValue, type DocumentSnapshot } from "firebase-admin/firestore";
 import { ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { ANSWER_ALLERGY_MAX, ANSWER_NAME_PART_MAX, ANSWER_NOTE_MAX } from "@/config/answers";
+import { isDrinkLevel, type DrinkLevel } from "@/config/drink";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
@@ -18,6 +19,8 @@ export type Answers = {
   attendance: Exclude<Attendance, "unanswered">;
   /** 欠席なら "" */
   ceremony: Ceremony | "";
+  /** お酒の量 0〜4（Issue #147）。欠席なら null */
+  drinkLevel: DrinkLevel | null;
   hasAllergy: boolean;
   /** hasAllergy が false なら "" */
   allergy: string;
@@ -31,6 +34,7 @@ export type AnswersBody = {
   firstKana?: unknown;
   attendance?: unknown;
   ceremony?: unknown;
+  drinkLevel?: unknown;
   hasAllergy?: unknown;
   allergy?: unknown;
   note?: unknown;
@@ -40,7 +44,7 @@ export type AnswersBody = {
  * 回答を検証する。/api/guest/register と /api/guest/questionnaire の共通。
  * 不正なら画面に出してよい文言を返す（{ error }）。
  *
- * ★欠席なら挙式、アレルギーが「特になし」なら詳細を、送られてきても捨てる★
+ * ★欠席なら挙式・お酒、アレルギーが「特になし」なら詳細を、送られてきても捨てる★
  *   フォームで選び直したときに隠れた入力欄の値が残っていても、保存される値を選択と食い違わせない。
  */
 export function parseAnswers(body: AnswersBody): { answers: Answers } | { error: string } {
@@ -73,6 +77,13 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
     ceremony = body.ceremony as Ceremony;
   }
 
+  // ★0〜4 の整数だけ★ 中間の値・文字列・小数は拒否する（Issue #147）
+  let drinkLevel: Answers["drinkLevel"] = null;
+  if (attendance !== "declined") {
+    if (!isDrinkLevel(body.drinkLevel)) return { error: "お酒をどれくらい飲むか選んでください" };
+    drinkLevel = body.drinkLevel;
+  }
+
   if (typeof body.hasAllergy !== "boolean") return { error: "食物アレルギーの有無を選んでください" };
   const hasAllergy = body.hasAllergy;
   const allergy = hasAllergy ? str(body.allergy) : "";
@@ -92,6 +103,7 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
       kana: `${lastKana} ${firstKana}`,
       attendance,
       ceremony,
+      drinkLevel,
       hasAllergy,
       allergy,
       note,
@@ -110,6 +122,7 @@ export function answersPrivatePatch(a: Answers): Record<string, unknown> {
     kana: a.kana,
     attendance: a.attendance,
     ceremony: a.ceremony,
+    drinkLevel: a.drinkLevel,
     hasAllergy: a.hasAllergy,
     allergy: a.allergy,
     note: a.note,

@@ -4,6 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { applyGuestTags, readGuestClaims } from "@/lib/guests-server";
 import { DEFAULT_GUEST_TAGS } from "@/config/tags";
 import { knownTagIds } from "@/lib/tags-server";
+import { withHeavyDrinkerTag } from "@/lib/drink-tag-server";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type UpdateGuestPayload } from "@/types/admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
@@ -99,6 +100,8 @@ async function handle(req: Request) {
       // ★必ず和集合★ 統合済みゲストはタグが空でないため
       //   「空のときだけ付与」だと all が抜けて画面が真っ白になる。
       tags = [...new Set([...current.tags, ...DEFAULT_GUEST_TAGS])].sort();
+      // ★承認前に「大量」と答えた人の酒豪タグは、承認のときに付ける★（Issue #147。lib/drink-tag-server.ts）
+      tags = await withHeavyDrinkerTag(db, uid, tags);
     } else if (body.isApproved === false) {
       tags = current.isAdmin ? current.tags : [];
     }

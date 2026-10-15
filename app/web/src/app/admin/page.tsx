@@ -11,6 +11,7 @@ import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
+import { DRINK_LEVELS } from "@/config/drink";
 
 /** スマホではタップ領域を 44px にする */
 const NAV_LINK = "inline-flex min-h-11 touch-manipulation items-center rounded-full border border-stone-200 bg-white px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1";
@@ -72,9 +73,16 @@ export default function AdminPage() {
     return by;
   }, [rows]);
 
+  // お酒の人数（Issue #147。乾杯の準備用）。承認待ちも含め、回答のある人を数える
+  const drinkStats = useMemo(() => {
+    const by = DRINK_LEVELS.map(() => 0);
+    for (const r of rows) if (r.isRegistered && r.isActive && r.drinkLevel !== null) by[r.drinkLevel] += 1;
+    return by;
+  }, [rows]);
+
   function exportCsv() {
-    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "アレルギー", "備考", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "お酒", "アレルギー", "備考", "送金", "タグ", "メモ"];
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
@@ -111,6 +119,12 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+          <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-stone-500">
+            <span className="text-stone-400">お酒（回答済み・承認待ちを含む）:</span>
+            {DRINK_LEVELS.map((l) => (
+              <span key={l.value}>{l.label} <span className="tabular-nums font-semibold text-stone-800">{drinkStats[l.value]}</span>人</span>
+            ))}
+          </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ニックネーム・LINE名で検索" className="min-h-11 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-base outline-none focus:border-stone-400 md:min-h-0 md:min-w-[220px] md:py-1.5 md:text-sm" />
             <button type="button" onClick={exportCsv} className="min-h-11 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1.5">CSV</button>
