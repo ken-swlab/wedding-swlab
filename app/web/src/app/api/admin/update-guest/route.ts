@@ -87,6 +87,7 @@ async function handle(req: Request) {
    *   applyGuestTags が revokeRefreshTokens を呼ぶため、手持ちの
    *   ID トークンもその場で無効になり、全 Route Handler が 401 を返す。
    *   フラグではなくこの2つが実際の締め出しを行う。
+   *   もともとタグが空の人（承認前など）は「外すタグ」が無く失効しないので、forceRevoke で必ず失効させる。
    */
   const banning = body.isActive === false;
 
@@ -106,7 +107,7 @@ async function handle(req: Request) {
       tags = current.isAdmin ? current.tags : [];
     }
     if (tags !== undefined) {
-      const applied = await applyGuestTags(uid, tags);
+      const applied = await applyGuestTags(uid, tags, { forceRevoke: banning });
       tags = applied.tags;
       claimsUpdated = applied.claimsUpdated;
     }

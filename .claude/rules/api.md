@@ -53,7 +53,7 @@ export const POST = withGuard(
 ## 認証・権限
 - ログイン: LINE の ID トークンを `https://api.line.me/oauth2/v2.1/verify` で検証し、uid は `line:<sub>`。`createCustomToken` にはサービスアカウント鍵が要る。
 - パスコード（`/api/guest/passcode`）は `WEDDING_PASSCODE` を `timingSafeEqual` で比較し、失敗回数をトランザクションで数えて UID ごとにロックする（5 回で 30 分、2 回めのロックで永久。`src/config/passcode.ts`）。永久ロックは正しいパスコードでも通さず、解除は管理画面から `/api/admin/passcode-unlock`。通過すると `guestAdmin.passcodeClearedAt` が付き、`/api/guest/register` と `/api/guest/invitation` はそれ（または登録済み）を確かめる。招待コード（`/api/invite/redeem`）は `ENABLE_INVITE_CODES` が無いと 410。
-- Custom Claims は `applyGuestTags()`（`src/lib/guests-server.ts`）で変える: 既存クレームとマージ、900 バイト超は `PublicError`、変更後に `revokeRefreshTokens`。`admin` は API から変えない。
+- Custom Claims は `applyGuestTags()`（`src/lib/guests-server.ts`）で変える: 既存クレームとマージ、900 バイト超は `PublicError`、タグを外したとき（とアクセス停止の `forceRevoke`）だけ `revokeRefreshTokens`。足すだけでは失効させない（失効のチェックは auth_time と比べるので、`getIdToken(true)` で取り直してもログインし直すまで 401 になる。Issue #156）。`admin` は API から変えない。
 - タグ ID の検証は、組み込みタグ（`TAG_DEFS`）だけを許すルート（episodes・admin/episodes・roster）と、カスタムタグ（`c_` + 8 桁）も許す `knownTagIds()`（archived を含む。update-guest）が混在している。どちらにするかは Issue の仕様で決め、書かれていなければ確認する。
 
 ## 外部サービス

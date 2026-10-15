@@ -70,7 +70,7 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
 ### データと権限（Firestore）
 5. 個人情報の置き場所: `guests` は承認済みゲスト全員が読める（公開名・アイコン・タグだけ）。本名・出欠・アレルギーは `guestPrivate`（本人と管理者）、運営情報は `guestAdmin`（管理者のみ）。本名や LINE 表示名を `guests` / `posts` に書かない。
 6. 見える範囲はタグで決まる（Custom Claims の `tags` と `visibleToTags` が重なれば見える）。Rules はフィルタではないので、クライアントのクエリに `visibleToTags` の条件と Rules の上限以下の `limit()` を必ず付ける。
-7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → `revokeRefreshTokens`）で変える。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。例外はエミュレーターの初期データ（`app/web/scripts/emulator-seed.mjs`。`demo-` のプロジェクトとエミュレーターの接続先が無いと動かない）だけ。
+7. Custom Claims は `applyGuestTags()`（マージ → 900 バイト以下 → タグを外すとき・アクセス停止のときは `revokeRefreshTokens`）で変える。タグを足すだけ（承認など）では失効させない（失効させると取り直したトークンも 401 になる。Issue #156）。`admin` は `app/web/scripts/make-admin.mjs` 以外で変えない。例外はエミュレーターの初期データ（`app/web/scripts/emulator-seed.mjs`。`demo-` のプロジェクトとエミュレーターの接続先が無いと動かない）だけ。
 8. Rules・複合インデックス・TTL の反映は `terraform apply` だけ（`firebase deploy` 禁止）。
 
 ### 画像・メディア

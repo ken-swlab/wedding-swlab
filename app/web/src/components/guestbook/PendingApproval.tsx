@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { OPENING_COLORS } from "@/config/opening";
 import { GUIDE_PATHS } from "@/config/guide";
 import { formatReaction } from "@/lib/opening-names";
@@ -16,11 +17,17 @@ const MONO = "ui-monospace, Menlo, monospace";
  * ★ランキングの案内はここで済ませる★ 承認後は写真の投稿を中心に案内するため。
  * 「回答を直す」は /guide/questionnaire（承認待ちでも開ける。(guest)/layout.tsx）。
  * editHref は管理者のテスト画面（/admin/invitation_test）が本番へ飛ばないように差し替える。
+ *
+ * ★ボタンは置かない★（Issue #156）承認されたら、呼び出し側が自動で先へ進める（hooks/useApprovalAdvance.ts）。
+ *   自動で進めないとき（stale）だけ、小さなリンク「画面が切り替わらない場合はこちら」を出す。
+ * ★表示中は html と body の背景も黒にする★（Issue #156）LINE アプリ内ブラウザで、上の帯（ページの題名）と
+ *   この画面の間に、ページの地の色（白）が細い線のように見えていた。
  */
 export function PendingApproval({
   reactionMs,
-  approvedButStale,
-  onRefresh,
+  approved,
+  stale,
+  onRetry,
   editHref = GUIDE_PATHS.questionnaire,
   onEdit,
 }: {
@@ -28,14 +35,23 @@ export function PendingApproval({
    * オープニングのリアクションタイム (ms。Issue #131)。記録が無ければ null、読み込み中・読めなかったときは undefined（カードを出さない）
    */
   reactionMs?: number | null;
-  /** 承認済みだが ID トークンにタグがまだ乗っていない過渡状態 */
-  approvedButStale: boolean;
-  /** 「確認する」。承認されていれば次へ進む */
-  onRefresh: () => void;
+  /** 承認された（ID トークンにタグが乗るまでの、自動で先へ進む途中） */
+  approved: boolean;
+  /** 自動で先へ進めない（取り直しの失敗か、時間切れ）。小さなリンクを出す */
+  stale: boolean;
+  /** 「画面が切り替わらない場合はこちら」。ID トークンの取り直しをやり直す */
+  onRetry: () => void;
   editHref?: string;
   /** 指定するとリンクの代わりにこれを呼ぶ（テスト画面） */
   onEdit?: () => void;
 }) {
+  useEffect(() => {
+    const targets = [document.documentElement, document.body];
+    const prev = targets.map((el) => el.style.backgroundColor);
+    for (const el of targets) el.style.backgroundColor = "#000";
+    return () => targets.forEach((el, i) => (el.style.backgroundColor = prev[i]));
+  }, []);
+
   const card = { borderColor: OPENING_COLORS.laneLine, background: "rgba(255,255,255,0.04)" };
   const editClass = "inline-flex min-h-11 touch-manipulation items-center text-sm underline underline-offset-4";
 
@@ -49,14 +65,19 @@ export function PendingApproval({
           EVENT 1　ENTRY
         </p>
 
-        {approvedButStale ? (
+        {approved ? (
           <>
             <h1 className="mt-5 text-2xl font-bold tracking-wide">承認されました</h1>
             <p className="mt-4 text-[15px] leading-[1.9]" style={{ color: OPENING_COLORS.ink }}>
               まもなくゲストブックが開きます。
-              <br />
-              切り替わらない場合は下のボタンを押してください。
             </p>
+            {stale && (
+              <p className="mt-6">
+                <button type="button" onClick={onRetry} className={editClass} style={{ color: OPENING_COLORS.ink }}>
+                  画面が切り替わらない場合はこちら
+                </button>
+              </p>
+            )}
           </>
         ) : (
           <>
@@ -90,17 +111,8 @@ export function PendingApproval({
           </>
         )}
 
-        <button
-          type="button"
-          onClick={onRefresh}
-          className="mt-8 min-h-12 w-full touch-manipulation rounded-full text-sm font-medium transition active:opacity-80"
-          style={{ background: OPENING_COLORS.ink, color: "#000" }}
-        >
-          {approvedButStale ? "読み込み直す" : "確認する"}
-        </button>
-
-        {!approvedButStale && (
-          <p className="mt-4">
+        {!approved && (
+          <p className="mt-8">
             {onEdit ? (
               <button type="button" onClick={onEdit} className={editClass} style={{ color: OPENING_COLORS.ink }}>
                 回答を直す
