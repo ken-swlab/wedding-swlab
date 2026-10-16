@@ -11,6 +11,7 @@ import { prefersReducedMotion } from "@/components/opening/timeline";
 import { ScreenFade } from "@/components/ScreenFade";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
+import { OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
 /**
@@ -26,7 +27,16 @@ export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
   | { kind: "loading" }
   | { kind: "passcode" }
-  | { kind: "opening"; opening: OpeningContent; displayName: string | null | undefined; note: string }
+  | {
+      kind: "opening";
+      opening: OpeningContent;
+      displayName: string | null | undefined;
+      note: string;
+      /** 招待状の中身。あれば飛び込みの水の下に置き、水が引くと現れる（Issue #165） */
+      invitation?: InvitationContent;
+      /** テスト画面だけ: 飛び込みの場面から始める（そのときのタイム） */
+      testDive?: { reactionMs: number };
+    }
   | { kind: "preparing" }
   | { kind: "open"; invitation: InvitationContent; opening: OpeningContent }
   | { kind: "finish"; guestName: string }
@@ -36,8 +46,13 @@ export type InvitationFlowProps = {
   step: InvitationStep;
   /** 「LINE でログイン」 */
   onLogin: () => void;
-  /** パスコードの送信。通らなければ Error を投げる（message を画面に出す） */
+  /**
+   * パスコードの送信。通らなければ Error を投げる（message を画面に出す）。
+   * ★通ったら、次の画面の中身まで読み込んでから resolve する★ 画面はまだ切り替えない（枠が線になる演出の途中）。
+   */
   onPasscodeSubmit: (passcode: string) => Promise<void>;
+  /** パスコードを通り、枠が線になる演出が終わった。ここで次の画面（オープニング）へ切り替える（Issue #165） */
+  onPasscodeCleared: () => void;
   /** オープニングで有効なリアクションタイムが出た（保存するかは親が決める） */
   onOpeningReaction?: (reactionMs: number) => void;
   /** オープニングが終わった・スキップされた */
@@ -57,12 +72,14 @@ export type InvitationFlowProps = {
  *   招待状の URL は外に出回る前提。名前などは open の invitation と opening の opening（API がパスコードを
  *   通った人にだけ返す）からだけ描く。ここに定数として書かない。
  */
-export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReaction, onOpeningEnd, rsvp, onRetry, onEntryNext }: InvitationFlowProps) {
-  // ★オープニング（黒）から招待状（明るい）へは、暗転から浮かび上がらせる★（Issue #157 B-5）
-  //   ひとつ前の段階を覚えておき、opening → open のときだけ ScreenFade を出す
+export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onPasscodeCleared, onOpeningReaction, onOpeningEnd, rsvp, onRetry, onEntryNext }: InvitationFlowProps) {
+  // ひとつ前の段階を覚えておき、切り替わりの演出を選ぶ（Issue #157 B-5・#165）
+  //   passcode → opening … 枠が縮んだ線から「招集」を始める（CallScene の intro）
+  //   opening → open    … 水が引いて現れた招待状をそのまま出す。スキップしたときだけ暗転から浮かび上がらせる
   const [prev, setPrev] = useState({ kind: step.kind, from: step.kind });
   if (prev.kind !== step.kind) setPrev({ kind: step.kind, from: prev.kind });
-  const fromOpening = step.kind === "open" && prev.from === "opening";
+  const [openingSkipped, setOpeningSkipped] = useState(false);
+  const reveal: InvitationReveal = step.kind === "open" && prev.from === "opening" ? (openingSkipped ? "skipped" : "dive") : null;
 
   switch (step.kind) {
     case "loading":
@@ -71,9 +88,10 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
       return <EntranceStep busy={step.busy} message={step.message} onLogin={onLogin} />;
     case "passcode":
       return (
-        <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
+        // ★地の色は招集と同じ★（Issue #165。パスコード → 招集で地の色を変えない）
+        <main className="min-h-dvh text-stone-800" style={{ background: OPENING_COLORS.calm }}>
           <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col justify-center px-6 py-10">
-            <PasscodeStep onSubmit={onPasscodeSubmit} />
+            <PasscodeStep onSubmit={onPasscodeSubmit} onCleared={onPasscodeCleared} />
           </div>
         </main>
       );
@@ -87,8 +105,14 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
           date={step.opening.date}
           venue={step.opening.venue}
           note={step.note}
+          intro={prev.from === "passcode" ? "passcode" : undefined}
+          under={step.invitation && <InvitationUnderWater invitation={step.invitation} opening={step.opening} />}
+          testDive={step.testDive}
           onReaction={onOpeningReaction}
-          onFinish={onOpeningEnd}
+          onFinish={(result) => {
+            setOpeningSkipped(result.skipped);
+            onOpeningEnd(result);
+          }}
         />
       );
     }
@@ -122,7 +146,7 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
         </main>
       );
     case "open":
-      return <InvitationOpen invitation={step.invitation} opening={step.opening} fromOpening={fromOpening} rsvp={rsvp} />;
+      return <InvitationOpen invitation={step.invitation} opening={step.opening} reveal={reveal} rsvp={rsvp} />;
   }
 }
 
@@ -136,20 +160,22 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
 function InvitationOpen({
   invitation,
   opening,
-  fromOpening,
+  reveal,
   rsvp,
 }: {
   invitation: InvitationContent;
   opening: OpeningContent;
-  fromOpening: boolean;
+  reveal: InvitationReveal;
   rsvp: ReactNode;
 }) {
   const [entry, setEntry] = useState(false);
   const [barOn, setBarOn] = useState(false);
+  // 水が引いて現れたときは、引ききってから entryBarAfterReveal 後に出す（Issue #165）
+  const [barDelay] = useState(() => (prefersReducedMotion() ? 0 : reveal === "dive" ? OPENING_TIMING.entryBarAfterReveal : ENTRY_BAR_DELAY_MS));
   useEffect(() => {
-    const t = setTimeout(() => setBarOn(true), prefersReducedMotion() ? 0 : ENTRY_BAR_DELAY_MS);
+    const t = setTimeout(() => setBarOn(true), barDelay);
     return () => clearTimeout(t);
-  }, []);
+  }, [barDelay]);
 
   const go = (next: boolean) => {
     setEntry(next);
@@ -158,9 +184,10 @@ function InvitationOpen({
 
   return (
     <main className="min-h-dvh text-stone-800" style={{ background: INVITATION_COLORS.paper }}>
-      <ScreenFade from={fromOpening ? "dark" : null} />
+      <ScreenFade from={reveal === "skipped" ? "dark" : null} />
       <div hidden={entry} className="mx-auto w-full max-w-[26rem]" style={{ paddingBottom: "calc(8rem + env(safe-area-inset-bottom))" }}>
-        <InvitationView invitation={invitation} opening={opening} />
+        {/* ★水が引いて現れたときは、ふわっと出す動きを繰り返さない★ 水の下の招待状（InvitationUnderWater）がもう出しきっている */}
+        <InvitationView invitation={invitation} opening={opening} rise={reveal !== "dive"} />
       </div>
       {!entry && (
         <div
@@ -203,6 +230,24 @@ function InvitationOpen({
   );
 }
 
+/** 招待状がどう現れたか。dive … 飛び込みの水が引いて現れた ／ skipped … オープニングをスキップした ／ null … それ以外 */
+type InvitationReveal = "dive" | "skipped" | null;
+
+/**
+ * 飛び込みの水の下に置く招待状（Issue #165）。★見た目は InvitationOpen の招待状と同じ★
+ *   水が引ききったら InvitationOpen に入れ替わる。同じ部品・同じ幅・同じ地の色で、ページの一番上なので、
+ *   入れ替わっても見た目は変わらない（画面下の「エントリーする」だけが、そのあと出てくる）。
+ */
+function InvitationUnderWater({ invitation, opening }: { invitation: InvitationContent; opening: OpeningContent }) {
+  return (
+    <div className="absolute inset-0 overflow-hidden text-stone-800" style={{ background: INVITATION_COLORS.paper }}>
+      <div className="mx-auto w-full max-w-[26rem]">
+        <InvitationView invitation={invitation} opening={opening} />
+      </div>
+    </div>
+  );
+}
+
 /** 封を開ける動きの長さ (ms)。ログインを始める前に見せきる（Issue #157 B-1） */
 const ENVELOPE_OPEN_MS = 450;
 
@@ -235,7 +280,7 @@ function EntranceStep({ busy, message, onLogin }: { busy: boolean; message: stri
   const isOpen = opening || busy;
 
   return (
-    <main className="flex min-h-dvh flex-col justify-center bg-[#faf9f7] px-6 text-stone-800" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+    <main className="flex min-h-dvh flex-col justify-center px-6 text-stone-800" style={{ background: OPENING_COLORS.calm, paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
       <div className="invitation-rise mx-auto flex w-full max-w-[24rem] flex-col items-center text-center">
         <button type="button" onClick={open} disabled={busy} aria-label="招待状を開く（LINE でログイン）" className="touch-manipulation rounded-2xl p-2">
           <Envelope open={isOpen} />

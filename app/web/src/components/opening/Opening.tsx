@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { OPENING_COLORS } from "@/config/opening";
 import { CallScene } from "./CallScene";
@@ -37,6 +37,9 @@ export function Opening({
   date,
   venue,
   note,
+  intro,
+  under,
+  testDive,
   onReaction,
   onFinish,
 }: {
@@ -47,12 +50,18 @@ export function Opening({
   venue: string;
   /** タイムの下に添える一言 */
   note: string;
+  /** passcode … パスコードの枠が縮んだ線から「招集」を始める（Issue #165）。無ければ線を中央から伸ばす（見返し） */
+  intro?: "passcode";
+  /** 飛び込みの水の下に置くもの（招待状）。あれば水が下へ引いて現れる（Issue #165）。無ければ水が満ちて終わる（見返し） */
+  under?: ReactNode;
+  /** テスト画面だけ: 飛び込みの場面から始める（/admin/invitation_test。Issue #165 の切り替わりの確認用） */
+  testDive?: { reactionMs: number };
   onReaction?: (reactionMs: number) => void;
   onFinish: (result: OpeningResult) => void;
 }) {
-  const [scene, setScene] = useState<Scene>("call");
-  const [reactionMs, setReactionMs] = useState<number | null>(null);
-  const measured = useRef<number | null>(null);
+  const [scene, setScene] = useState<Scene>(testDive ? "dive" : "call");
+  const [reactionMs, setReactionMs] = useState<number | null>(testDive?.reactionMs ?? null);
+  const measured = useRef<number | null>(testDive?.reactionMs ?? null);
   const finished = useRef(false);
   const handlers = useRef({ onReaction, onFinish });
   useEffect(() => {
@@ -92,10 +101,10 @@ export function Opening({
       className="fixed inset-0 z-[100] touch-none select-none overflow-hidden"
       style={{ background: calm ? OPENING_COLORS.calm : "#000", WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
     >
-      {scene === "call" && <CallScene date={date} venue={venue} onDone={() => setScene("lanes")} />}
+      {scene === "call" && <CallScene date={date} venue={venue} intro={intro} onDone={() => setScene("lanes")} />}
       {scene === "lanes" && <LaneScene couple={couple} guestName={guestName} onDone={() => setScene("start")} />}
       {scene === "start" && <StartScene onResult={onResult} onSkip={() => finish(true)} />}
-      {scene === "dive" && <DiveScene reactionMs={reactionMs} note={note} onDone={() => finish(false)} />}
+      {scene === "dive" && <DiveScene reactionMs={reactionMs} note={note} under={under} onDone={() => finish(false)} />}
 
       {/* スキップは常に右上に出す。押すと記録なしで先へ進む（すでにタイムが出ていれば、そのタイムは残る） */}
       <button

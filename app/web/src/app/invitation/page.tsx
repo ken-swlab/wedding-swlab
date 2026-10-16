@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
 import { getJson, postJson } from "@/lib/api-client";
@@ -46,21 +46,12 @@ export default function InvitationPage() {
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
-    getJson<InvitationStatus>("/api/guest/invitation")
-      .then(async (s) => {
+    loadView()
+      .then((next) => {
         if (cancelled) return;
         // 登録済みの人はこれまでどおりゲストブックへ（承認待ちなら layout が /pending に振り分ける）
-        if (s.registered) router.replace("/guestbook");
-        else if (!s.cleared) setView({ kind: "passcode" });
-        else if (!s.ready || !s.invitation || !s.opening) setView({ kind: "preparing" });
-        else {
-          const { invitation, opening } = s;
-          if (!hasSeenOpening()) {
-            // 記録の有無は、オープニングの前に確かめておく（読めなければ「記録なし」として進める。上書きはサーバーが断る）
-            const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
-            if (!cancelled) setView({ kind: "opening", invitation, opening, recorded: reaction?.reactionMs != null });
-          } else setView({ kind: "open", invitation, opening });
-        }
+        if (next === "registered") router.replace("/guestbook");
+        else setView(next);
       })
       .catch((e: unknown) => {
         if (!cancelled) setView({ kind: "error", message: e instanceof Error ? e.message : "読み込みに失敗しました" });
@@ -79,13 +70,20 @@ export default function InvitationPage() {
     router.prefetch("/guestbook");
   }, [router]);
 
-  const passcodeSubmit = useCallback(
-    async (passcode: string) => {
-      await postJson("/api/guest/passcode", { passcode });
-      reload();
-    },
-    [reload],
-  );
+  // ★パスコードを通ったら、次の画面の中身を読み込んでから resolve する★（Issue #165）
+  //   画面の切り替えは、枠が線になる演出が終わったあと（passcodeCleared）。読み込み中の画面を挟まない
+  const afterPasscode = useRef<View | "registered" | null>(null);
+  const passcodeSubmit = useCallback(async (passcode: string) => {
+    await postJson("/api/guest/passcode", { passcode });
+    afterPasscode.current = await loadView().catch(() => null);
+  }, []);
+  const passcodeCleared = useCallback(() => {
+    const next = afterPasscode.current;
+    afterPasscode.current = null;
+    if (next === "registered") router.replace("/guestbook");
+    else if (next) setView(next);
+    else reload();
+  }, [reload, router]);
 
   let step: InvitationStep;
   if (phase === "booting") step = { kind: "loading" };
@@ -94,7 +92,13 @@ export default function InvitationPage() {
     step = { kind: "entrance", busy, message };
   } else if (view.kind === "checking") step = { kind: "loading" };
   else if (view.kind === "opening") {
-    step = { kind: "opening", opening: view.opening, displayName: user.displayName, note: view.recorded ? OPENING_NOTE.replay : OPENING_NOTE.recordPending };
+    step = {
+      kind: "opening",
+      opening: view.opening,
+      invitation: view.invitation,
+      displayName: user.displayName,
+      note: view.recorded ? OPENING_NOTE.replay : OPENING_NOTE.recordPending,
+    };
   } else step = view;
 
   return (
@@ -102,6 +106,7 @@ export default function InvitationPage() {
       step={step}
       onLogin={login}
       onPasscodeSubmit={passcodeSubmit}
+      onPasscodeCleared={passcodeCleared}
       onOpeningReaction={(reactionMs) => {
         if (view.kind !== "opening" || view.recorded) return;
         // 保存は演出を止めずに行う。失敗しても先へ進める（記録が無い人は、あとでマイページから挑戦できる）
@@ -128,4 +133,18 @@ export default function InvitationPage() {
       onEntryNext={() => router.replace("/guestbook")}
     />
   );
+}
+
+/**
+ * 招待状の状態を読み、次に出す画面を決める。登録済みなら "registered"（呼び出し側がゲストブックへ移す）。
+ * ★オープニングを見る人は、記録の有無もここで確かめる★（読めなければ「記録なし」として進める。上書きはサーバーが断る）
+ */
+async function loadView(): Promise<View | "registered"> {
+  const s = await getJson<InvitationStatus>("/api/guest/invitation");
+  if (s.registered) return "registered";
+  if (!s.cleared) return { kind: "passcode" };
+  if (!s.ready || !s.invitation || !s.opening) return { kind: "preparing" };
+  if (hasSeenOpening()) return { kind: "open", invitation: s.invitation, opening: s.opening };
+  const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
+  return { kind: "opening", invitation: s.invitation, opening: s.opening, recorded: reaction?.reactionMs != null };
 }

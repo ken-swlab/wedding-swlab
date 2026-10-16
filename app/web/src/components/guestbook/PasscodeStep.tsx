@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PASSCODE_LENGTH } from "@/config/passcode";
+import { CALL_LINE_Y, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
+import { createTimeline, prefersReducedMotion, type Timeline } from "@/components/opening/timeline";
 
 /**
  * 招待状の前に出す4桁のパスコード入力。
@@ -15,14 +17,29 @@ import { PASSCODE_LENGTH } from "@/config/passcode";
  *
  * 送信の処理（API の呼び出し）は onSubmit で受け取る。通らなければ Error を投げ、
  * その message を画面に出す（/admin/invitation_test はダミーを渡す）。
+ *
+ * ★通ったら、4つの枠を1本の線に縮め、その線を招集の区切り線の位置（CALL_LINE_Y）へ運んでから onCleared★（Issue #165）
+ *   次のオープニング（CallScene の intro="passcode"）は、同じ位置の線から始まる。地の色も同じ（OPENING_COLORS.calm）なので、
+ *   画面が入れ替わっても「枠 → 線 → 区切り線」がつながって見える。
+ *   「確認しています…」は API の応答と passcodeCheckMin のうち長いほうまで出す。onSubmit はそのあいだに次の画面の
+ *   中身まで読み込んでおき、onCleared で画面を切り替える（読み込み中の画面を挟まない）。
+ *   動きを減らす設定では、線を運ばずに onCleared（オープニングはフェードで始まる）。
  */
-export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Promise<void> }) {
+export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: string) => Promise<void>; onCleared: () => void }) {
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
+  const [cleared, setCleared] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const boxesRef = useRef<HTMLDivElement>(null);
+  const timeline = useRef<Timeline | null>(null);
+  const clearedRef = useRef(onCleared);
+  useEffect(() => {
+    clearedRef.current = onCleared;
+  }, [onCleared]);
+  useEffect(() => () => timeline.current?.cancel(), []);
 
   // Android などではこれだけでキーボードが出る。iOS は枠をタップしてもらう
   useEffect(() => {
@@ -33,7 +50,9 @@ export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Pro
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(code);
+      await Promise.all([onSubmit(code), new Promise((r) => setTimeout(r, OPENING_TIMING.passcodeCheckMin))]);
+      await collapse();
+      return;
     } catch (e) {
       const message = e instanceof Error ? e.message : "確認できませんでした。もう一度お試しください";
       // サーバーはロック時に「上限」を含む文言を返す（api/guest/passcode）
@@ -48,6 +67,30 @@ export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Pro
     }
   }
 
+  /** 枠を線に縮めて、区切り線の位置へ運ぶ。終わったら onCleared */
+  async function collapse() {
+    const t = createTimeline();
+    timeline.current = t;
+    inputRef.current?.blur();
+    setCleared(true);
+    if (prefersReducedMotion()) {
+      clearedRef.current();
+      return;
+    }
+    await t.sleep(OPENING_TIMING.boxesCollapse);
+    const el = boxesRef.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      const dy = window.innerHeight * CALL_LINE_Y - (r.top + r.height / 2);
+      await t.play(el, [{ transform: "translateY(0)" }, { transform: `translateY(${dy}px)` }], {
+        duration: OPENING_TIMING.lineMove,
+        easing: "cubic-bezier(.6,0,.2,1)",
+        fill: "forwards",
+      });
+    }
+    clearedRef.current();
+  }
+
   function onChange(raw: string) {
     // ★全角数字も受け付ける★ IME が全角のままでも見た目どおりに通す
     const digits = raw.normalize("NFKC").replace(/\D/g, "").slice(0, PASSCODE_LENGTH);
@@ -56,29 +99,40 @@ export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Pro
     if (digits.length === PASSCODE_LENGTH && !busy && !locked) void submit(digits);
   }
 
-  const disabled = busy || locked;
+  const disabled = busy || locked || cleared;
+  // 枠が線に縮んだあとは、見出し・案内を消す（opacity だけを動かす）
+  const fade = `transition-opacity duration-[450ms] ${cleared ? "opacity-0" : "opacity-100"}`;
 
   return (
     <section className="invitation-rise text-center">
-      <p className="text-[11px] tracking-[0.35em] text-stone-400">PASSCODE</p>
+      <div className={fade}>
+      <p className="text-[11px] tracking-[0.35em] text-stone-500">PASSCODE</p>
       <h2 className="mt-3 font-serif text-xl text-stone-800">パスコードをご入力ください</h2>
       <p className="mt-3 text-[13px] leading-relaxed text-stone-500">
         LINE でお送りした {PASSCODE_LENGTH} 桁の数字です。
         <br />
         最後の数字を入れると、そのまま招待状が開きます。
       </p>
+      </div>
 
-      <div key={shakeKey} className={`relative mx-auto mt-8 w-fit ${shakeKey > 0 ? "passcode-shake" : ""}`}>
-        <div className="flex gap-3" aria-hidden="true">
+      <div key={shakeKey} ref={boxesRef} className={`relative mx-auto mt-8 w-fit ${shakeKey > 0 ? "passcode-shake" : ""}`}>
+        <div className="flex h-16 items-center gap-3" aria-hidden="true">
           {Array.from({ length: PASSCODE_LENGTH }, (_, i) => {
             const filled = i < value.length;
             const current = i === value.length && !disabled;
+            // ★縮んだ枠は幅 30px・高さ 1px・左右 -6px★ 4本がすき間なくつながり、幅 120px の1本の線になる
+            //   （CallScene の区切り線と同じ幅・色）
             return (
               <div
                 key={i}
-                className={`flex h-16 w-14 items-center justify-center rounded-2xl border bg-white font-serif text-2xl text-stone-800 shadow-sm transition ${
-                  error ? "border-rose-300" : current ? "border-stone-500" : filled ? "border-stone-300" : "border-stone-200"
-                } ${busy ? "animate-pulse" : ""}`}
+                className={`flex items-center justify-center font-serif text-2xl transition-all duration-[550ms] ease-[cubic-bezier(.6,0,.2,1)] ${
+                  cleared
+                    ? "mx-[-6px] h-px w-[30px] rounded-none border-0 text-transparent"
+                    : `h-16 w-14 rounded-2xl border bg-white text-stone-800 shadow-sm ${
+                        error ? "border-rose-300" : current ? "border-stone-500" : filled ? "border-stone-300" : "border-stone-200"
+                      } ${busy ? "animate-pulse" : ""}`
+                }`}
+                style={cleared ? { background: OPENING_COLORS.calmInk, opacity: 0.45 } : undefined}
               >
                 {value[i] ?? ""}
               </div>
@@ -105,8 +159,8 @@ export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Pro
         />
       </div>
 
-      <div className="mt-6 min-h-[4.5rem]" aria-live="polite">
-        {busy && <p className="text-[13px] text-stone-500">確認しています…</p>}
+      <div className={`mt-6 min-h-[4.5rem] ${fade}`} aria-live="polite">
+        {(busy || cleared) && <p className="text-[13px] text-stone-500">確認しています…</p>}
         {error && (
           <p
             role="alert"
@@ -119,7 +173,7 @@ export function PasscodeStep({ onSubmit }: { onSubmit: (passcode: string) => Pro
         )}
       </div>
 
-      <p className="mt-2 text-[11px] leading-relaxed text-stone-400">
+      <p className={`mt-2 text-[11px] leading-relaxed text-stone-500 ${fade}`}>
         お困りのときは、新郎新婦へ LINE でお気軽にご連絡ください。
       </p>
     </section>

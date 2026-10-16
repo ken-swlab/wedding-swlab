@@ -16,6 +16,8 @@ import { SAMPLE_INVITATION } from "@/config/wedding";
 import { OPENING_NOTE } from "@/config/invitation";
 import { classifyDisplayName } from "@/lib/opening-names";
 import { getJson } from "@/lib/api-client";
+import { ScreenFade } from "@/components/ScreenFade";
+import { APPROVED_REVEAL_MS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationConfig, InvitationStatus } from "@/types/invitation";
 
 /**
@@ -59,7 +61,17 @@ const DUMMY_ANSWER: AnswerDraft = {
  *   （「画面が切り替わらない場合はこちら」を確かめるため）。
  */
 type TestApproval = null | { stuck: boolean };
-type TestStep = InvitationStep | { kind: "pending"; approval: TestApproval } | { kind: "welcome"; run: number };
+type TestStep = InvitationStep | { kind: "pending"; approval: TestApproval } | { kind: "welcome"; run: number; curtain: boolean };
+
+/** 「直接開く」の行き先 */
+type JumpKind = "passcode" | "dive" | "finish" | "pending" | "welcome";
+const JUMP_LABEL: Record<JumpKind, string> = {
+  passcode: "パスコード → 招集",
+  dive: "飛び込み → 招待状",
+  finish: "6. 送信完了",
+  pending: "7. 承認待ち",
+  welcome: "8. 承認後の演出",
+};
 
 /** 承認待ちに出すダミーのリアクションタイム (ms) */
 const DUMMY_REACTION_MS = 210;
@@ -134,8 +146,12 @@ export default function InvitationTestPage() {
     console.log("[invitation_test] パスコード送信（ダミー）", passcode.length, "桁");
     await new Promise((r) => setTimeout(r, 400));
     if (passcode === WRONG_PASSCODE) throw new Error("パスコードが違います（ダミーのエラーです）");
-    setStep({ kind: "opening", opening: currentOpening, displayName, note: OPENING_NOTE.test });
-  }, [currentOpening, displayName]);
+  }, []);
+
+  // 枠が線になる演出のあと、オープニングへ（Issue #165。本番の /invitation と同じ順番）
+  const onPasscodeCleared = useCallback(() => {
+    setStep({ kind: "opening", opening: currentOpening, invitation: currentInvitation, displayName, note: OPENING_NOTE.test });
+  }, [currentOpening, currentInvitation, displayName]);
 
   // ★記録しない★ /api/guest/reaction を呼ばない。タイムは画面と console に出すだけ
   const onOpeningEnd = useCallback((result: { reactionMs: number | null; skipped: boolean }) => {
@@ -151,14 +167,28 @@ export default function InvitationTestPage() {
     setStep({ kind: "finish", guestName: classifyDisplayName(displayName).guest });
   }, [displayName]);
 
-  /** 上部の段階表示から直接開く（6・7） */
-  const jump = useCallback((kind: "finish" | "pending" | "welcome") => {
+  /**
+   * 上部の段階表示から直接開く。passcode・dive は切り替わりの演出（Issue #165）の確認用:
+   *   passcode … 3. パスコードから（通すと、枠が線になって招集へ）
+   *   dive     … 飛び込みの場面から（ダミーのタイム。水が引いて招待状が現れる）
+   */
+  const jump = useCallback((kind: JumpKind) => {
     setNote(null);
     setPanelOpen(false);
     if (kind === "finish") setStep({ kind, guestName: classifyDisplayName(displayName).guest });
-    else if (kind === "welcome") setStep({ kind, run: Date.now() });
-    else setStep({ kind, approval: null });
-  }, [displayName]);
+    else if (kind === "welcome") setStep({ kind, run: Date.now(), curtain: false });
+    else if (kind === "passcode") setStep({ kind: "passcode" });
+    else if (kind === "dive") {
+      setStep({
+        kind: "opening",
+        opening: currentOpening,
+        invitation: currentInvitation,
+        displayName,
+        note: OPENING_NOTE.test,
+        testDive: { reactionMs: DUMMY_REACTION_MS },
+      });
+    } else setStep({ kind, approval: null });
+  }, [displayName, currentOpening, currentInvitation]);
 
   if (loading) {
     return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
@@ -201,17 +231,16 @@ export default function InvitationTestPage() {
             最初から
           </button>
         </div>
-        <div className="mt-1.5 flex items-center gap-1.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="shrink-0">直接開く:</span>
-          {(["finish", "pending", "welcome"] as const).map((k) => (
+          {(["passcode", "dive", "finish", "pending", "welcome"] as const).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => jump(k)}
-              aria-pressed={step.kind === k}
-              className={`min-h-9 touch-manipulation rounded-full px-3 ${step.kind === k ? "bg-stone-900 text-white" : "border border-stone-200 text-stone-700 hover:bg-stone-100"}`}
+              className="min-h-9 touch-manipulation rounded-full border border-stone-200 px-3 text-stone-700 hover:bg-stone-100"
             >
-              {STEP_LABEL[k]}
+              {JUMP_LABEL[k]}
             </button>
           ))}
         </div>
@@ -308,13 +337,14 @@ export default function InvitationTestPage() {
       {/* 本番の /invitation と同じ組み合わせ（招待状の「エントリーする」の先に OnboardingForm） */}
       {step.kind === "welcome" ? (
         // ★welcomeSeenAt を書かない・いいねも保存しない★ 何度でも最初から見られる（key で作り直す）
-        <WelcomeTestStage key={step.run} />
+        <WelcomeTestStage key={step.run} curtain={step.curtain} />
       ) : step.kind === "pending" ? (
         <TestPending
           // 承認の押し方を変えたら作り直す（自動の流れを最初から見る）
           key={step.approval === null ? "waiting" : step.approval.stuck ? "stuck" : "approved"}
           approval={step.approval}
-          onApproved={() => jump("welcome")}
+          // 本番は承認待ち → /guestbook で幕が開く（ScreenFade の approved）。テストでも幕から見せる
+          onApproved={() => setStep({ kind: "welcome", run: Date.now(), curtain: true })}
           onEdit={() => {
             console.log("[invitation_test] 回答を直す（ダミー）");
             setNote("本番は /guide/questionnaire（回答の修正）を開きます");
@@ -326,6 +356,7 @@ export default function InvitationTestPage() {
           step={step}
           onLogin={onLogin}
           onPasscodeSubmit={onPasscodeSubmit}
+          onPasscodeCleared={onPasscodeCleared}
           onOpeningEnd={onOpeningEnd}
           rsvp={
             <OnboardingForm
@@ -373,7 +404,7 @@ function TestPending({
     }
     onApproved();
   }, [onApproved]);
-  const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh });
+  const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh, delayMs: APPROVED_REVEAL_MS });
   return (
     <PendingApproval
       reactionMs={DUMMY_REACTION_MS}
@@ -392,11 +423,18 @@ const TEST_WELCOME: WelcomeContent = { postId: null, message: WELCOME_DEFAULT_ME
  * 8. 承認後の演出（Issue #150）を、ゲストブックに似せた背景の上で流す。
  * ★本物のタイムラインは読まない★ 背景はダミーのカードと＋ボタン（data-welcome-plus）だけ。
  */
-function WelcomeTestStage() {
-  const [running, setRunning] = useState(true);
+function WelcomeTestStage({ curtain }: { curtain: boolean }) {
+  // 承認待ちから来たときは、幕（ScreenFade の approved）が開ききってから演出を始める（本番の /guestbook と同じ）
+  const [running, setRunning] = useState(!curtain);
+  useEffect(() => {
+    if (!curtain) return;
+    const t = setTimeout(() => setRunning(true), OPENING_TIMING.curtainOpen);
+    return () => clearTimeout(t);
+  }, [curtain]);
   const [pin, setPin] = useState<{ hidden: boolean } | null>(null);
   return (
     <div className="min-h-dvh bg-stone-50">
+      <ScreenFade from={curtain ? "approved" : null} />
       <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
           <p className="flex-1 font-serif text-xl text-stone-900">GB</p>
