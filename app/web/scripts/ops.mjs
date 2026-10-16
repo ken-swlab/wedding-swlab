@@ -19,6 +19,11 @@
  *   node scripts/ops.mjs invitation template      書き方の見本（架空の値の JSON）を出す
  *   node scripts/ops.mjs invitation check <file>  JSON ファイルの形だけ確かめる（書き込まない）
  *   node scripts/ops.mjs invitation set <file>    JSON ファイルの内容を config/invitation に入れる
+ *   node scripts/ops.mjs notify status            公式 LINE の通知のモード（config/runtime の lineNotify）と、アウトボックスの件数
+ *   node scripts/ops.mjs notify mode <off|dryRun|adminsOnly|on>
+ *                                                 通知のモードを変える（既定 off。約10秒で反映。監査ログに残す）
+ *   node scripts/ops.mjs notify retry             失敗した通知（failed）を送信待ち（pending）に戻す。
+ *                                                 送るのは管理画面の「送信待ちの通知を送る」（トークンは Vercel の本番にだけあるため）
  *   node scripts/ops.mjs payment status           会費の金額（config/payment）を出す
  *   node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000
  *                                                 会費の金額を変える（指定しない項目は今の値のまま。監査ログに残す）
@@ -78,7 +83,8 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
   node scripts/ops.mjs invitation status|template|check <file>|set <file>
-  node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]`);
+  node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
+  node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry`);
   process.exit(0);
 }
 
@@ -160,6 +166,66 @@ if (cmd === "maintenance") {
   console.log(`maintenance : ${snap.get("maintenance") === true ? "ON" : "OFF"}`);
   console.log(`message     : ${snap.get("message") || "(既定の文言)"}`);
   console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
+  process.exit(0);
+}
+
+// ---- notify（Issue #168）------------------------------------------------------
+// 公式 LINE（Messaging API）からの通知。送信係は src/lib/line-notify-server.ts
+if (cmd === "notify") {
+  const MODES = ["off", "dryRun", "adminsOnly", "on"]; // src/lib/runtime-config.ts の LINE_NOTIFY_MODES と同じ
+  const runtimeRef = db.collection("config").doc("runtime");
+  const outbox = db.collection("lineOutbox");
+  const sub = rest[0] ?? "status";
+
+  /** ★監査ログに残す★（形は src/lib/audit.ts と同じ。値は残さず、項目の名前だけ）。保持は AUDIT_RETENTION_DAYS と同じ 400 日 */
+  async function audit(action, targetId, fields) {
+    const requestId = `ops-${randomUUID()}`;
+    const expiresAt = Timestamp.fromMillis(Date.now() + 400 * 86_400_000);
+    const route = `ops.notify.${sub}`;
+    await db.collection("auditLogs").doc(`${requestId}-b`).create({
+      requestId, route, method: "CLI", action, actorUid: "ops-cli", actorRole: "admin",
+      targetId, fields, ipHash: null, userAgent: "scripts/ops.mjs",
+      phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
+    });
+    await db.collection("auditLogs").doc(`${requestId}-e`).create({
+      requestId, route, phase: "end", result: "success", status: 200, durationMs: 0,
+      at: FieldValue.serverTimestamp(), expiresAt,
+    });
+  }
+
+  if (sub === "mode") {
+    const mode = rest[1];
+    if (!MODES.includes(mode)) {
+      console.error(`使い方: node scripts/ops.mjs notify mode <${MODES.join("|")}>`);
+      process.exit(1);
+    }
+    await runtimeRef.set({ lineNotify: mode, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" }, { merge: true });
+    await audit("notify.mode.set", "config/runtime", ["lineNotify"]);
+    console.log(`\n✅ 通知のモードを ${mode} にしました（反映まで最大10秒。監査ログに残しました）`);
+    console.log("   トークン（LINE_CHANNEL_ACCESS_TOKEN）が無い環境では、モードにかかわらず送りません\n");
+  } else if (sub === "retry") {
+    // ★失敗したものだけを送信待ちに戻す★ retryKey は変えない（LINE 側で重複が弾かれる）。送ったもの・送らなかったものは触らない
+    const failed = await outbox.where("status", "==", "failed").limit(200).get();
+    const batch = db.batch();
+    for (const d of failed.docs) batch.update(d.ref, { status: "pending" });
+    if (!failed.empty) await batch.commit();
+    await audit("notify.retry.reset", "lineOutbox", ["status"]);
+    console.log(`\n✅ 失敗した通知 ${failed.size} 件を送信待ちに戻しました（監査ログに残しました）`);
+    console.log("   送るには、管理画面（/admin）の「送信待ちの通知を送る」を押してください\n");
+  } else if (sub !== "status") {
+    console.error("使い方: node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry");
+    process.exit(1);
+  }
+
+  const runtime = await runtimeRef.get();
+  const mode = runtime.get("lineNotify");
+  console.log(`lineNotify : ${MODES.includes(mode) ? mode : "off（未設定）"}`);
+  // ★件数だけ★ uid・宛先・エラーの詳細は出さない
+  for (const status of ["pending", "sent", "failed", "skipped"]) {
+    const n = (await outbox.where("status", "==", status).count().get()).data().count;
+    console.log(`  ${status.padEnd(8)} : ${n} 件`);
+  }
+  console.log("");
   process.exit(0);
 }
 

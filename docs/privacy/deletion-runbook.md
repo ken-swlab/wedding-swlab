@@ -42,7 +42,7 @@ bash scripts/ensure-gcloud-auth.sh
 | 2 | 消すものを数える | コンソール | `posts` を `authorUid == <uid>` で絞り、投稿の ID と、各投稿の `media[].storagePath`・`media[].originalPath`（R2 のキー）を控える。`faces` を `matchedGuestId == <uid>` で絞り、`awsFaceId` が入っているものを控える（手順 7 で使う）。控えはリポジトリの外に置き、終わったら消す |
 | 3 | 投稿を消す | コンソール | 手順 2 の投稿を、1 件ずつ「ドキュメントを削除」（サブコレクションのコメント・いいねも一緒に消す）。そのあと `faces` を `postId == <投稿の ID>` で絞り、残っていれば消す |
 | 4 | ほかの人の投稿に付けたものを消す | コンソール | コレクション グループ `comments` を `authorUid == <uid>` で絞って消す（親の投稿の `commentCount` は 1 ずつ減らす。減らさないと、数だけが合わなくなる）。`episodes` を `authorUid == <uid>` で絞って消す。**いいね（`posts/*/reactions/<uid>`）は、いまの道具では横断して探せない**（下の「まだできないこと」） |
-| 5 | 本人の文書を消す | コンソール | `guests/<uid>`・`guestPrivate/<uid>`・`guestAdmin/<uid>`・`notifications/<uid>`（サブコレクション `items` ごと）・`redeemAttempts/<uid>`・`reactionTimes/<uid>`（リアクションタイム）。`pre_…` の文書があれば、それも |
+| 5 | 本人の文書を消す | コンソール | `guests/<uid>`・`guestPrivate/<uid>`・`guestAdmin/<uid>`・`notifications/<uid>`（サブコレクション `items` ごと）・`redeemAttempts/<uid>`・`reactionTimes/<uid>`（リアクションタイム）・`lineOutbox` の `<種類>:<uid>`（公式 LINE の通知。例: `approved:<uid>`。Issue #168）。`pre_…` の文書があれば、それも |
 | 6 | 写真のファイルを消す | Cloudflare の管理画面（R2） | **公開バケット `wedding-media`**: `u/<uid>/` の下すべて（軽量版 `t/`、高画質版 `o/`、アイコン画像）。**非公開バケット `wedding-originals`**: `u/<uid>/` の下すべて（原本）と、`_linked/u/<uid>/`・`_pending/u/<uid>/`・`_failed/u/<uid>/`・`_skipped/u/<uid>/` の下すべて（マーカー）。**消す前に、接頭辞が対象の uid ちょうどであることを 2 回確かめる**（R2 にはバージョニングが無く、消したら戻せない） |
 | 7 | 顔の特徴データを消す | AWS（CLI か管理画面） | 下のコマンド |
 | 8 | 参照用の顔写真を消す | Google Cloud コンソール（Cloud Storage。旧バケット） | `reference_faces/<uid>/` の下すべて。**バージョニングが有効なので、「非現行バージョンを表示」にして旧版も消す** |
@@ -110,7 +110,7 @@ aws rekognition delete-faces --collection-id wedding-faces --region <REGION> --f
 4. Rekognition のコレクションを消す（`aws rekognition delete-collection --collection-id wedding-faces --region <REGION>`）。
 5. R2 の 2 つのバケットを空にする（原本 → マーカー → 公開）。Worker を止める（Cron を外す）。
 6. Firebase Storage の旧バケットの `reference_faces/` を、旧版ごと消す。
-7. Firestore のコレクションを消す（`guests`・`guestPrivate`・`guestAdmin`・`posts`（サブコレクションごと）・`faces`・`episodes`・`notifications`・`redeemAttempts`・`reactionTimes`）。新郎新婦の名前・会場が入った `config/invitation` も消す。**`auditLogs` は消さない**（TTL で消える。GCS の写しは 400 日のロック）。
+7. Firestore のコレクションを消す（`guests`・`guestPrivate`・`guestAdmin`・`posts`（サブコレクションごと）・`faces`・`episodes`・`notifications`・`redeemAttempts`・`reactionTimes`・`lineOutbox`）。新郎新婦の名前・会場が入った `config/invitation` も消す。**`auditLogs` は消さない**（TTL で消える。GCS の写しは 400 日のロック）。
 8. Firebase Authentication のユーザーを消す（管理者のアカウントは、最後に）。
 9. 定期バックアップのスケジュールを止める（`infra/terraform/backup.tf`。**止めないと、空のデータベースのバックアップが続くだけだが、止める前のバックアップは最長 14 週残る**）。
 10. 鍵とトークンを失効させる（[../security/rotation-runbook.md](../security/rotation-runbook.md) の各節の「失効」）。Sentry のプロジェクト、Vercel のプロジェクト、LINE のチャネルを閉じるかを決める。
