@@ -116,6 +116,17 @@ function readInvitationFile(path) {
   }
   return parsed.value;
 }
+/** 以前の項目（receptionAt・ceremony）を、JSON にあれば形だけ確かめて取り出す（Issue #166 の移行の間だけ） */
+function readLegacyInvitationFields(path) {
+  const data = JSON.parse(readFileSync(resolve(process.cwd(), path), "utf8"));
+  const out = {};
+  if (typeof data.receptionAt === "string" && data.receptionAt.trim()) out.receptionAt = data.receptionAt.trim().slice(0, 200);
+  const c = data.ceremony;
+  if (c && typeof c === "object" && typeof c.startAt === "string") {
+    out.ceremony = { startAt: c.startAt, gatherAt: typeof c.gatherAt === "string" ? c.gatherAt : "", note: typeof c.note === "string" ? c.note.slice(0, 200) : "" };
+  }
+  return out;
+}
 if (cmd === "invitation" && rest[0] === "template") {
   console.log(readFileSync(resolve(HERE, "..", "src", "config", "invitation-sample.json"), "utf8"));
   process.exit(0);
@@ -158,8 +169,16 @@ if (cmd === "invitation") {
   const sub = rest[0] ?? "status";
   if (sub === "set") {
     const value = readInvitationFile(rest[1]);
+    /**
+     * ★移行の間だけ、以前の receptionAt・ceremony も書く★（Issue #166）
+     *   #166 より前の本番のコードは receptionAt を必須にしている。program を足した JSON を、マージより前に入れても
+     *   招待状が「準備中」にならないよう、JSON にあればそのまま残す（新しいコードは読まずに捨てる）。
+     *   #166 が本番に出たあとは、JSON から消して set し直す。消したら、この処理も消してよい。
+     */
+    const legacy = readLegacyInvitationFields(rest[1]);
     // ★丸ごと置き換える★（merge しない）。古い項目を残さない
-    await ref.set({ ...value, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+    await ref.set({ ...value, ...legacy, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+    if (Object.keys(legacy).length > 0) console.log(`\n（移行用に ${Object.keys(legacy).join("・")} も残しました。#166 が本番に出たら、JSON から消して set し直してください）`);
     console.log("\n✅ config/invitation を更新しました");
     console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
   } else if (sub !== "status") {
@@ -173,8 +192,12 @@ if (cmd === "invitation") {
   }
   const parsed = parseInvitationConfig(snap.data());
   console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
-  // ★値は出さない★ あるかどうかだけ（Issue #167: 本番の開催概要に挙式の時刻が出ていなかった）
-  if (parsed.ok) console.log(`ceremony          : ${parsed.value.ceremony ? "設定あり" : "未設定（開催概要・回答フォームに挙式の時刻が出ません）"}`);
+  // ★値は出さない★ 行数と、挙式の選択肢に使う役目（role）が揃っているかだけ（Issue #166・#167）
+  if (parsed.ok) {
+    const roles = new Set(parsed.value.program.map((r) => r.role).filter(Boolean));
+    const lacking = ["gather", "ceremony", "reception", "party"].filter((r) => !roles.has(r));
+    console.log(`program           : ${parsed.value.program.length} 行（role ${lacking.length ? `なし: ${lacking.join(", ")}。挙式の選択肢にその時刻が出ません` : "すべてあり"}）`);
+  }
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
 }

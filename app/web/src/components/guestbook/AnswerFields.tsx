@@ -7,7 +7,8 @@ import {
   type Attendance,
   type Ceremony,
 } from "@/types/admin";
-import type { CeremonyInfo } from "@/types/invitation";
+import type { ProgramItem } from "@/types/invitation";
+import { ceremonyChoiceNote } from "@/lib/invitation-program";
 import type { DrinkLevel } from "@/config/drink";
 import { DrinkSlider } from "@/components/guestbook/DrinkSlider";
 import { ANSWER_ALLERGY_MAX, ANSWER_NAME_PART_MAX, ANSWER_NOTE_MAX } from "@/config/answers";
@@ -99,14 +100,8 @@ export function answerPayload(d: AnswerDraft) {
   };
 }
 
-/**
- * 挙式の選択肢の表記。★時刻はコードに書かない★ config/invitation の ceremony から組み立てる（Issue #146）。
- * まだ受け取れていない・未設定のときは時刻なしで出す。
- */
-export function ceremonyFormLabel(value: Ceremony, info: CeremonyInfo | null | undefined): string {
-  if (value === "party") return "パーティーから参加する";
-  return info?.startAt ? `挙式（${info.startAt}〜）から参加する` : "挙式から参加する";
-}
+/** 挙式の選択肢の表記。時刻は ceremonyChoiceNote（config/invitation の program から。Issue #166）で下に添える */
+const CEREMONY_FORM_LABEL = { ceremony: "挙式から参加する", party: "パーティーから参加する" } as const satisfies Record<Ceremony, string>;
 
 const inputClass =
   "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-base text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
@@ -121,7 +116,7 @@ export function AnswerFields({
   onChange,
   afterName,
   attendanceHint,
-  ceremony,
+  program,
   missing,
 }: {
   value: AnswerDraft;
@@ -129,8 +124,8 @@ export function AnswerFields({
   afterName?: ReactNode;
   /** ご出欠の選択肢の下に出す補足（修正画面の「〜から〜に変更します」） */
   attendanceHint?: ReactNode;
-  /** 挙式の時刻と案内文（config/invitation。GET /api/guest/invitation から受け取る） */
-  ceremony?: CeremonyInfo | null;
+  /** 当日の流れ（config/invitation の program。GET /api/guest/invitation から受け取る）。挙式の選択肢に時刻を添える */
+  program?: readonly ProgramItem[] | null;
   /** 送信を押したときに足りなかった項目。各項目の下に「〜してください」を出す（Issue #157 A-3） */
   missing?: readonly AnswerField[];
 }) {
@@ -214,13 +209,17 @@ export function AnswerFields({
 
         {asksCeremony(value.attendance) && (
           <Section label="挙式へのご参加" required field="ceremony" error={lack("ceremony") ? "挙式へのご参加を選んでください" : undefined}>
-            {ceremony?.note && <p className="mb-2 text-[13px] leading-relaxed text-stone-500">{ceremony.note}</p>}
             <div className="grid grid-cols-1 gap-2">
-              {CEREMONY_OPTIONS.map((o) => (
-                <Choice key={o.value} on={value.ceremony === o.value} onClick={() => onChange({ ceremony: o.value })}>
-                  {ceremonyFormLabel(o.value, ceremony)}
-                </Choice>
-              ))}
+              {CEREMONY_OPTIONS.map((o) => {
+                const note = program ? ceremonyChoiceNote(program, o.value) : "";
+                const on = value.ceremony === o.value;
+                return (
+                  <Choice key={o.value} on={on} onClick={() => onChange({ ceremony: o.value })}>
+                    {CEREMONY_FORM_LABEL[o.value]}
+                    {note && <small className={`mt-0.5 block text-[11.5px] font-normal tabular-nums ${on ? "text-stone-300" : "text-stone-500"}`}>{note}</small>}
+                  </Choice>
+                );
+              })}
             </div>
           </Section>
         )}

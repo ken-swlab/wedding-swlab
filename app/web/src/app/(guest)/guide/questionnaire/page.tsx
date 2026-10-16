@@ -17,7 +17,8 @@ import {
 } from "@/components/guestbook/AnswerFields";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
-import { useInvitationCeremony } from "@/hooks/useInvitationCeremony";
+import { useInvitationProgram } from "@/hooks/useInvitationProgram";
+import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { isDrinkLevel } from "@/config/drink";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 
@@ -75,7 +76,7 @@ export default function GuideQuestionnairePage() {
   // 保存を押したあとだけ、足りない項目に案内を出す（Issue #157 A-3）
   const [tried, setTried] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const ceremony = useInvitationCeremony(!!user);
+  const program = useInvitationProgram(!!user);
 
   useEffect(() => {
     if (!user) return;
@@ -143,6 +144,16 @@ export default function GuideQuestionnairePage() {
   return (
     <Shell>
       <ScreenFade from={darkEntry} />
+      {/* ★当日の流れを、ヘッダーの下に固定する★（Issue #166。招待状のエントリー画面と同じ）。本文の余白（px-4・pt-4）を打ち消して端まで広げる */}
+      {program && (
+        <ProgramStrip
+          program={program.program}
+          date={program.date}
+          venue={program.venue}
+          className="-mx-4 -mt-4 mb-4"
+          style={{ top: "calc(3.5rem + 1px + env(safe-area-inset-top))" }}
+        />
+      )}
       <h1 className="mb-4 font-serif text-xl tracking-wide text-stone-900">出欠・アンケート</h1>
 
       {loadError ? (
@@ -156,7 +167,7 @@ export default function GuideQuestionnairePage() {
           <AnswerFields
             value={form}
             onChange={update}
-            ceremony={ceremony}
+            program={program?.program}
             missing={tried ? missing : undefined}
             attendanceHint={
               attendanceChanged &&

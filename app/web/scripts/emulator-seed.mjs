@@ -103,8 +103,11 @@ for (const a of accounts) {
 }
 
 // 招待状とオープニングの中身（Issue #131）。本番は scripts/ops.mjs invitation set で入れる。ここは架空の値だけ
+// ★初期データが入れたもの（updatedBy: emulator-seed）は毎回入れ直す★ 見本の形が変わっても（Issue #166 の program）
+//   古い形のまま「準備中」にならないようにする。手で入れた値（ops.mjs と同じ形で set したもの）は上書きしない
 const invitationRef = db.collection("config").doc("invitation");
-if (!(await invitationRef.get()).exists) {
+const invitationSnap = await invitationRef.get();
+if (!invitationSnap.exists || invitationSnap.get("updatedBy") === "emulator-seed") {
   const sample = JSON.parse(readFileSync(new URL("../src/config/invitation-sample.json", import.meta.url), "utf8"));
   await invitationRef.set({ ...sample, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
 }

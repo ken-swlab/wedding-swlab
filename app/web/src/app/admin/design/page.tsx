@@ -6,7 +6,8 @@ import { Timestamp } from "firebase/firestore";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
-import { InvitationView } from "@/components/guestbook/InvitationView";
+import { ProgramList, ProgramStrip } from "@/components/guestbook/ProgramList";
+import { SAMPLE_INVITATION } from "@/config/wedding";
 import { PostCard } from "@/components/guestbook/PostCard";
 import { Composer } from "@/components/guestbook/Composer";
 import { HeartIcon } from "@/components/guestbook/HeartIcon";
@@ -26,7 +27,6 @@ import {
 } from "@/config/theme";
 import { WHITE, contrastRatio, readStoredPreview, storePreview, tuningStyle } from "@/lib/theme-preview";
 import { GUESTBOOK_PATHS } from "@/config/guestbook";
-import type { InvitationContent } from "@/types/invitation";
 import type { Post } from "@/types";
 
 const ROLE_LABEL: Record<ThemeRole, { name: string; note: string }> = {
@@ -39,17 +39,6 @@ const ROLE_LABEL: Record<ThemeRole, { name: string; note: string }> = {
 /** WCAG の本文の基準 */
 const CONTRAST_MIN = 4.5;
 
-/** ★本物の名前・会場を使わない★（招待状テストと同じ。本物はサーバーだけが持つ） */
-const SAMPLE_INVITATION: InvitationContent = {
-  groom: "新郎 太郎",
-  bride: "新婦 花子",
-  dateLabel: "20XX年X月X日（土）",
-  receptionAt: "受付 XX:XX ／ 披露宴 XX:XX",
-  venueName: "（ダミー）会場名",
-  venueAddress: "（ダミー）住所",
-  venueMapUrl: "",
-  greeting: ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
-};
 
 function shadeOf(t: ThemeTuning, role: ThemeRole, shade: (typeof SHADES)[number]): Oklch {
   return roleScale(role, t[role])[SHADES.indexOf(shade)];
@@ -246,8 +235,12 @@ export default function AdminDesignPage() {
           <div style={tuningStyle(tuning)} inert className="mt-2 space-y-3 rounded-2xl border border-stone-200 bg-stone-50 p-3">
             <GuestSessionProvider value={session}>
               <AuthorNameProvider value="（見本）ゲスト">
-                <div className="max-h-64 overflow-hidden rounded-2xl bg-stone-50 px-4 pb-4">
-                  <InvitationView invitation={SAMPLE_INVITATION} />
+                {/* 招待状の当日の流れ（Issue #166）。★見本の中身だけ★（本物の名前・会場・時刻はサーバーだけが持つ） */}
+                <div className="overflow-hidden rounded-2xl bg-stone-50">
+                  <ProgramStrip program={SAMPLE_INVITATION.program} date={SAMPLE_INVITATION.opening.date} venue={SAMPLE_INVITATION.opening.venue} style={{ position: "static" }} />
+                  <div className="px-2 pb-2">
+                    <ProgramList program={SAMPLE_INVITATION.program} />
+                  </div>
                 </div>
                 {samplePost && <PostCard post={samplePost} user={user} openAs="page" />}
                 <Composer user={user} tags={session.tags} onUploadOriginals={() => {}} />

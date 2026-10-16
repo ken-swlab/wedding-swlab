@@ -9,6 +9,8 @@ import { EntryFinish } from "@/components/opening/EntryFinish";
 import { openingCast } from "@/lib/opening-names";
 import { prefersReducedMotion } from "@/components/opening/timeline";
 import { ScreenFade } from "@/components/ScreenFade";
+import { ProgramStrip } from "@/components/guestbook/ProgramList";
+import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
 /**
@@ -16,7 +18,7 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
  *   entrance … 入り口と LINE ログイン（個人の情報なし）
  *   passcode … パスコード入力（個人の情報なし）
  *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
- *   open     … 招待状の本文と、その下に出欠の回答フォーム（1ページの縦スクロール。Issue #74）
+ *   open     … 招待状の本文。画面下の「エントリーする」で、出欠の回答フォーム（エントリー画面）に切り替わる（Issue #166）
  *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
  *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。3 秒かタップで承認待ちへ（Issue #156）
  */
@@ -26,7 +28,7 @@ export type InvitationStep =
   | { kind: "passcode" }
   | { kind: "opening"; opening: OpeningContent; displayName: string | null | undefined; note: string }
   | { kind: "preparing" }
-  | { kind: "open"; invitation: InvitationContent }
+  | { kind: "open"; invitation: InvitationContent; opening: OpeningContent }
   | { kind: "finish"; guestName: string }
   | { kind: "error"; message: string };
 
@@ -40,7 +42,7 @@ export type InvitationFlowProps = {
   onOpeningReaction?: (reactionMs: number) => void;
   /** オープニングが終わった・スキップされた */
   onOpeningEnd: (result: OpeningResult) => void;
-  /** open の段階で開催概要の下に出す出欠の回答フォーム（送信の処理は親が持つ） */
+  /** open の段階のエントリー画面に出す出欠の回答フォーム（送信の処理は親が持つ） */
   rsvp: ReactNode;
   /** エラー画面・準備中の画面の「もう一度読み込む」 */
   onRetry: () => void;
@@ -120,18 +122,85 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onOpeningReact
         </main>
       );
     case "open":
-      return (
-        <main className="min-h-dvh bg-[#faf9f7] text-stone-800">
-          <ScreenFade from={fromOpening ? "dark" : null} />
-          <div className="mx-auto w-full max-w-[26rem] px-6 pt-12" style={{ paddingBottom: "max(3rem, env(safe-area-inset-bottom))" }}>
-            <InvitationView invitation={step.invitation} />
-            <section aria-label="出欠のご回答" className="mt-8">
-              {rsvp}
-            </section>
-          </div>
-        </main>
-      );
+      return <InvitationOpen invitation={step.invitation} opening={step.opening} fromOpening={fromOpening} rsvp={rsvp} />;
   }
+}
+
+/**
+ * 招待状（読む場所）とエントリー画面（判断する場所）。画面を分ける（Issue #166）。
+ *   招待状 … InvitationView。表示されてから ENTRY_BAR_DELAY_MS 後に、画面下の「エントリーする」を下からふわっと出す。
+ *   エントリー画面 … 上部に当日の流れ（ProgramStrip）を固定し、その下に出欠の回答フォーム。
+ * ★回答フォームは招待状に戻っても消さない★ hidden で隠すだけにして、入力中の内容を残す。
+ * ★切り替えたら一番上へ★ 招待状の下のほうから移っても、フォームの最初（1/4 お名前）から見せる。
+ */
+function InvitationOpen({
+  invitation,
+  opening,
+  fromOpening,
+  rsvp,
+}: {
+  invitation: InvitationContent;
+  opening: OpeningContent;
+  fromOpening: boolean;
+  rsvp: ReactNode;
+}) {
+  const [entry, setEntry] = useState(false);
+  const [barOn, setBarOn] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setBarOn(true), prefersReducedMotion() ? 0 : ENTRY_BAR_DELAY_MS);
+    return () => clearTimeout(t);
+  }, []);
+
+  const go = (next: boolean) => {
+    setEntry(next);
+    window.scrollTo({ top: 0 });
+  };
+
+  return (
+    <main className="min-h-dvh text-stone-800" style={{ background: INVITATION_COLORS.paper }}>
+      <ScreenFade from={fromOpening ? "dark" : null} />
+      <div hidden={entry} className="mx-auto w-full max-w-[26rem]" style={{ paddingBottom: "calc(8rem + env(safe-area-inset-bottom))" }}>
+        <InvitationView invitation={invitation} opening={opening} />
+      </div>
+      {!entry && (
+        <div
+          className={`fixed inset-x-0 bottom-0 z-20 px-[18px] pt-3 transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none ${
+            barOn ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-5 opacity-0"
+          }`}
+          style={{
+            paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
+            background: `linear-gradient(180deg, ${INVITATION_COLORS.paper}00, ${INVITATION_COLORS.paper} 35%)`,
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => go(true)}
+            tabIndex={barOn ? 0 : -1}
+            className="mx-auto block min-h-12 w-full max-w-[26rem] touch-manipulation rounded-full bg-stone-900 px-6 py-3.5 text-[15px] font-bold tracking-[0.05em] text-white hover:bg-stone-700"
+          >
+            エントリーする（出欠のご回答）
+          </button>
+        </div>
+      )}
+      <div hidden={!entry} className={entry ? "invitation-entry-lift" : ""}>
+        <ProgramStrip
+          program={invitation.program}
+          date={opening.date}
+          venue={opening.venue}
+          className="top-0"
+          style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
+          action={
+            <button type="button" onClick={() => go(false)} className="min-h-9 shrink-0 touch-manipulation rounded-full border border-stone-200 bg-white px-3 text-[11px] text-stone-500">
+              招待状を見る
+            </button>
+          }
+        />
+        <div className="mx-auto w-full max-w-[26rem] px-4 pt-5" style={{ paddingBottom: "max(3rem, env(safe-area-inset-bottom))" }}>
+          {rsvp}
+        </div>
+      </div>
+    </main>
+  );
 }
 
 /** 封を開ける動きの長さ (ms)。ログインを始める前に見せきる（Issue #157 B-1） */

@@ -11,7 +11,7 @@ import {
   type AnswerDraft,
 } from "@/components/guestbook/AnswerFields";
 import { PROFILE_NICKNAME_MAX } from "@/config/profile";
-import type { CeremonyInfo } from "@/types/invitation";
+import type { ProgramItem } from "@/types/invitation";
 
 /** 出欠の回答。POST /api/guest/register の本文 */
 export type OnboardingAnswer = ReturnType<typeof answerPayload> & {
@@ -25,20 +25,21 @@ const inputClass =
 /**
  * 出欠の回答フォーム。送信の処理（API の呼び出しと送信後の遷移）は onSubmit で受け取る。
  * 通らなければ Error を投げ、その message を画面に出す（/admin/invitation_test はダミーを渡す）。
- * 招待状（/invitation の開催概要の下）と /onboarding で使う。
+ * 招待状（/invitation のエントリー画面）と /onboarding で使う。
+ * ★説明文（ご出席のご確認・ゲストブックとは）を置かない★（Issue #166）承認後の演出が説明を担う。
  */
 export function OnboardingForm({
   displayName,
   initialNickname,
-  ceremony,
+  program,
   initialDraft,
   onSubmit: submit,
 }: {
   /** LINE の表示名。フォームの下に「〜として回答します」と出す（★ニックネームの既定値には使わない★） */
   displayName?: string | null;
   initialNickname?: string;
-  /** 挙式の時刻と案内文（config/invitation）。無ければ時刻なしで聞く */
-  ceremony?: CeremonyInfo | null;
+  /** 当日の流れ（config/invitation の program）。挙式の選択肢に時刻を添える。無ければ時刻なしで聞く */
+  program?: readonly ProgramItem[] | null;
   /**
    * 入力欄の初期値（Issue #156）。★管理者のテスト画面（/admin/invitation_test）のダミーの回答だけが渡す★
    * 本番の招待状は渡さない（空欄から始める）。
@@ -79,24 +80,10 @@ export function OnboardingForm({
   return (
     // ★noValidate★ ブラウザの「入力してください」の吹き出しではなく、足りない項目の案内を出す（Issue #157 A-3）
     <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
-      <div className="mb-8 text-center">
-        <h2 className="font-serif text-lg text-stone-900">ご出席のご確認</h2>
-        {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1。iOS の Safari は word-break: auto-phrase に未対応） */}
-        <p className="mt-2 text-balance text-sm leading-relaxed text-stone-500">
-          ご回答のあと、新郎新婦が確認すると
-          <br />
-          「ゲストブック」が開きます。
-        </p>
-        {/* ゲストブックで何ができるかを具体的に（Issue #157 B-2） */}
-        <p className="mt-3 rounded-xl bg-stone-50 px-4 py-3 text-left text-[12.5px] leading-relaxed text-stone-600">
-          ゲストブックは、この日のための、ゲスト限定のページです。写真を投稿したり、ほかのゲストの写真を見たりできます。
-        </p>
-      </div>
-
       <AnswerFields
         value={draft}
         onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
-        ceremony={ceremony}
+        program={program}
         missing={tried ? missing : undefined}
         afterName={
           <Section label="ニックネーム">

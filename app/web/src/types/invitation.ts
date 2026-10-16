@@ -5,14 +5,16 @@ export type InvitationContent = {
   groom: string;
   bride: string;
   dateLabel: string;
-  receptionAt: string;
   venueName: string;
   venueAddress: string;
   /** Google マップの共有 URL（空なら出さない） */
   venueMapUrl: string;
   greeting: readonly string[];
-  /** 挙式の時刻と案内（Issue #146）。未設定なら開催概要に挙式の行を出さない */
-  ceremony?: CeremonyInfo;
+  /**
+   * 当日の流れ（Issue #166）。招待状の PROGRAM・エントリー画面の上部・挙式の選択肢の時刻は、すべてここから組み立てる。
+   * ★時刻をコードに書かない★ 以前の receptionAt（文字列）と ceremony（Issue #146）はこれに移した。
+   */
+  program: readonly ProgramItem[];
   /**
    * 会費（Issue #148）。config/invitation ではなく config/payment から API が足す。未設定なら出さない。
    * ★お車代の額は入れない★（招待状に書かない）
@@ -26,13 +28,22 @@ export type InvitationContent = {
   approvalNote?: string;
 };
 
-/** 挙式の時刻と案内。時刻は "HH:MM" */
-export type CeremonyInfo = {
-  startAt: string;
-  /** 集合の時刻（空なら出さない） */
-  gatherAt: string;
-  /** 案内文（例: 任意参加であること・入場できる時刻。空なら出さない） */
+/**
+ * 当日の流れの行の役目（Issue #166）。挙式の選択肢の時刻を、どの行から取るかを決める。
+ *   gather … 挙式に参加する人の集合 ／ ceremony … 挙式 ／ reception … 受付 ／ party … 披露宴
+ * 役目のない行（2次会など）には付けない。同じ役目は1行だけ。
+ */
+export type ProgramRole = "gather" | "ceremony" | "reception" | "party";
+
+/** 当日の流れの1行。時刻は "HH:MM"、未定なら ""（画面は --:-- と出す） */
+export type ProgramItem = {
+  time: string;
+  title: string;
+  /** 補足（空なら出さない） */
   note: string;
+  /** 点をアクセント色で塗り、エントリー画面のチップの枠もアクセント色にする（挙式・披露宴） */
+  highlight: boolean;
+  role?: ProgramRole;
 };
 
 /** オープニング演出「招集」に出す文字（Issue #131） */
