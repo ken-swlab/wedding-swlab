@@ -497,6 +497,13 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ...lockedDown("redeemAttempts", "redeemAttempts/x1"),
   // 投稿の削除で消した高画質版の印（Issue #122）。webhook だけが読む。消した写真のキーのハッシュが ID
   ...lockedDown("deletedMedia", "deletedMedia/d1"),
+  // 公式 LINE の通知のアウトボックス（Issue #168）。読み書きはサーバーの送信係（lib/line-notify-server.ts）だけ
+  ...lockedDown("lineOutbox", "lineOutbox/approved:u_guest"),
+  ["guest", DENY, "lineOutbox: 自分あての通知もクライアントからは読めない", get("lineOutbox/approved:u_guest")],
+  ["guest", DENY, "lineOutbox: 自分あての通知を uid で一覧できない", list("lineOutbox", where("uid", "==", "u_guest"), limit(10))],
+  ["guest", DENY, "lineOutbox: 通知を作れない（ゲストから送らせない）", set("lineOutbox/approved:u_guest", { uid: "u_guest", kind: "approved", status: "pending" })],
+  ["pending", DENY, "lineOutbox: 承認前のゲストも作れない", set("lineOutbox/approved:u_pending", { uid: "u_pending", kind: "approved", status: "pending" })],
+  ["anon", DENY, "lineOutbox: 未ログインは読めない", get("lineOutbox/approved:u_guest")],
 ]);
 
 table("Rules に書かれていないパス（既定拒否）", [

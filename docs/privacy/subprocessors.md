@@ -12,7 +12,7 @@
 
 | サービス（会社） | 用途 | 渡る・置かれる情報 | 所在地 | 公式の資料 |
 |---|---|---|---|---|
-| **LINE ログイン・LIFF**（LINE ヤフー） | ログイン。ID トークンの検証（`api.line.me`）。アイコン画像の配信（`profile.line-scdn.net`） | こちらから LINE へ: ID トークン（検証のため）。LINE から受け取る: **ユーザー ID（`sub`）・表示名（`name`）・アイコンの URL（`picture`）だけ**。友だち・トーク・メールアドレス・電話番号は取得しない（§2） | 日本（LINE のサービス） | [プライバシーポリシー](https://www.lycorp.co.jp/ja/company/privacypolicy/)・[ID トークンの検証](https://developers.line.biz/ja/docs/line-login/verify-id-token/) |
+| **LINE ログイン・LIFF・Messaging API**（LINE ヤフー） | ログイン。ID トークンの検証（`api.line.me`）。アイコン画像の配信（`profile.line-scdn.net`）。公式 LINE からの通知（Issue #168） | こちらから LINE へ: ID トークン（検証のため）。通知の宛先のユーザー ID と文面（§2）。LINE から受け取る: **ユーザー ID（`sub`）・表示名（`name`）・アイコンの URL（`picture`）だけ**。友だち・トーク・メールアドレス・電話番号は取得しない（§2） | 日本（LINE のサービス） | [プライバシーポリシー](https://www.lycorp.co.jp/ja/company/privacypolicy/)・[ID トークンの検証](https://developers.line.biz/ja/docs/line-login/verify-id-token/) |
 | **Firebase / Google Cloud**（Google） | Firestore（データベース）、Firebase Authentication（ログインのアカウント）、Firebase Storage（参照用の顔写真）、Cloud Logging・GCS（監査ログ・閲覧ログ・バックアップ） | ゲストのデータのほぼすべて（プロフィール、本名、出欠、アレルギー、投稿の本文、顔の記録、ログ） | Firestore・GCS は東京（asia-northeast1）。Firebase Authentication は Google の運用（米国を含む。オーナー確認） | [Firebase のプライバシーとセキュリティ](https://firebase.google.com/support/privacy)・[データ処理の追加条項](https://cloud.google.com/terms/data-processing-addendum) |
 | **Vertex AI**（Google） | 管理者の AI の試験（`/admin/ai-test`）。**ゲストが使う機能は、まだ無い** | 相手に選んだゲストの呼び名・**本名**・タグ・運営のメモ、エピソードの本文、管理者が打った文 | 既定は東京（`GCP_LOCATION`。未設定なら asia-northeast1） | [生成 AI とデータの扱い](https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance) |
 | **Cloudflare**（R2・Workers・DNS） | 写真・動画の保管と配信（R2）、原本の EXIF を落とす処理（Worker）、DNS | 写真・動画（軽量版・高画質版・**EXIF つきの原本**）、キーに入った uid、公開バケットを見に来た人の IP（配信のため） | R2 のバケットの場所はオーナー確認。配信は世界中の拠点 | [プライバシーポリシー](https://www.cloudflare.com/privacypolicy/)・[DPA](https://www.cloudflare.com/cloudflare-customer-dpa/)・[Trust Hub](https://www.cloudflare.com/trust-hub/) |
@@ -38,7 +38,7 @@
   | アイコンの URL | 投稿者のアイコンとして表示 | Firebase Authentication、`guests.photoURL` | 承認済みゲスト全員（本人が別の画像に変えられる） |
 
 - LINE 側でこのアプリに許可しているスコープは、LINE Developers のコンソールの設定（オーナー確認。コードが要るのは `openid` と `profile`）。
-- このアプリから LINE へ、メッセージを送る機能は無い（通知はアプリ内だけ）。
+- **公式 LINE（Messaging API）から、通知を送る**（Issue #168。いまは「承認されました」の1種類）。LINE へ送るのは、宛先の LINE のユーザー ID と、決まった文面（ゲストブックの URL を含む）だけ。本名・アレルギーなどは送らない。送るかどうかは `config/runtime` の `lineNotify`（既定 off）で切り替える。LINE ログインと同じプロバイダーのチャネルなので、ユーザー ID は同じ値になる。
 
 ## 3. 足す・やめるとき
 

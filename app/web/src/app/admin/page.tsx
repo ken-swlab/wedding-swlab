@@ -6,6 +6,7 @@ import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { GuestTable, type GuestPatch } from "@/components/admin/GuestTable";
 import { HiddenPosts } from "@/components/admin/HiddenPosts";
+import { LineNotifyRetry } from "@/components/admin/LineNotifyRetry";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { tagDef } from "@/config/tags";
@@ -144,6 +145,10 @@ export default function AdminPage() {
             <section>
               <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">非表示の投稿</h2><p className="text-xs text-stone-400">ゲストブックで投稿を開き「非表示にする（管理者）」を押すとここに入ります。コメントも一緒に隠れます。</p></div>
               <HiddenPosts enabled={isAdmin} />
+            </section>
+            <section>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">LINE の通知の再送</h2><p className="text-xs text-stone-400">失敗した通知は、先に ops.mjs notify retry で送信待ちに戻してから押してください。重複して届くことはありません。</p></div>
+              <LineNotifyRetry />
             </section>
 
             {passcodeBlocked.length > 0 && (

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { applyGuestTags, readGuestClaims } from "@/lib/guests-server";
@@ -8,6 +8,7 @@ import { withHeavyDrinkerTag } from "@/lib/drink-tag-server";
 import { ATTENDANCE_OPTIONS, PAYMENT_OPTIONS, type UpdateGuestPayload } from "@/types/admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
+import { deliverOutbox, enqueueNotification } from "@/lib/line-notify-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,9 +36,11 @@ async function handle(req: Request) {
   const header = req.headers.get("authorization") ?? "";
   const idToken = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   if (!idToken) return fail("認証情報がありません", 401);
+  let actorUid: string;
   try {
     const decoded = await auth.verifyIdToken(idToken, true);
     if (decoded.admin !== true) return fail("管理者権限が必要です", 403);
+    actorUid = decoded.uid;
   } catch { return fail("ログインし直してください", 401); }
 
   let body: UpdateGuestPayload;
@@ -174,6 +177,26 @@ async function handle(req: Request) {
     batch.set(db.collection("guestAdmin").doc(uid), adminPatch, { merge: true });
   }
   await batch.commit();
+
+  /**
+   * ★承認したら、公式 LINE から「承認されました」を送る★（Issue #168）
+   *   アウトボックスに approved:<uid> を作り、送るのは応答を返したあと（after()。管理者の画面を待たせない）。
+   *   同じキーがあれば作らない＝承認を取り消して再承認しても、2回目は送らない。
+   *   送るかどうか（off / dryRun / adminsOnly / on）・トークンの有無・通数の残りは送信係が確かめる。
+   *   ★通知の失敗で承認を失敗にしない★ 承認はもう保存済み。失敗はアウトボックスと Sentry に残り、再送できる。
+   */
+  if (body.isApproved === true) {
+    try {
+      const key = await enqueueNotification({ type: "uid", uid }, "approved");
+      if (key) {
+        after(() =>
+          deliverOutbox(key, actorUid).catch((e: unknown) => console.error("[update-guest] 承認の通知を送れませんでした", e)),
+        );
+      }
+    } catch (e) {
+      console.error("[update-guest] 承認の通知をアウトボックスに書けませんでした", e);
+    }
+  }
 
   return NextResponse.json({ ok: true, uid, tags, claimsUpdated });
 }

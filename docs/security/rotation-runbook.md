@@ -158,6 +158,26 @@ rm -rf "$D"
 - Vercel・Cloudflare の API トークン: 管理画面で一覧を見て、使っていないものを失効させる。使うものは、用途ごとに最小の権限で作り直す。
 - 開発機（Codespaces）を捨てるとき・長く使わないとき: `gcloud auth revoke`、`gcloud auth application-default revoke`、`vercel logout`、`npx wrangler logout`、`gh auth logout`。`app/web/.env.local` を消す。
 
+## 11. LINE の Messaging API のチャネルアクセストークン
+
+公式 LINE からの通知（Issue #168）に使う `LINE_CHANNEL_ACCESS_TOKEN`。Messaging API のチャネルの「長期」のトークン。
+
+1. 先に通知を止める: `cd app/web && node scripts/ops.mjs notify mode off`（約 10 秒で反映。止めている間の通知は `skipped` として記録され、あとからは送られない）
+2. LINE Developers → プロバイダー → Messaging API のチャネル →「Messaging API 設定」→ チャネルアクセストークン（長期）を**再発行**する（古いトークンはその時点で使えなくなる）
+3. 値を画面に表示させずに、Vercel に Sensitive・Production のみで登録し直す。**`vercel env add` は使わない**（この環境の CLI は黙って失敗する。上の「共通の決まり」）。REST API の upsert で入れる（プロジェクト ID とチーム ID は `.vercel/repo.json`、`VERCEL_TOKEN` は期限つき・最小のスコープで作ったもの）:
+   ```bash
+   read -rs LINE_TOKEN   # 貼り付けても画面に出ない
+   jq -n --arg v "$LINE_TOKEN" '{key:"LINE_CHANNEL_ACCESS_TOKEN",value:$v,type:"sensitive",target:["production"]}' \
+     | curl -sS -X POST "https://api.vercel.com/v10/projects/$PROJECT_ID/env?teamId=$TEAM_ID&upsert=true" \
+         -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" --data-binary @- \
+     | jq 'del(.. | .value?, .decrypted?)'   # 応答から値を消して表示する
+   unset LINE_TOKEN
+   ```
+   そのあと `GET /v10/projects/$PROJECT_ID/env?teamId=$TEAM_ID` で、`LINE_CHANNEL_ACCESS_TOKEN` が Production だけにあり、`type` が `sensitive`、更新日時が今であることを確かめる。Preview には置かない
+4. 再デプロイする（環境変数は再デプロイで反映される）
+5. `node scripts/ops.mjs notify mode adminsOnly` にし、管理者（自分）の承認をし直す（先に `lineOutbox` の自分の `approved:<uid>` を消しておく。消さないと重複防止で送られない）。届いたら `on` に戻す
+6. 漏れたときは、LINE 公式アカウントのトーク履歴（管理画面）で、身に覚えのない送信が無いかを見る
+
 ---
 
 ## 記録
