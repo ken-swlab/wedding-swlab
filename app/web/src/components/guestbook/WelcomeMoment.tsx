@@ -43,7 +43,9 @@ function spotOf(el: Element | null): Spot | null {
  *   iOS のダブルタップでの拡大と競合させない。
  * ★いいねの案内は「タップでいいね」のボタンだけ★（Issue #157 A-4）写真のダブルタップでも同じ流れになるが、
  *   案内はしない（「ダブルタップでいいね」の文字とボタンが同時に出て、どちらを押すか迷わせていた）。
- * ★スキップは右上に出す★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
+ * ★スキップは「タップでいいね」の下に置く★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
+ *   右上に置くと、暗くした下に透けるヘッダーの＋ボタンと重なって見えた（Issue #167）。画面の下に固定すると、
+ *   背の低い iPhone でカードと重なるため、カードと同じ列に並べる。
  * ★動かすのは transform と opacity だけ★ prefers-reduced-motion では、引き込みの動きを省いてフェードで切り替える。
  */
 export function WelcomeMoment({
@@ -214,6 +216,17 @@ export function WelcomeMoment({
                 </button>
               )}
             </div>
+            {/* 案内の間は出さない（どこをタップしても進む）。fly の間も押せる */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                finish(true);
+              }}
+              className="mt-1 min-h-11 touch-manipulation rounded-full px-5 text-xs text-white/80 underline underline-offset-4"
+            >
+              スキップ
+            </button>
           </div>
         </>
       )}
@@ -234,20 +247,6 @@ export function WelcomeMoment({
         </>
       )}
 
-      {/* 案内の間は出さない（どこをタップしても進む。右上の＋を照らすときに重なる） */}
-      {!guiding && (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          finish(true);
-        }}
-        className="absolute right-3 z-10 min-h-11 touch-manipulation rounded-full bg-white/15 px-4 text-xs text-white/90"
-        style={{ top: "calc(0.5rem + env(safe-area-inset-top))" }}
-      >
-        スキップ
-      </button>
-      )}
     </div>,
     document.body,
   );
