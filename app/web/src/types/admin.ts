@@ -16,8 +16,8 @@ export type Attendance = (typeof ATTENDANCE_OPTIONS)[number]["value"];
 
 /**
  * 挙式へのご参加。出欠が「欠席」以外のときだけ聞く（欠席・未回答なら空文字）。
- * ★時刻と案内文はコードに書かない★ config/invitation の ceremony から組み立てる（Issue #146。
- *   回答フォームは components/guestbook/AnswerFields.tsx の ceremonyFormLabel）。
+ * ★時刻はコードに書かない★ config/invitation の program から組み立てる（Issue #166。
+ *   回答フォームは lib/invitation-program.ts の ceremonyChoiceNote）。
  */
 export const CEREMONY_OPTIONS = [
   { value: "ceremony", label: "挙式から" },

@@ -15,14 +15,14 @@ type View =
   | { kind: "passcode" }
   /** recorded: すでにリアクションタイムの記録があるか（あれば今回は記録しない） */
   | { kind: "opening"; invitation: InvitationContent; opening: OpeningContent; recorded: boolean }
-  | { kind: "open"; invitation: InvitationContent }
+  | { kind: "open"; invitation: InvitationContent; opening: OpeningContent }
   /** 初めて回答を送った直後のエントリー完了（Issue #149） */
   | { kind: "finish"; guestName: string }
   | { kind: "preparing" }
   | { kind: "error"; message: string };
 
 /**
- * 招待状。未ログイン → LINE ログイン → パスコード → オープニング → 招待状と出欠の回答（同じページの開催概要の下）。
+ * 招待状。未ログイン → LINE ログイン → パスコード → オープニング → 招待状 →「エントリーする」で出欠の回答（Issue #166）。
  *
  * ★ログインしてパスコードを通るまで、新郎新婦の名前・写真・会場を出さない★
  *   中身はこのファイルにもバンドルにも無く、GET /api/guest/invitation が
@@ -52,12 +52,15 @@ export default function InvitationPage() {
         // 登録済みの人はこれまでどおりゲストブックへ（承認待ちなら layout が /pending に振り分ける）
         if (s.registered) router.replace("/guestbook");
         else if (!s.cleared) setView({ kind: "passcode" });
-        else if (!s.ready || !s.invitation) setView({ kind: "preparing" });
-        else if (s.opening && !hasSeenOpening()) {
-          // 記録の有無は、オープニングの前に確かめておく（読めなければ「記録なし」として進める。上書きはサーバーが断る）
-          const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
-          if (!cancelled) setView({ kind: "opening", invitation: s.invitation, opening: s.opening, recorded: reaction?.reactionMs != null });
-        } else setView({ kind: "open", invitation: s.invitation });
+        else if (!s.ready || !s.invitation || !s.opening) setView({ kind: "preparing" });
+        else {
+          const { invitation, opening } = s;
+          if (!hasSeenOpening()) {
+            // 記録の有無は、オープニングの前に確かめておく（読めなければ「記録なし」として進める。上書きはサーバーが断る）
+            const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
+            if (!cancelled) setView({ kind: "opening", invitation, opening, recorded: reaction?.reactionMs != null });
+          } else setView({ kind: "open", invitation, opening });
+        }
       })
       .catch((e: unknown) => {
         if (!cancelled) setView({ kind: "error", message: e instanceof Error ? e.message : "読み込みに失敗しました" });
@@ -106,12 +109,12 @@ export default function InvitationPage() {
       }}
       onOpeningEnd={() => {
         markOpeningSeen();
-        if (view.kind === "opening") setView({ kind: "open", invitation: view.invitation });
+        if (view.kind === "opening") setView({ kind: "open", invitation: view.invitation, opening: view.opening });
       }}
       rsvp={
         <OnboardingForm
           displayName={user?.displayName}
-          ceremony={view.kind === "open" ? view.invitation.ceremony : null}
+          program={view.kind === "open" ? view.invitation.program : null}
           onSubmit={async (answer) => {
             await postJson("/api/guest/register", answer);
             // ★ここは初回の送信だけ★（登録済みの人は開いた時点でゲストブックへ移る）。エントリー完了を出し、

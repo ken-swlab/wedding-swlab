@@ -48,35 +48,47 @@ test("地図の URL は https だけ通す。余分な項目は捨てる", () =>
   assert.equal("extra" in r.value, false);
 });
 
-test("挙式（ceremony）は任意。あるときは時刻の形を確かめる（Issue #146）", () => {
-  const ok = sample();
-  assert.deepEqual(parseInvitationConfig(ok).value.ceremony, ok.ceremony);
-
-  const none = sample();
-  delete none.ceremony;
-  const r = parseInvitationConfig(none);
+test("当日の流れ（program）は1行以上。時刻は HH:MM か空（Issue #166）", () => {
+  const r = parseInvitationConfig(sample());
   assert.equal(r.ok, true);
-  assert.equal("ceremony" in r.value, false);
+  assert.equal(r.value.program.length, 5);
+  assert.deepEqual(r.value.program[4], { time: "", title: "2次会", note: "詳細は後日", highlight: false });
+  assert.equal(r.value.program[1].role, "ceremony");
 
-  const noGather = sample();
-  noGather.ceremony = { startAt: "9:30" };
-  assert.deepEqual(parseInvitationConfig(noGather).value.ceremony, { startAt: "9:30", gatherAt: "", note: "" });
+  // note・highlight は省略できる
+  const d = sample();
+  d.program = [{ time: "9:30", title: "受付" }];
+  assert.deepEqual(parseInvitationConfig(d).value.program, [{ time: "9:30", title: "受付", note: "", highlight: false }]);
 
   const broken = [
-    [(d) => (d.ceremony = null), "ceremony"],
-    [(d) => (d.ceremony = "15:15"), "ceremony"],
-    [(d) => delete d.ceremony.startAt, "ceremony.startAt"],
-    [(d) => (d.ceremony.startAt = "25:00"), "ceremony.startAt"],
-    [(d) => (d.ceremony.startAt = "15時15分"), "ceremony.startAt"],
-    [(d) => (d.ceremony.gatherAt = "3pm"), "ceremony.gatherAt"],
-    [(d) => (d.ceremony.note = 1), "ceremony.note"],
-    [(d) => (d.ceremony.note = "あ".repeat(201)), "ceremony.note"],
+    [(d) => delete d.program, "program"],
+    [(d) => (d.program = []), "program"],
+    [(d) => (d.program = Array.from({ length: 13 }, () => ({ time: "", title: "x" }))), "program"],
+    [(d) => (d.program[0] = "15:00 集合"), "program.0"],
+    [(d) => (d.program[1].time = "25:00"), "program.1.time"],
+    [(d) => (d.program[1].time = "3pm"), "program.1.time"],
+    [(d) => (d.program[2].title = ""), "program.2.title"],
+    [(d) => (d.program[2].note = 1), "program.2.note"],
+    [(d) => (d.program[3].highlight = "true"), "program.3.highlight"],
+    [(d) => (d.program[4].role = "afterParty"), "program.4.role"],
+    // 同じ役目は1行だけ
+    [(d) => (d.program[4].role = "party"), "program.4.role"],
   ];
   for (const [mutate, field] of broken) {
-    const d = sample();
-    mutate(d);
-    assert.deepEqual(parseInvitationConfig(d), { ok: false, field }, field);
+    const x = sample();
+    mutate(x);
+    assert.deepEqual(parseInvitationConfig(x), { ok: false, field }, field);
   }
+});
+
+test("以前の receptionAt・ceremony は残っていても読まない（Issue #166 で program に移した）", () => {
+  const d = sample();
+  d.receptionAt = "受付 XX:XX";
+  d.ceremony = { startAt: "12:00" };
+  const r = parseInvitationConfig(d);
+  assert.equal(r.ok, true);
+  assert.equal("receptionAt" in r.value, false);
+  assert.equal("ceremony" in r.value, false);
 });
 
 test("承認の目安（approvalNote）は任意。文字列で 200 文字まで（Issue #157 B-4）", () => {

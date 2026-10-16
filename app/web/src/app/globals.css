@@ -284,6 +284,28 @@ body {
   animation: entry-finish-blink 0.7s steps(1, end) both;
 }
 
+/* 招待状の1画面目の「SCROLL」の下に伸びる線（Issue #166）。上から伸びて、下へ抜ける */
+@keyframes invitation-scroll-cue {
+  0% { transform: scaleY(0); transform-origin: top; }
+  50% { transform: scaleY(1); transform-origin: top; }
+  51% { transform: scaleY(1); transform-origin: bottom; }
+  100% { transform: scaleY(0); transform-origin: bottom; }
+}
+
+.invitation-scroll-cue {
+  animation: invitation-scroll-cue 1.6s ease-in-out infinite;
+}
+
+/* 招待状からエントリー画面へ。下から少し持ち上がって切り替わる（Issue #166。350ms） */
+@keyframes invitation-entry-lift {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: none; }
+}
+
+.invitation-entry-lift {
+  animation: invitation-entry-lift 0.35s ease-out both;
+}
+
 /* 承認後の初回の演出（Issue #150）の文字・暗幕を出す */
 @keyframes welcome-fade-in {
   from { opacity: 0; }
@@ -347,6 +369,8 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .invitation-rise,
+  .invitation-scroll-cue,
+  .invitation-entry-lift,
   .passcode-shake,
   .drink-stamp,
   .start-idle-pulse,

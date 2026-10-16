@@ -140,8 +140,8 @@ export default function InvitationTestPage() {
   // ★記録しない★ /api/guest/reaction を呼ばない。タイムは画面と console に出すだけ
   const onOpeningEnd = useCallback((result: { reactionMs: number | null; skipped: boolean }) => {
     console.log("[invitation_test] オープニングが終了", result);
-    setStep({ kind: "open", invitation: currentInvitation });
-  }, [currentInvitation]);
+    setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
+  }, [currentInvitation, currentOpening]);
 
   // ★回答の中身（本名・アレルギー）をログに出さない★ ダミーでも本物を入れて試すことがあるため
   const onRsvpSubmit = useCallback(async (answer: OnboardingAnswer) => {
@@ -305,7 +305,7 @@ export default function InvitationTestPage() {
         </p>
       )}
 
-      {/* 本番の /invitation と同じ組み合わせ（開催概要の下に OnboardingForm） */}
+      {/* 本番の /invitation と同じ組み合わせ（招待状の「エントリーする」の先に OnboardingForm） */}
       {step.kind === "welcome" ? (
         // ★welcomeSeenAt を書かない・いいねも保存しない★ 何度でも最初から見られる（key で作り直す）
         <WelcomeTestStage key={step.run} />
@@ -330,7 +330,7 @@ export default function InvitationTestPage() {
           rsvp={
             <OnboardingForm
               displayName={displayName}
-              ceremony={currentInvitation.ceremony}
+              program={currentInvitation.program}
               initialDraft={DUMMY_ANSWER}
               onSubmit={onRsvpSubmit}
             />

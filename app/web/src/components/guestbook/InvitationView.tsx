@@ -1,7 +1,12 @@
 "use client";
 
-import type { CSSProperties } from "react";
-import type { InvitationContent } from "@/types/invitation";
+import type { CSSProperties, ReactNode } from "react";
+import { INVITATION_COLORS } from "@/config/invitation";
+import { weekdayOf } from "@/lib/invitation-program";
+import type { InvitationContent, OpeningContent } from "@/types/invitation";
+import { ProgramList } from "./ProgramList";
+
+const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 
 /** 上から順にふわっと出す（invitation-rise と組み合わせる）。秒 */
 function delay(sec: number): CSSProperties {
@@ -10,76 +15,88 @@ function delay(sec: number): CSSProperties {
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
-/** パスコードを通った人に見せる招待状の本文。中身は GET /api/guest/invitation から受け取る */
-export function InvitationView({ invitation }: { invitation: InvitationContent }) {
-  const { groom, bride, dateLabel, receptionAt, venueName, venueAddress, venueMapUrl, greeting, ceremony, fee } = invitation;
+/**
+ * パスコードを通った人に見せる招待状の本文（Issue #166 で作り直した）。中身は GET /api/guest/invitation から受け取る。
+ *
+ *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）
+ *   その先 … PROGRAM（当日の流れ）・MESSAGE（ご挨拶）・VENUE（会場・地図・会費）
+ *
+ * ★飛び込みの直後に読む場所なので、説明文を置かない★ 出欠の回答はエントリー画面（InvitationFlow）に分けた。
+ * ★名前・日付・会場は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
+ *   日付と会場の短い表記は opening（オープニングの「招集」と同じもの）から。
+ */
+export function InvitationView({ invitation, opening }: { invitation: InvitationContent; opening: OpeningContent }) {
+  const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee } = invitation;
+  const weekday = weekdayOf(opening.date);
 
   return (
-    <article>
-      <header className="pt-4 text-center">
-        <p style={delay(0)} className="invitation-rise text-[11px] tracking-[0.35em] text-stone-400">
+    <article className="text-stone-800">
+      <header className="relative flex min-h-dvh flex-col items-center justify-center px-6 pb-28 pt-16 text-center">
+        <p style={delay(0)} className="invitation-rise text-[10px] tracking-[0.45em] text-stone-500">
           WEDDING INVITATION
         </p>
-        <h1 style={delay(0.25)} className="invitation-rise mt-5 font-serif text-[28px] leading-tight text-stone-800">
-          {groom}
-          <span className="mx-3 text-lg text-stone-400">&amp;</span>
-          {bride}
+        <h1 style={delay(0.2)} className="invitation-rise mt-6 font-serif leading-tight">
+          <span className="block text-[34px] tracking-[0.08em]">{groom}</span>
+          <span className="my-1.5 block text-xl" style={{ color: INVITATION_COLORS.amp }}>
+            &amp;
+          </span>
+          <span className="block text-[34px] tracking-[0.08em]">{bride}</span>
         </h1>
-        <div style={delay(0.45)} className="invitation-rise mx-auto mt-6 h-px w-16 bg-stone-300" />
+        <p style={{ ...delay(0.45), fontFamily: MONO }} className="invitation-rise mt-7 text-[30px] font-bold tracking-[0.12em] tabular-nums">
+          {opening.date}
+          {weekday && <small className="ml-1.5 text-[13px] font-normal tracking-[0.2em] text-stone-500">{weekday}</small>}
+        </p>
+        <p style={delay(0.6)} className="invitation-rise mt-2 text-sm tracking-[0.2em] text-stone-500">
+          {opening.venue}
+        </p>
+        {/* 画面下の「エントリーする」の上に出す */}
+        <div aria-hidden className="absolute inset-x-0 text-[10px] tracking-[0.3em] text-stone-500" style={{ bottom: "calc(6rem + env(safe-area-inset-bottom))" }}>
+          SCROLL
+          <span className="invitation-scroll-cue mx-auto mt-2 block h-[26px] w-px bg-stone-400" />
+        </div>
       </header>
 
-      <section className="pt-10 text-center">
-        <p style={delay(0.6)} className="invitation-rise font-serif text-sm tracking-widest text-stone-400">ご挨拶</p>
-        <div className="mt-5 space-y-2.5">
+      <Section title="PROGRAM">
+        <ProgramList program={program} />
+      </Section>
+
+      <Section title="MESSAGE">
+        <div className="space-y-1 text-center font-serif text-sm leading-[2.1] text-stone-600">
           {greeting.map((line, i) => (
-            <p key={line} style={delay(0.75 + i * 0.12)} className="invitation-rise text-[13.5px] leading-[2] text-stone-600">
-              {line}
-            </p>
+            <p key={i}>{line}</p>
           ))}
         </div>
-      </section>
+      </Section>
 
-      <section style={delay(0.9 + greeting.length * 0.12)} className="invitation-rise mt-10 rounded-2xl border border-stone-200/80 bg-white p-6 shadow-sm">
-        <p className="text-center font-serif text-sm tracking-widest text-stone-400">開催概要</p>
-        <dl className="selectable mt-5 space-y-4 text-[14px]">
-          <div>
-            <dt className="text-[11px] tracking-widest text-stone-400">日時</dt>
-            <dd className="mt-1 text-stone-700">{dateLabel}</dd>
-            <dd className="mt-0.5 text-[13px] text-stone-500">{receptionAt}</dd>
-          </div>
-          {/* 挙式（Issue #146）。時刻と案内文は config/invitation の ceremony。未設定なら出さない */}
-          {ceremony && (
-            <div>
-              <dt className="text-[11px] tracking-widest text-stone-400">挙式</dt>
-              <dd className="mt-1 text-stone-700">
-                {ceremony.startAt} 開始{ceremony.gatherAt ? `（${ceremony.gatherAt} 集合）` : ""}
-              </dd>
-              {ceremony.note && <dd className="mt-0.5 text-[13px] leading-relaxed text-stone-500">※{ceremony.note}</dd>}
-            </div>
+      <Section title="VENUE">
+        <div className="selectable rounded-2xl border border-stone-200/80 bg-white p-4 text-[13px] leading-[1.8]">
+          <b className="text-[14px] text-stone-800">{venueName}</b>
+          <p className="text-stone-600">{venueAddress}</p>
+          {venueMapUrl && (
+            <a href={venueMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-[12.5px] text-stone-500 underline underline-offset-4">
+              地図を開く
+            </a>
           )}
-          <div>
-            <dt className="text-[11px] tracking-widest text-stone-400">会場</dt>
-            <dd className="mt-1 text-stone-700">{venueName}</dd>
-            <dd className="mt-0.5 text-[13px] leading-relaxed text-stone-500">{venueAddress}</dd>
-            {venueMapUrl && (
-              <dd className="mt-2">
-                <a href={venueMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-1 text-[13px] text-stone-500 underline underline-offset-4">
-                  地図を開く
-                </a>
-              </dd>
-            )}
-          </div>
           {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない */}
           {fee && (
-            <div>
-              <dt className="text-[11px] tracking-widest text-stone-400">会費</dt>
-              <dd className="mt-1 text-stone-700">
+            <dl className="mt-3 border-t border-stone-100 pt-3">
+              <dt className="text-[10.5px] tracking-[0.2em] text-stone-500">会費</dt>
+              <dd className="mt-0.5 text-[14px] text-stone-700">
                 会食 {yen(fee.partyYen)} ／ 2次会 {yen(fee.secondYen)}
               </dd>
-            </div>
+            </dl>
           )}
-        </dl>
-      </section>
+        </div>
+      </Section>
     </article>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="px-5 pb-7 pt-2">
+      <h2 className="mb-[18px] text-center text-[10px] font-semibold tracking-[0.4em] text-stone-500">{title}</h2>
+      {children}
+    </section>
   );
 }

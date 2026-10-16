@@ -2,13 +2,18 @@
   "groom": "新郎 太郎",
   "bride": "新婦 花子",
   "dateLabel": "20XX年X月X日（土）",
-  "receptionAt": "受付 XX:XX ／ 披露宴 XX:XX",
   "venueName": "（ダミー）会場名",
   "venueAddress": "（ダミー）住所",
   "venueMapUrl": "",
   "greeting": ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
+  "program": [
+    { "time": "11:30", "title": "集合", "note": "挙式に参加される方", "highlight": false, "role": "gather" },
+    { "time": "11:45", "title": "挙式", "note": "（ダミー）任意参加です", "highlight": true, "role": "ceremony" },
+    { "time": "12:15", "title": "受付", "note": "", "highlight": false, "role": "reception" },
+    { "time": "12:45", "title": "披露宴", "note": "（ダミー）補足", "highlight": true, "role": "party" },
+    { "time": "", "title": "2次会", "note": "詳細は後日", "highlight": false }
+  ],
   "approvalNote": "（ダミー）通常、1〜2 日以内に確認します。",
-  "ceremony": { "startAt": "12:00", "gatherAt": "11:45", "note": "（ダミー）挙式は任意参加です。開始の1時間前から会場に入れます。" },
   "opening": {
     "date": "20XX.XX.XX",
     "venue": "（かいじょう）",

@@ -173,8 +173,12 @@ if (cmd === "invitation") {
   }
   const parsed = parseInvitationConfig(snap.data());
   console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
-  // ★値は出さない★ あるかどうかだけ（Issue #167: 本番の開催概要に挙式の時刻が出ていなかった）
-  if (parsed.ok) console.log(`ceremony          : ${parsed.value.ceremony ? "設定あり" : "未設定（開催概要・回答フォームに挙式の時刻が出ません）"}`);
+  // ★値は出さない★ 行数と、挙式の選択肢に使う役目（role）が揃っているかだけ（Issue #166・#167）
+  if (parsed.ok) {
+    const roles = new Set(parsed.value.program.map((r) => r.role).filter(Boolean));
+    const lacking = ["gather", "ceremony", "reception", "party"].filter((r) => !roles.has(r));
+    console.log(`program           : ${parsed.value.program.length} 行（role ${lacking.length ? `なし: ${lacking.join(", ")}。挙式の選択肢にその時刻が出ません` : "すべてあり"}）`);
+  }
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
 }
