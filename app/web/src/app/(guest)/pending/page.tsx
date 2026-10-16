@@ -7,6 +7,7 @@ import { useGuestSessionContext } from "@/components/guestbook/GuestSessionConte
 import { useApprovalAdvance } from "@/hooks/useApprovalAdvance";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { SplashScreen } from "@/components/SplashScreen";
+import { APPROVED_REVEAL_MS } from "@/config/opening";
 
 /**
  * 承認待ち。承認されたら自動でトークンを取り直し、タグが乗れば (guest)/layout が /guestbook へ移す
@@ -17,7 +18,8 @@ import { SplashScreen } from "@/components/SplashScreen";
 export default function PendingPage() {
   const { user, profile, refreshTags } = useGuestSessionContext();
   const approved = profile?.isApproved === true;
-  const { stale, retry } = useApprovalAdvance({ approved, refresh: refreshTags });
+  // ★「承認されました」を見せきってから取り直す★ 取り直しが済むと layout がすぐ /guestbook へ移す（Issue #165）
+  const { stale, retry } = useApprovalAdvance({ approved, refresh: refreshTags, delayMs: APPROVED_REVEAL_MS });
   // オープニングのリアクションタイム（Issue #131）。読めなくても承認待ちの画面は出す
   const [reactionMs, setReactionMs] = useState<number | null | undefined>(undefined);
   const uid = user?.uid;

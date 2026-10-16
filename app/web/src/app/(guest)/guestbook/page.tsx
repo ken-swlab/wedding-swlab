@@ -31,6 +31,7 @@ import {
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
+import { OPENING_TIMING } from "@/config/opening";
 import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
 import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { getJson, postJson } from "@/lib/api-client";
@@ -82,6 +83,8 @@ export default function GuestbookPage() {
    */
   const [welcome, setWelcome] = useState<WelcomeContent | null>(null);
   const [welcomeRunning, setWelcomeRunning] = useState(false);
+  // 幕（ScreenFade の approved）が開ききる時刻。承認待ちから来たときだけ
+  const [curtainUntil] = useState(() => (darkEntry === "approved" ? Date.now() + OPENING_TIMING.curtainOpen : 0));
   const [pin, setPin] = useState<{ content: WelcomeContent; hidden: boolean } | null>(null);
   const uid = user?.uid;
   useEffect(() => {
@@ -91,14 +94,17 @@ export default function GuestbookPage() {
       .then((r) => {
         if (cancelled || !r.show || !r.content) return;
         setWelcome(r.content);
-        setWelcomeRunning(true);
+        // ★承認待ちから来たときは、幕が開ききってから始める★（Issue #165。幕 → タイムライン → 思い出の写真）
+        const wait = Math.max(0, curtainUntil - Date.now());
+        if (wait > 0) setTimeout(() => !cancelled && setWelcomeRunning(true), wait);
+        else setWelcomeRunning(true);
         postJson("/api/guest/welcome", {}).catch((e: unknown) => console.error("[guestbook] 演出の記録に失敗しました", e));
       })
       .catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [uid, tags.length]);
+  }, [uid, tags.length, curtainUntil]);
 
   // ★振り分けは (guest)/layout.tsx が行う★
   //   未登録・未承認・停止の判定はすべて layout 側に集約したので、

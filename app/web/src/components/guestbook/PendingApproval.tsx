@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { OPENING_COLORS } from "@/config/opening";
+import { APPROVED_MESSAGE_TOP, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import { GUIDE_PATHS } from "@/config/guide";
 import { formatReaction } from "@/lib/opening-names";
 import { markDarkExit } from "@/lib/screen-transition";
@@ -70,78 +70,81 @@ export function PendingApproval({
 
   return (
     <main
-      className="flex min-h-dvh flex-col items-center justify-center px-6 py-8 text-center"
+      className="relative flex min-h-dvh flex-col items-center justify-center px-6 py-8 text-center"
       style={{ background: "#000", color: OPENING_COLORS.ink, paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}
     >
-      <div className="w-full max-w-[22rem]">
+      {/* ★承認されたら、承認待ちの文字を消してから「承認されました」を出す★（Issue #165）
+          そのあとの「黒い幕が上へ開く」は、次の画面（ゲストブック）の ScreenFade（approved）が引き継ぐ。
+          「承認されました」の位置と大きさは、幕（ScreenFade）の文字と同じにしておく */}
+      <div
+        aria-hidden={approved}
+        className={`w-full max-w-[22rem] transition-opacity ease-out ${approved ? "pointer-events-none opacity-0" : "opacity-100"}`}
+        style={{ transitionDuration: `${OPENING_TIMING.approvedBodyFade}ms` }}
+      >
         <p className="text-[12px] tracking-[0.35em]" style={{ fontFamily: MONO, color: OPENING_COLORS.dim }}>
           EVENT 1　ENTRY
         </p>
-
-        {approved ? (
-          <>
-            <h1 className="mt-5 text-2xl font-bold tracking-wide">承認されました</h1>
-            <p className="mt-4 text-[15px] leading-[1.9]" style={{ color: OPENING_COLORS.ink }}>
-              まもなくゲストブックが開きます。
-            </p>
-            {stale && (
-              <p className="mt-6">
-                <button type="button" onClick={onRetry} className={editClass} style={{ color: OPENING_COLORS.ink }}>
-                  画面が切り替わらない場合はこちら
-                </button>
-              </p>
-            )}
-          </>
-        ) : (
-          <>
-            <h1 className="mt-5 text-2xl font-bold tracking-wide">承認待ち</h1>
-            {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1。iOS の Safari は word-break: auto-phrase に未対応） */}
-            <p className="mt-4 text-balance text-[15px] leading-[1.9]">
-              ただいま新郎新婦が確認しています。
-              <br />
-              承認されると、
-              <br />
-              写真や思い出エピソードを
-              <br />
-              投稿できるようになります。
-            </p>
-            {reactionMs !== undefined && (
-              <section aria-label="あなたのリアクションタイム" className="mt-7 rounded-2xl border px-5 py-4" style={card}>
-                {reactionMs !== null ? (
-                  <>
-                    <p className="text-[13px]" style={{ color: OPENING_COLORS.ink }}>
-                      あなたのリアクションタイム
-                      <strong className="ml-2 text-3xl font-extrabold tabular-nums" style={{ fontFamily: MONO, color: OPENING_COLORS.led }}>
-                        {formatReaction(reactionMs)}
-                      </strong>
-                      <span className="ml-1">秒</span>
-                    </p>
-                    <p className="mt-2 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
-                      承認後、マイページのランキングで確認できます。
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-[13px] leading-relaxed">マイページから挑戦できます（承認後）</p>
-                )}
-              </section>
-            )}
-          </>
-        )}
-
-        {!approved && (
-          <p className="mt-6">
-            {onEdit ? (
-              <button type="button" onClick={onEdit} className={editClass} style={{ color: OPENING_COLORS.ink }}>
-                回答を直す
-              </button>
+        <h1 className="mt-5 text-2xl font-bold tracking-wide">承認待ち</h1>
+        {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1。iOS の Safari は word-break: auto-phrase に未対応） */}
+        <p className="mt-4 text-balance text-[15px] leading-[1.9]">
+          ただいま新郎新婦が確認しています。
+          <br />
+          承認されると、
+          <br />
+          写真や思い出エピソードを
+          <br />
+          投稿できるようになります。
+        </p>
+        {reactionMs !== undefined && (
+          <section aria-label="あなたのリアクションタイム" className="mt-7 rounded-2xl border px-5 py-4" style={card}>
+            {reactionMs !== null ? (
+              <>
+                <p className="text-[13px]" style={{ color: OPENING_COLORS.ink }}>
+                  あなたのリアクションタイム
+                  <strong className="ml-2 text-3xl font-extrabold tabular-nums" style={{ fontFamily: MONO, color: OPENING_COLORS.led }}>
+                    {formatReaction(reactionMs)}
+                  </strong>
+                  <span className="ml-1">秒</span>
+                </p>
+                <p className="mt-2 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
+                  承認後、マイページのランキングで確認できます。
+                </p>
+              </>
             ) : (
-              <Link href={editHref} className={editClass} style={{ color: OPENING_COLORS.ink }}>
-                回答を直す
-              </Link>
+              <p className="text-[13px] leading-relaxed">マイページから挑戦できます（承認後）</p>
             )}
-          </p>
+          </section>
         )}
+        <p className="mt-6">
+          {onEdit ? (
+            <button type="button" onClick={onEdit} className={editClass} style={{ color: OPENING_COLORS.ink }}>
+              回答を直す
+            </button>
+          ) : (
+            <Link href={editHref} className={editClass} style={{ color: OPENING_COLORS.ink }}>
+              回答を直す
+            </Link>
+          )}
+        </p>
       </div>
+
+      {approved && (
+        <div className="absolute inset-x-0 px-6" style={{ top: APPROVED_MESSAGE_TOP }}>
+          <h1
+            className="welcome-fade-in text-2xl font-bold tracking-wide"
+            style={{ animationDuration: `${OPENING_TIMING.approvedMessageFade}ms`, animationDelay: `${OPENING_TIMING.approvedBodyFade}ms` }}
+          >
+            承認されました
+          </h1>
+          {stale && (
+            <p className="mt-6">
+              <button type="button" onClick={onRetry} className={editClass} style={{ color: OPENING_COLORS.ink }}>
+                画面が切り替わらない場合はこちら
+              </button>
+            </p>
+          )}
+        </div>
+      )}
     </main>
   );
 }

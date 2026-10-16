@@ -15,12 +15,17 @@ import { APPROVAL_STALE_MS } from "@/config/opening";
  * ★手動の再実行の案内は、自動で進めないときだけ★ refresh が失敗したか、承認から APPROVAL_STALE_MS（10 秒）
  *   たっても画面が残っているとき、stale を true にする（「画面が切り替わらない場合はこちら」）。
  * ★同時に 2 本走らせない★ 取り直しの途中に画面へ戻ってきても、重ねて呼ばない。
+ * ★delayMs だけ待ってから取り直す★（Issue #165）取り直しが済むと、すぐ次の画面へ移る。
+ *   その前に「承認されました」を見せきる（APPROVED_REVEAL_MS）。
  */
 export function useApprovalAdvance({
   approved,
   refresh,
+  delayMs = 0,
 }: {
   approved: boolean;
+  /** 承認が届いてから、取り直しを始めるまで (ms) */
+  delayMs?: number;
   /** ID トークンを取り直す（useGuestSession の refreshTags）。失敗したら reject する */
   refresh: () => Promise<unknown>;
 }): { stale: boolean; retry: () => void } {
@@ -49,17 +54,18 @@ export function useApprovalAdvance({
 
   useEffect(() => {
     if (!approved) return;
-    run();
+    const start = setTimeout(run, delayMs);
     const timer = setTimeout(() => setTimedOut(true), APPROVAL_STALE_MS);
     const onVisible = () => {
       if (document.visibilityState === "visible") run();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
+      clearTimeout(start);
       clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [approved, run]);
+  }, [approved, run, delayMs]);
 
   return { stale: approved && (timedOut || failed), retry: run };
 }

@@ -3,10 +3,39 @@
  * ★新郎新婦の名前・日付・会場はここに書かない★ サーバーが Firestore の config/invitation から読み、
  *   パスコードを通った人にだけ GET /api/guest/invitation で返す。
  *
- * タイミングはすべてここに集める（単位は ms）。動きは docs/prototypes/opening_prototype.html が元。
+ * タイミングはすべてここに集める（単位は ms）。動きは docs/prototypes/opening_prototype.html と、
+ * 切り替わりの演出（Issue #165）の試作 docs/prototypes/transitions_prototype.html が元。
  */
 export const OPENING_TIMING = {
-  /** 招集: 最初の文字を出すまでの間 */
+  // ---- パスコード → 招集（Issue #165。動きは docs/prototypes/transitions_prototype.html の 1） ----
+  /** 「確認しています…」を出しておく最短の時間（API がもっと遅ければ、その応答まで） */
+  passcodeCheckMin: 500,
+  /** 見出しが消え、4つの枠が縮んで1本の線になる */
+  boxesCollapse: 650,
+  /** 線が画面の中央やや上（CALL_LINE_Y）へ動く。ここで「招集のお知らせ」の区切り線になる */
+  lineMove: 500,
+  /** 見返し（パスコードなし）のとき、区切り線が中央から伸びる */
+  lineDraw: 500,
+  /** 叩きつける前の溜め */
+  slamWindup: 250,
+  /** 「招集」を叩きつける（拡大 2.6 倍・ぼかし 6px → 0.94 倍 → 1 倍） */
+  slam: 260,
+  /** 叩きつけの開始から、揺れ・線の伸び・波紋を出すまで */
+  slamImpact: 190,
+  /** 画面を小さく揺らす */
+  shake: 240,
+  /** 区切り線を横に伸ばす（幅 1 → 2.2 → 1.6 倍） */
+  ruleStretch: 380,
+  /** 水の波紋のような輪を広げる（0.6 → 7 倍、薄く消える） */
+  ripple: 900,
+  /** 揺れなどを出してから「のお知らせ」を出すまで */
+  slamSubDelay: 260,
+  /** 「のお知らせ」を出す */
+  slamSub: 300,
+  /** 「のお知らせ」のあと、日付を1文字ずつ出すまで */
+  afterSlamSub: 450,
+
+  /** 招集: 最初の文字を出すまでの間（見返しで線を伸ばす前） */
   callLeadIn: 500,
   /** 招集: 1文字の間隔（日本語） */
   callCharJa: 90,
@@ -64,7 +93,41 @@ export const OPENING_TIMING = {
   waterFill: 900,
   /** 水が満ちてからタイムを出している時間 */
   timeShow: 1500,
+
+  // ---- 飛び込み → 招待状（Issue #165 の 2。水面から顔を出す） ----
+  /** タイムを消す */
+  timeFadeOut: 300,
+  /** タイムを消し始めてから、水が引き始めるまで */
+  revealGap: 200,
+  /** 水が下へ引いていく */
+  waterRecede: 1300,
+  /** 水の下の招待状のぼかし（7px）と拡大（1.04 倍）が戻る */
+  inviteUnblur: 1100,
+  /** 水が引ききってから、画面下の「エントリーする」を出すまで */
+  entryBarAfterReveal: 400,
+
+  // ---- 承認待ち → タイムライン（Issue #165 の 3。幕が開く） ----
+  /** 承認待ちの文字を消す */
+  approvedBodyFade: 400,
+  /** 黒い画面のまま「承認されました」を出す */
+  approvedMessageFade: 500,
+  /** 「承認されました」を止めて見せる */
+  approvedHold: 1300,
+  /** 黒い画面が上へ開く幕のように動き、タイムラインが現れる */
+  curtainOpen: 1100,
 } as const;
+
+/** 区切り線の高さ（画面の高さに対する割合）。パスコードの線はここへ動き、招集はここから組み立てる */
+export const CALL_LINE_Y = 0.47;
+
+/** 「承認されました」の文字の上端（画面の高さに対する位置）。承認待ちの画面と、幕（ScreenFade）で同じにする */
+export const APPROVED_MESSAGE_TOP = "45%";
+
+/** 幕が開く動きの緩急（Issue #165） */
+export const CURTAIN_EASING = "cubic-bezier(.7,0,.2,1)";
+
+/** 承認されてから、次の画面（ゲストブック）へ進めるまで (ms)。承認待ちの文字を消し →「承認されました」を出して止める */
+export const APPROVED_REVEAL_MS = OPENING_TIMING.approvedBodyFade + OPENING_TIMING.approvedMessageFade + OPENING_TIMING.approvedHold;
 
 /**
  * リアクションタイムとして記録する範囲 (ms)。
@@ -96,8 +159,8 @@ export const OPENING_SEEN_KEY = "wedding:opening-seen";
  * （/screen と同じく、ここだけ独立した配色）。
  */
 export const OPENING_COLORS = {
-  /** 招集: 落ち着いた背景と文字 */
-  calm: "#efe9df",
+  /** 招集: 落ち着いた背景と文字。★入口（LINE ログイン）とパスコードも同じ色★（Issue #165。切り替わりで地の色を変えない） */
+  calm: "#ece4d8",
   calmInk: "#3d3a34",
   /** レーン表: 黒背景の上の文字・暗い文字・罫線 */
   ink: "#f5f3ee",

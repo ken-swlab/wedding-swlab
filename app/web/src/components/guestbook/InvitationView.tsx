@@ -25,12 +25,21 @@ const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
  * ★名前・日付・会場は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
  *   日付と会場の短い表記は opening（オープニングの「招集」と同じもの）から。
  */
-export function InvitationView({ invitation, opening }: { invitation: InvitationContent; opening: OpeningContent }) {
+export function InvitationView({
+  invitation,
+  opening,
+  rise = true,
+}: {
+  invitation: InvitationContent;
+  opening: OpeningContent;
+  /** 1画面目を上から順にふわっと出すか。水が引いて現れたあと（Issue #165）は false（出しきった状態で描く） */
+  rise?: boolean;
+}) {
   const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee } = invitation;
   const weekday = weekdayOf(opening.date);
 
   return (
-    <article className="text-stone-800">
+    <article className={`text-stone-800 ${rise ? "" : "invitation-static"}`}>
       <header className="relative flex min-h-dvh flex-col items-center justify-center px-6 pb-28 pt-16 text-center">
         <p style={delay(0)} className="invitation-rise text-[10px] tracking-[0.45em] text-stone-500">
           WEDDING INVITATION

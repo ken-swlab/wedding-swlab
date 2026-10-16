@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DIVE_BUBBLES, OPENING_COLORS, OPENING_TIMING, SPLASH_DROPS } from "@/config/opening";
 import { formatReaction } from "@/lib/opening-names";
 import { createTimeline, prefersReducedMotion } from "./timeline";
@@ -16,9 +16,17 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
  * ★動きを減らす設定では、水しぶき・泡・水の動きを省く★ タイムは出す。
  *
  * reactionMs が null のときは「反応なし」。note はタイムの下に添える一言（記録するか・しないか）。
+ *
+ * ★under があれば、水面から顔を出す★（Issue #165）水が満ちた時点で、水の下に under（招待状）を
+ *   ぼかし 7px・拡大 1.04 倍で用意し、タイムを消したあと水を下へ引かせる。同時に、ぼかしと拡大を戻す。
+ *   引ききったら水の板を display: none にして（波の端を画面の下に残さない）、onDone。
+ *   under が無ければ（見返し）、これまでどおり水が満ちたままタイムを消して onDone。
  */
-export function DiveScene({ reactionMs, note, onDone }: { reactionMs: number | null; note: string; onDone: () => void }) {
+export function DiveScene({ reactionMs, note, under, onDone }: { reactionMs: number | null; note: string; under?: ReactNode; onDone: () => void }) {
   const [timeOn, setTimeOn] = useState(false);
+  /** 水の下の招待状: hidden → ready（ぼけた状態で見える）→ clear（はっきり） */
+  const [underState, setUnderState] = useState<"hidden" | "ready" | "clear">("hidden");
+  const hasUnder = useRef(under != null);
   const root = useRef<HTMLElement>(null);
   const water = useRef<HTMLDivElement>(null);
   const wave = useRef<SVGSVGElement>(null);
@@ -90,9 +98,26 @@ export function DiveScene({ reactionMs, note, onDone }: { reactionMs: number | n
       await t.sleep(OPENING_TIMING.timeDelay);
       setTimeOn(true);
       await fill;
+      if (!hasUnder.current) {
+        await t.sleep(OPENING_TIMING.timeShow);
+        setTimeOn(false);
+        await t.sleep(OPENING_TIMING.timeFade);
+        done.current();
+        return;
+      }
+      // 水の下に招待状を用意しておく（水が満ちているので、まだ見えない）
+      setUnderState("ready");
       await t.sleep(OPENING_TIMING.timeShow);
       setTimeOn(false);
-      await t.sleep(OPENING_TIMING.timeFade);
+      await t.sleep(OPENING_TIMING.revealGap);
+      // 水面から顔を出す: 水が下へ引き、招待状のぼけが取れていく
+      setUnderState("clear");
+      await t.play(pool, [{ transform: "translateY(0)" }, { transform: "translateY(calc(100% + 24px))" }], {
+        duration: reduce ? 1 : OPENING_TIMING.waterRecede,
+        easing: "cubic-bezier(.5,0,.3,1)",
+        fill: "forwards",
+      });
+      pool.style.display = "none";
       done.current();
     })();
 
@@ -105,6 +130,21 @@ export function DiveScene({ reactionMs, note, onDone }: { reactionMs: number | n
 
   return (
     <section ref={root} className="absolute inset-0 overflow-hidden" style={{ background: "#000" }}>
+      {under && (
+        <div
+          aria-hidden={underState !== "clear"}
+          className="absolute inset-0 z-10 ease-out motion-reduce:transition-none"
+          style={{
+            opacity: underState === "hidden" ? 0 : 1,
+            filter: underState === "clear" ? "blur(0)" : "blur(7px)",
+            transform: underState === "clear" ? "scale(1)" : "scale(1.04)",
+            transitionProperty: "filter, transform",
+            transitionDuration: `${OPENING_TIMING.inviteUnblur}ms`,
+          }}
+        >
+          {under}
+        </div>
+      )}
       <div
         ref={water}
         aria-hidden
@@ -121,7 +161,7 @@ export function DiveScene({ reactionMs, note, onDone }: { reactionMs: number | n
         style={{
           opacity: timeOn ? 1 : 0,
           transform: timeOn ? "scale(1)" : "scale(0.92)",
-          transitionDuration: `${OPENING_TIMING.timeFade}ms`,
+          transitionDuration: `${timeOn ? OPENING_TIMING.timeFade : OPENING_TIMING.timeFadeOut}ms`,
           textShadow: "0 2px 14px rgba(0,0,0,0.45)",
         }}
       >
