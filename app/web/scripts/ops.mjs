@@ -173,6 +173,8 @@ if (cmd === "invitation") {
   }
   const parsed = parseInvitationConfig(snap.data());
   console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
+  // ★値は出さない★ あるかどうかだけ（Issue #167: 本番の開催概要に挙式の時刻が出ていなかった）
+  if (parsed.ok) console.log(`ceremony          : ${parsed.value.ceremony ? "設定あり" : "未設定（開催概要・回答フォームに挙式の時刻が出ません）"}`);
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
 }

@@ -18,7 +18,11 @@ export type InvitationContent = {
    * ★お車代の額は入れない★（招待状に書かない）
    */
   fee?: { partyYen: number; secondYen: number };
-  /** 承認待ちの画面に出す、確認までの目安（Issue #157 B-4。例: 通常、1〜2 日以内に確認します。）。未設定なら出さない */
+  /**
+   * 確認までの目安（Issue #157 B-4。例: 通常、1〜2 日以内に確認します。）。
+   * ★いまは画面に出さない★（Issue #167 で承認待ちを1画面に収めるため外した）。設定済みの config/invitation を
+   *   壊さないよう、読み取りだけ残している。
+   */
   approvalNote?: string;
 };
 
