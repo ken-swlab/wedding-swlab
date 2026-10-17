@@ -33,7 +33,7 @@
 | `reactionTimes/{uid}`（リアクションタイム。Issue #131） | uid、オープニング演出で測ったタイム（ミリ秒）、記録した日時。**名前は入れない**。記録は最初の 1 回だけ（上書きしない） | 本人（`/api/guest/reaction`）。ランキングでは、同じタグを持つ承認済みゲストに、ニックネーム・アイコンと並べて見える | 期限なし | 管理者（コンソール）。本人が消す・やり直す画面は無い |
 | `lineOutbox/{種類:uid}`（公式 LINE の通知のアウトボックス。Issue #168） | uid、通知の種類（例: `approved`）、送信の状態（送信待ち・送信済み・失敗・送らず）と理由、試行の回数、エラーの種類（`http_400` など。LINE の応答の本文は入れない）、重複防止の UUID、作成・送信の日時。**文面・本名・アレルギーは入れない** | なし（サーバーだけ。Rules に書かない） | **400 日**（`expiresAt` の TTL。`infra/terraform/line_notify.tf`） | 管理者（コンソール）。[runbook §2](deletion-runbook.md) |
 | `tags`・`config/runtime` | タグの名前と色、メンテナンスの切り替え、公式 LINE の通知のモード（`lineNotify`。Issue #168） | — | — | 個人情報は入らない |
-| `config/invitation`（Issue #131） | 招待状とオープニングに出す、新郎新婦の名前（表記 8 通り）・日付・会場・住所・ご挨拶・当日の流れ（時刻と項目。Issue #166。以前の挙式の時刻（Issue #146）を移した）・確認までの目安（Issue #157。Issue #167 から画面には出さない）。**ゲストの情報は入らない** | なし（サーバーだけ。パスコードを通った人に `/api/guest/invitation` が返す） | 期限なし | オーナー（`scripts/ops.mjs invitation set`） |
+| `config/invitation`（Issue #131） | 招待状とオープニングに出す、新郎新婦の名前（表記 8 通り）・日付・会場・住所・ご挨拶・当日の流れ（時刻と項目。Issue #166。以前の挙式の時刻（Issue #146）を移した）・確認までの目安（Issue #157。Issue #167 から画面には出さない）・写真の URL と説明（alt）・ふたりからのメッセージ・当日のおたのしみの文言（Issue #173）。**ゲストの情報は入らない** | なし（サーバーだけ。パスコードを通った人に `/api/guest/invitation` が返す） | 期限なし | オーナー（`scripts/ops.mjs invitation set`） |
 | `config/payment`（Issue #148） | 会費の金額（会食・2次会）とお車代の額。**ゲストの情報は入らない** | なし（サーバーだけ。会食・2次会の額は招待状に、本人の内訳は `/api/guest/payment` が本人にだけ返す。お車代の額は招待状に出さない） | 期限なし | オーナー（`scripts/ops.mjs payment set`。監査ログに残る） |
 | `config/welcome`（Issue #150） | 承認後の初回の演出に出す投稿 ID（全員向け・タグごと）と一言。**ゲストの情報は入らない** | なし（サーバーだけ。`/api/guest/welcome` が、そのゲストに見える投稿だけを返す） | 期限なし | オーナー（Firestore のコンソールで設定） |
 
@@ -46,6 +46,7 @@
 | ログインのアカウント | Firebase Authentication | uid、**LINE の表示名**、LINE のアイコンの URL、Custom Claims（タグ・`admin`）、最終ログイン | 管理者（コンソール）・サーバー | 期限なし | 管理者（コンソール）。[runbook §2](deletion-runbook.md) |
 | 写真・動画（軽量版） | R2 `wedding-media`（**公開**。`u/{uid}/t/…`） | 端末で縮めた JPEG、動画。本人が上げたアイコン画像もここ | **URL を知っていれば誰でも**（URL は推測しにくいが、認証は無い。Referer でサイトからの読み込みだけに絞る案がある。置いても、偽装すれば開ける。[media-referer.md](../security/media-referer.md)。**まだ置いていない**） | 期限なし。投稿を消す・写真を外すと消える（アイコン画像は、変えても残る） | 投稿の削除で自動（Issue #122）。ほかはオーナー（Cloudflare）。§5 |
 | 写真（高画質版） | R2 `wedding-media`（公開。`u/{uid}/o/…`） | Worker が EXIF を落とした複製 | 同上 | 期限なし。投稿を消す・写真を外すと消える | 同上 |
+| 招待状の写真（Issue #173） | R2 `wedding-media`（公開。`site/invitation/{uuid}.jpg`） | 新郎新婦の写真（後ろ姿のシルエット・顔写真）。`scripts/ops.mjs invitation photo set` が縮めて EXIF（位置情報など）を消してから置く。**ゲストの情報は入らない** | URL を知っていれば誰でも（URL は合言葉を通った人に `/api/guest/invitation` が返す） | 期限なし。差し替えても前の写真は残る | オーナー（Cloudflare）。投稿の削除の処理は触らない |
 | 写真（原本） | R2 `wedding-originals`（**非公開**。`u/{uid}/o/…`） | **EXIF つきのまま**（撮影日時・機種・**位置情報**が入りうる） | オーナー（Cloudflare）・サーバー・Worker | 期限なし。投稿を消しても残る（Issue #159） | オーナー（Cloudflare）。§5 |
 | Worker の印（マーカー） | R2 `wedding-originals`（`_linked/`・`_pending/`・`_failed/`・`_skipped/` の下に、原本と同じキー） | 処理の状態。キーに uid が入る | 同上 | 期限なし | 同上 |
 | 参照用の顔写真 | Firebase Storage（旧バケット。`reference_faces/{uid}/…`） | 管理者が選んだ、ゲストの顔の切り抜き | 管理者・サーバー | 期限なし。バージョニングが有効なので、**消しても旧版が残る** | オーナー（旧版も消す）。[runbook §2](deletion-runbook.md) |

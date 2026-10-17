@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <!-- 仮の画像（Issue #173）。実在の人物を含まないイラスト。本物の写真は public/ に置かない -->
+  <rect width="400" height="400" fill="#9fb7d6"/>
+  <g fill="#4a6a96">
+    <circle cx="200" cy="160" r="72"/>
+    <path d="M70 400 C70 290 130 250 200 250 C270 250 330 290 330 400 Z"/>
+  </g>
+</svg>

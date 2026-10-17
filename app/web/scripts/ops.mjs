@@ -19,6 +19,10 @@
  *   node scripts/ops.mjs invitation template      書き方の見本（架空の値の JSON）を出す
  *   node scripts/ops.mjs invitation check <file>  JSON ファイルの形だけ確かめる（書き込まない）
  *   node scripts/ops.mjs invitation set <file>    JSON ファイルの内容を config/invitation に入れる
+ *                                                 （写真の URL が JSON に無ければ、いまの値を引き継ぐ。Issue #173）
+ *   node scripts/ops.mjs invitation photo set <hero|groom|bride> <画像ファイル>
+ *                                                 写真を縮めて EXIF を消し、公開バケットに置いて URL を書き換える（Issue #173）。
+ *                                                 アップロードは wrangler（オーナーの Cloudflare ログイン）。監査ログに残す
  *   node scripts/ops.mjs notify status            公式 LINE の通知のモード（config/runtime の lineNotify）と、アウトボックスの件数
  *   node scripts/ops.mjs notify mode <off|dryRun|adminsOnly|on>
  *                                                 通知のモードを変える（既定 off。約10秒で反映。監査ログに残す）
@@ -82,7 +86,7 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs maintenance status|on ["文言"]|off
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
-  node scripts/ops.mjs invitation status|template|check <file>|set <file>
+  node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル>
   node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
   node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry`);
   process.exit(0);
@@ -96,18 +100,25 @@ const parseInvitationConfig =
   cmd === "invitation" ? (await import("../src/lib/invitation-config.ts")).parseInvitationConfig : null;
 const parsePaymentConfig =
   cmd === "payment" ? (await import("../src/lib/payment-config.ts")).parsePaymentConfig : null;
+/**
+ * ★リポジトリの中のファイルは受け付けない★ 本物の名前・写真をコミットしてしまう事故を防ぐ。
+ *   what: エラーに出す「何を置くか」（例: 本物の値を入れた JSON）
+ */
+function outsideRepo(path, what) {
+  const abs = resolve(process.cwd(), path);
+  const repoRoot = resolve(HERE, "..", "..", "..");
+  if (abs.startsWith(repoRoot + "/")) {
+    console.error(`リポジトリの中のファイルは使えません。${what}は、リポジトリの外（ホームなど）に置いてください`);
+    process.exit(1);
+  }
+  return abs;
+}
 function readInvitationFile(path) {
   if (!path) {
     console.error("JSON ファイルのパスを指定してください（例: node scripts/ops.mjs invitation set ~/invitation.json）");
     process.exit(1);
   }
-  const abs = resolve(process.cwd(), path);
-  // ★リポジトリの中の JSON は受け付けない★ 本物の名前をコミットしてしまう事故を防ぐ
-  const repoRoot = resolve(HERE, "..", "..", "..");
-  if (abs.startsWith(repoRoot + "/")) {
-    console.error("リポジトリの中のファイルは使えません。本物の値を入れた JSON は、リポジトリの外（ホームなど）に置いてください");
-    process.exit(1);
-  }
+  const abs = outsideRepo(path, "本物の値を入れた JSON");
   let data;
   try {
     data = JSON.parse(readFileSync(abs, "utf8"));
@@ -229,6 +240,150 @@ if (cmd === "notify") {
   process.exit(0);
 }
 
+// ---- invitation の写真（Issue #173）--------------------------------------------
+/** 写真の差し替え先。groom・bride は fromUs の何枚目か */
+const PHOTO_TARGETS = { hero: null, groom: 0, bride: 1 };
+/** 縮める大きさ（px）。シルエットは長辺、顔写真は正方形の一辺（画面では 64px の丸） */
+const PHOTO_HERO_LONG_EDGE = 1200;
+const PHOTO_FACE_EDGE = 600;
+const PHOTO_JPEG_QUALITY = 80;
+/** ★公開バケットの中の置き場所★ ゲストの u/{uid}/ の外（投稿の削除・ownsKey() が触らない） */
+const PHOTO_KEY_PREFIX = "site/invitation/";
+
+/**
+ * invitation set のとき、写真の URL が JSON に無ければ、いまの config/invitation の値を引き継ぐ。
+ * ★photo set で入れた URL を、文言の変更で消さないため★ 消したいときは JSON に "" を書く。
+ * 引き継いだ項目の名前を返す（値は出さない）。value は書き換える。
+ */
+function carryOverPhotoUrls(value, path, current) {
+  if (!current) return [];
+  const raw = JSON.parse(readFileSync(resolve(process.cwd(), path), "utf8"));
+  const kept = [];
+  const curHero = current.photos?.hero?.url;
+  if (value.photos?.hero && raw.photos?.hero?.url === undefined && typeof curHero === "string" && curHero) {
+    value.photos.hero.url = curHero;
+    kept.push("photos.hero.url");
+  }
+  value.fromUs.forEach((card, i) => {
+    const cur = Array.isArray(current.fromUs) ? current.fromUs[i]?.photoUrl : undefined;
+    if (raw.fromUs?.[i]?.photoUrl === undefined && typeof cur === "string" && cur) {
+      card.photoUrl = cur;
+      kept.push(`fromUs.${i}.photoUrl`);
+    }
+  });
+  // 引き継いだ値も同じ形の確認を通す（壊れた URL を持ち越さない）
+  const parsed = parseInvitationConfig(value);
+  if (!parsed.ok) {
+    console.error(`引き継いだ写真の URL の形が違います（項目: ${parsed.field}）。JSON に URL を書いてやり直してください`);
+    process.exit(1);
+  }
+  return kept;
+}
+
+/**
+ * 写真を差し替える: 縮めて JPEG にし、EXIF（位置情報など）を消す → 公開バケットに推測できないキーで置く → URL を書き換える。
+ * ★EXIF は sharp が既定で落とす★（withMetadata を呼ばない）。念のため書き出したものを読み直して、残っていたら止める。
+ * ★アップロードは wrangler★ R2 の鍵を開発機のファイルに置かない（docs/security/secrets-inventory.md §4）。
+ *   オーナーの Cloudflare のログイン（npx wrangler login）を使う。
+ * ★古い写真は消さない★ 消すときはオーナーが Cloudflare のダッシュボードで消す（キーは出さない。status で有無だけ見る）。
+ */
+async function setInvitationPhoto(ref, action, target, file) {
+  if (action !== "set" || !(target in PHOTO_TARGETS) || !file) {
+    console.error("使い方: node scripts/ops.mjs invitation photo set <hero|groom|bride> <画像ファイル>");
+    process.exit(1);
+  }
+  const abs = outsideRepo(file, "本物の写真");
+  const base = (process.env.NEXT_PUBLIC_MEDIA_BASE ?? "").replace(/\/+$/, "");
+  if (!/^https:\/\//.test(base)) {
+    console.error("NEXT_PUBLIC_MEDIA_BASE（公開バケットの配信元。https://…）が .env.local にありません");
+    process.exit(1);
+  }
+  const bucket = process.env.R2_BUCKET_PUBLIC || "wedding-media";
+
+  // いまの設定に、差し替える先（alt など）があるか先に確かめる。URL 以外は invitation set で入れる
+  const before = await ref.get();
+  const parsedBefore = before.exists ? parseInvitationConfig(before.data()) : { ok: false, field: "(未設定)" };
+  if (!parsedBefore.ok) {
+    console.error(`config/invitation が未設定か、形が違います（項目: ${parsedBefore.field}）。先に invitation set で入れてください`);
+    process.exit(1);
+  }
+  const index = PHOTO_TARGETS[target];
+  if (index === null ? !parsedBefore.value.photos?.hero : !parsedBefore.value.fromUs[index]) {
+    console.error(`${target === "hero" ? "photos.hero" : `fromUs.${index}`} がまだありません。先に invitation set で alt・文言を入れてください`);
+    process.exit(1);
+  }
+
+  const sharp = (await import("sharp")).default;
+  let img = sharp(abs, { failOn: "error" }).rotate(); // 向き（EXIF の Orientation）を画素に反映してから EXIF を落とす
+  img = index === null
+    ? img.resize({ width: PHOTO_HERO_LONG_EDGE, height: PHOTO_HERO_LONG_EDGE, fit: "inside", withoutEnlargement: true })
+    : img.resize({ width: PHOTO_FACE_EDGE, height: PHOTO_FACE_EDGE, fit: "cover", position: "attention" });
+  let out;
+  try {
+    out = await img.jpeg({ quality: PHOTO_JPEG_QUALITY, mozjpeg: true }).toBuffer();
+  } catch {
+    console.error("画像として読めませんでした（JPEG・PNG・WebP・HEIC などの画像ファイルを指定してください）");
+    process.exit(1);
+  }
+  const meta = await sharp(out).metadata();
+  if (meta.exif || meta.xmp || meta.iptc) {
+    console.error("EXIF などのメタデータを消せませんでした。アップロードを中止します");
+    process.exit(1);
+  }
+
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const key = `${PHOTO_KEY_PREFIX}${randomUUID()}.jpg`;
+  const dir = mkdtempSync(resolve(tmpdir(), "invitation-photo-"));
+  const tmp = resolve(dir, "photo.jpg");
+  writeFileSync(tmp, out);
+  try {
+    // wrangler は Worker のディレクトリにある（infra/workers/exif-stripper の devDependencies）
+    const r = spawnSync(
+      "npx",
+      ["--no-install", "wrangler", "r2", "object", "put", `${bucket}/${key}`, "--file", tmp, "--content-type", "image/jpeg",
+        "--cache-control", "public, max-age=31536000, immutable", "--remote"],
+      { cwd: resolve(HERE, "..", "..", "..", "infra", "workers", "exif-stripper"), stdio: ["ignore", "ignore", "inherit"] },
+    );
+    if (r.status !== 0) {
+      console.error("アップロードに失敗しました（npx wrangler login でログインしてから、やり直してください）");
+      process.exit(1);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+
+  // ★URL だけを書き換える★ ほかの項目は触らない。書き込む前に、もう一度形を確かめる
+  const url = `${base}/${key}`;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const data = snap.data() ?? {};
+    if (index === null) data.photos.hero.url = url;
+    else data.fromUs[index].photoUrl = url;
+    const parsed = parseInvitationConfig(data);
+    if (!parsed.ok) throw new Error(`形が違います（項目: ${parsed.field}）`);
+    tx.set(ref, { ...data, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+  });
+
+  // ★監査ログに残す★（形は src/lib/audit.ts と同じ。値・URL は残さず、項目の名前だけ）。保持は AUDIT_RETENTION_DAYS と同じ 400 日
+  const requestId = `ops-${randomUUID()}`;
+  const expiresAt = Timestamp.fromMillis(Date.now() + 400 * 86_400_000);
+  const route = "ops.invitation.photo.set";
+  const field = index === null ? "photos.hero.url" : `fromUs.${index}.photoUrl`;
+  await db.collection("auditLogs").doc(`${requestId}-b`).create({
+    requestId, route, method: "CLI", action: "invitation.photo.set", actorUid: "ops-cli", actorRole: "admin",
+    targetId: "config/invitation", fields: [field], ipHash: null, userAgent: "scripts/ops.mjs",
+    phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
+  });
+  await db.collection("auditLogs").doc(`${requestId}-e`).create({
+    requestId, route, phase: "end", result: "success", status: 200, durationMs: 0,
+    at: FieldValue.serverTimestamp(), expiresAt,
+  });
+  console.log(`\n✅ ${field} を差し替えました（${meta.width}×${meta.height}px・JPEG・EXIF なし。監査ログに残しました）`);
+  console.log("   反映まで最大60秒（各サーバーのキャッシュ）。前の写真は公開バケットに残っています\n");
+}
+
 // ---- invitation -------------------------------------------------------------
 if (cmd === "invitation") {
   const ref = db.collection("config").doc("invitation");
@@ -242,13 +397,17 @@ if (cmd === "invitation") {
      *   #166 が本番に出たあとは、JSON から消して set し直す。消したら、この処理も消してよい。
      */
     const legacy = readLegacyInvitationFields(rest[1]);
+    const kept = carryOverPhotoUrls(value, rest[1], (await ref.get()).data());
     // ★丸ごと置き換える★（merge しない）。古い項目を残さない
     await ref.set({ ...value, ...legacy, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+    if (kept.length > 0) console.log(`\n（写真の URL は JSON に無かったので、いまの値を引き継ぎました: ${kept.join("・")}）`);
     if (Object.keys(legacy).length > 0) console.log(`\n（移行用に ${Object.keys(legacy).join("・")} も残しました。#166 が本番に出たら、JSON から消して set し直してください）`);
     console.log("\n✅ config/invitation を更新しました");
     console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
+  } else if (sub === "photo") {
+    await setInvitationPhoto(ref, rest[1], rest[2], rest[3]);
   } else if (sub !== "status") {
-    console.error("使い方: node scripts/ops.mjs invitation status|template|check <file>|set <file>");
+    console.error("使い方: node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル>");
     process.exit(1);
   }
   const snap = await ref.get();
@@ -262,6 +421,10 @@ if (cmd === "invitation") {
   if (parsed.ok) {
     const roles = new Set(parsed.value.program.map((r) => r.role).filter(Boolean));
     const lacking = ["gather", "ceremony", "reception", "party"].filter((r) => !roles.has(r));
+    const v = parsed.value;
+    const set = (url) => (url ? "あり" : "なし");
+    console.log(`写真              : シルエット ${set(v.photos?.hero?.url)}・ふたりから ${v.fromUs.map((c) => set(c.photoUrl)).join("／") || "（カードなし）"}`);
+    console.log(`ふたりから        : ${v.fromUs.length} 枚 ／ 当日のおたのしみ: ${v.highlights.length} 枚 ／ ご挨拶: ${v.showGreeting ? "出す" : "出さない"}`);
     console.log(`program           : ${parsed.value.program.length} 行（role ${lacking.length ? `なし: ${lacking.join(", ")}。挙式の選択肢にその時刻が出ません` : "すべてあり"}）`);
   }
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);

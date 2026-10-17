@@ -370,6 +370,23 @@ body {
   animation: passcode-shake 0.4s ease-in-out;
 }
 
+/*
+  招待状のシルエット写真（Issue #173）。画面に入ったら（data-shown）1.2 秒でふわっと現れる。わずかに縮小→等倍。
+  ★枠（aspect-ratio）は最初から場所を取る★ 見えないのは中身だけで、読み込み・表示で画面がずれない。
+*/
+@keyframes invitation-reveal {
+  from { opacity: 0; transform: scale(1.04); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.invitation-reveal > * {
+  opacity: 0;
+}
+
+.invitation-reveal[data-shown] > * {
+  animation: invitation-reveal 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .invitation-rise,
   .invitation-scroll-cue,
@@ -378,6 +395,13 @@ body {
   .drink-stamp,
   .start-idle-pulse,
   .entry-finish-blink {
+    animation: none;
+  }
+
+  /* シルエット写真は、はじめから出しておく（Issue #173） */
+  .invitation-reveal > *,
+  .invitation-reveal[data-shown] > * {
+    opacity: 1;
     animation: none;
   }
 

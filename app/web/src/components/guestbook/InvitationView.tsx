@@ -4,6 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { INVITATION_COLORS } from "@/config/invitation";
 import { weekdayOf } from "@/lib/invitation-program";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
+import { InvitationFromUsCards, InvitationHeroPhoto, InvitationHighlights } from "./InvitationExtras";
 import { ProgramList } from "./ProgramList";
 
 const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
@@ -19,7 +20,8 @@ const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
  * パスコードを通った人に見せる招待状の本文（Issue #166 で作り直した）。中身は GET /api/guest/invitation から受け取る。
  *
  *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）
- *   その先 … PROGRAM（当日の流れ）・MESSAGE（ご挨拶）・VENUE（会場・地図・会費）
+ *   その先 … シルエット写真・FROM US（ふたりから）・当日のおたのしみ（Issue #173）・PROGRAM（当日の流れ）・
+ *            MESSAGE（以前のご挨拶。showGreeting のときだけ）・VENUE（会場・地図・会費）
  *
  * ★飛び込みの直後に読む場所なので、説明文を置かない★ 出欠の回答はエントリー画面（InvitationFlow）に分けた。
  * ★名前・日付・会場は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
@@ -35,7 +37,7 @@ export function InvitationView({
   /** 1画面目を上から順にふわっと出すか。水が引いて現れたあと（Issue #165）は false（出しきった状態で描く） */
   rise?: boolean;
 }) {
-  const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee } = invitation;
+  const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee, photos, fromUs, highlights, showGreeting } = invitation;
   const weekday = weekdayOf(opening.date);
 
   return (
@@ -65,17 +67,35 @@ export function InvitationView({
         </div>
       </header>
 
+      {/* ★写真が未設定なら枠ごと出さない★（Issue #173） */}
+      {photos?.hero?.url && <InvitationHeroPhoto photo={photos.hero} />}
+
+      {fromUs.length > 0 && (
+        <Section title="FROM US">
+          <InvitationFromUsCards cards={fromUs} />
+        </Section>
+      )}
+
+      {highlights.length > 0 && (
+        <Section title="当日のおたのしみ">
+          <InvitationHighlights items={highlights} />
+        </Section>
+      )}
+
       <Section title="PROGRAM">
         <ProgramList program={program} />
       </Section>
 
-      <Section title="MESSAGE">
-        <div className="space-y-1 text-center font-serif text-sm leading-[2.1] text-stone-600">
-          {greeting.map((line, i) => (
-            <p key={i}>{line}</p>
-          ))}
-        </div>
-      </Section>
+      {/* 以前のご挨拶（Issue #173 で、ふたりからに置き換えた）。データは残し、showGreeting で戻せる */}
+      {showGreeting && (
+        <Section title="MESSAGE">
+          <div className="space-y-1 text-center font-serif text-sm leading-[2.1] text-stone-600">
+            {greeting.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </Section>
+      )}
 
       <Section title="VENUE">
         <div className="selectable rounded-2xl border border-stone-200/80 bg-white p-4 text-[13px] leading-[1.8]">
