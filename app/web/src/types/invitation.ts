@@ -26,6 +26,55 @@ export type InvitationContent = {
    *   壊さないよう、読み取りだけ残している。
    */
   approvalNote?: string;
+  /** 写真（Issue #173）。いまは1画面目の直後のシルエットだけ。未設定なら枠ごと出さない */
+  photos?: { hero?: InvitationHeroPhoto };
+  /** ふたりから（Issue #173）。上から順にカードで出す（新郎・新婦の順。最大2枚）。空なら見出しごと出さない */
+  fromUs: readonly InvitationFromUs[];
+  /** 当日のおたのしみ（Issue #173）。空なら見出しごと出さない */
+  highlights: readonly InvitationHighlight[];
+  /**
+   * 以前のご挨拶（greeting）を出すか（Issue #173）。未設定なら出さない。
+   * ★greeting のデータは残す★ true にすれば、PROGRAM のあとに MESSAGE として戻る。
+   */
+  showGreeting: boolean;
+};
+
+/**
+ * 招待状の写真の URL（Issue #173）。次のどちらか（lib/invitation-config.ts が確かめる）。
+ *   /placeholders/invitation/… … 仮の画像（public/。実在の人物を含まないものだけ）
+ *   https://…                    … 本物の写真。scripts/ops.mjs invitation photo set が公開バケットに置いた URL
+ * 空なら未設定（その写真の部分を出さない）。
+ */
+export type InvitationPhotoUrl = string;
+
+/** 1画面目の直後のシルエット写真（縦横比 4:5）と、上に重ねる文字 */
+export type InvitationHeroPhoto = {
+  url: InvitationPhotoUrl;
+  /** 読み上げ用の説明（必須） */
+  alt: string;
+  /** 重ねる日付（等幅の数字。空なら出さない） */
+  overlayDate: string;
+  /** 日付の下に重ねる一言（空なら出さない） */
+  overlayText: string;
+};
+
+/** ふたりからのカード1枚。写真が未設定なら、名前の頭文字の丸を出す */
+export type InvitationFromUs = {
+  name: string;
+  photoUrl: InvitationPhotoUrl;
+  /** 読み上げ用の説明（必須） */
+  alt: string;
+  message: string;
+};
+
+/** 当日のおたのしみのアイコン（線画）の種類 */
+export type InvitationHighlightKey = "food" | "drink" | "game";
+
+/** 当日のおたのしみのカード1枚（文字中心） */
+export type InvitationHighlight = {
+  key: InvitationHighlightKey;
+  title: string;
+  body: string;
 };
 
 /**

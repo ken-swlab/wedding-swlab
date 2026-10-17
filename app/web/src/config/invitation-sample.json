@@ -14,6 +14,19 @@
     { "time": "", "title": "2次会", "note": "詳細は後日", "highlight": false }
   ],
   "approvalNote": "（ダミー）通常、1〜2 日以内に確認します。",
+  "photos": {
+    "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "X.XX", "overlayText": "につづく" }
+  },
+  "fromUs": [
+    { "name": "太郎", "photoUrl": "/placeholders/invitation/groom.svg", "alt": "（ダミー）新郎の写真", "message": "（ダミー）新郎からのメッセージです。3〜4行くらいの長さを想定しています。来てくれるのを楽しみにしています。" },
+    { "name": "花子", "photoUrl": "/placeholders/invitation/bride.svg", "alt": "（ダミー）新婦の写真", "message": "（ダミー）新婦からのメッセージです。3〜4行くらいの長さを想定しています。ぜひお腹を空かせて来てください。" }
+  ],
+  "highlights": [
+    { "key": "food", "title": "料理", "body": "（ダミー）料理の紹介です。具体的な料理名は書かず、雰囲気だけを伝えます。" },
+    { "key": "drink", "title": "お酒", "body": "（ダミー）お酒の紹介です。" },
+    { "key": "game", "title": "競技", "body": "（ダミー）当日の競技の紹介です。" }
+  ],
+  "showGreeting": false,
   "opening": {
     "date": "20XX.XX.XX",
     "venue": "（かいじょう）",

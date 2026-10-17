@@ -1,5 +1,13 @@
 import { NAME_STYLES, type CoupleNames } from "./opening-names.ts";
-import type { InvitationConfig, ProgramItem, ProgramRole } from "@/types/invitation";
+import type {
+  InvitationConfig,
+  InvitationFromUs,
+  InvitationHeroPhoto,
+  InvitationHighlight,
+  InvitationHighlightKey,
+  ProgramItem,
+  ProgramRole,
+} from "@/types/invitation";
 
 /**
  * Firestore の config/invitation の形の確認（Issue #131）。
@@ -19,6 +27,19 @@ const TIME_RE = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 const MAX_PROGRAM_ROWS = 12;
 /** 当日の流れの行の役目（types/invitation.ts の ProgramRole と同じ） */
 const PROGRAM_ROLES: readonly ProgramRole[] = ["gather", "ceremony", "reception", "party"];
+/** ふたりからのカードの枚数の上限（新郎・新婦。Issue #173） */
+const MAX_FROM_US = 2;
+/** 当日のおたのしみのカードの枚数の上限（Issue #173） */
+const MAX_HIGHLIGHTS = 6;
+/** 当日のおたのしみのアイコンの種類（types/invitation.ts の InvitationHighlightKey と同じ） */
+const HIGHLIGHT_KEYS: readonly InvitationHighlightKey[] = ["food", "drink", "game"];
+/**
+ * 招待状の写真の URL の形（Issue #173）。
+ * ★仮の画像は public/placeholders/invitation/ の下だけ★ 本物の写真は public/ に置かない（公開リポジトリ）。
+ * ★本物の写真は https だけ★ 画面が img の src にそのまま入れる。配信元は CSP の img-src（公開バケット）に合わせる。
+ */
+const PLACEHOLDER_URL_RE = /^\/placeholders\/invitation\/[a-z0-9-]+\.(svg|png|jpg|webp)$/;
+const PHOTO_URL_RE = /^https:\/\/[a-z0-9.-]+\/[A-Za-z0-9._/-]+$/;
 
 function text(v: unknown, allowEmpty = false): string | null {
   if (typeof v !== "string") return null;
@@ -57,6 +78,10 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
   const approvalNote = text(d.approvalNote ?? "", true);
   if (approvalNote === null) return { ok: false, field: "approvalNote" };
 
+  // 写真・ふたりから・当日のおたのしみ（Issue #173）。どれも任意（以前の config/invitation もそのまま通す）
+  const extras = parseExtras(d);
+  if (!extras.ok) return { ok: false, field: extras.field };
+
   const o = d.opening as Record<string, unknown> | undefined;
   if (!o || typeof o !== "object") return { ok: false, field: "opening" };
   const date = text(o.date);
@@ -86,6 +111,10 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       greeting,
       program: program.value,
       ...(approvalNote ? { approvalNote } : {}),
+      ...(extras.value.hero ? { photos: { hero: extras.value.hero } } : {}),
+      fromUs: extras.value.fromUs,
+      highlights: extras.value.highlights,
+      showGreeting: extras.value.showGreeting,
       opening: { date, venue, names: names as CoupleNames },
     },
   };
@@ -118,4 +147,82 @@ function parseProgram(v: unknown): { ok: true; value: ProgramItem[] } | { ok: fa
     rows.push(row);
   }
   return { ok: true, value: rows };
+}
+
+/** 写真の URL。空は未設定。形が違えば null */
+function photoUrl(v: unknown): string | null {
+  const s = text(v ?? "", true);
+  if (s === null) return null;
+  return !s || PLACEHOLDER_URL_RE.test(s) || PHOTO_URL_RE.test(s) ? s : null;
+}
+
+type Extras = {
+  hero?: InvitationHeroPhoto;
+  fromUs: InvitationFromUs[];
+  highlights: InvitationHighlight[];
+  showGreeting: boolean;
+};
+
+/** Issue #173 で足した項目。だめなら、だめだった項目の名前（例: fromUs.1.alt）を返す */
+function parseExtras(d: Record<string, unknown>): { ok: true; value: Extras } | { ok: false; field: string } {
+  let hero: InvitationHeroPhoto | undefined;
+  if (d.photos !== undefined) {
+    const p = d.photos as Record<string, unknown> | null;
+    if (!p || typeof p !== "object") return { ok: false, field: "photos" };
+    if (p.hero !== undefined) {
+      const h = p.hero as Record<string, unknown> | null;
+      if (!h || typeof h !== "object") return { ok: false, field: "photos.hero" };
+      const url = photoUrl(h.url);
+      if (url === null) return { ok: false, field: "photos.hero.url" };
+      // ★alt は必須★ 写真が未設定でも先に入れておく（photo set は URL だけを書き換える）
+      const alt = text(h.alt);
+      if (alt === null) return { ok: false, field: "photos.hero.alt" };
+      const overlayDate = text(h.overlayDate ?? "", true);
+      if (overlayDate === null) return { ok: false, field: "photos.hero.overlayDate" };
+      const overlayText = text(h.overlayText ?? "", true);
+      if (overlayText === null) return { ok: false, field: "photos.hero.overlayText" };
+      hero = { url, alt, overlayDate, overlayText };
+    }
+  }
+
+  const fromUs: InvitationFromUs[] = [];
+  if (d.fromUs !== undefined) {
+    if (!Array.isArray(d.fromUs) || d.fromUs.length > MAX_FROM_US) return { ok: false, field: "fromUs" };
+    for (const [i, raw] of d.fromUs.entries()) {
+      const at = `fromUs.${i}`;
+      if (!raw || typeof raw !== "object") return { ok: false, field: at };
+      const r = raw as Record<string, unknown>;
+      const name = text(r.name);
+      if (name === null) return { ok: false, field: `${at}.name` };
+      const url = photoUrl(r.photoUrl);
+      if (url === null) return { ok: false, field: `${at}.photoUrl` };
+      const alt = text(r.alt);
+      if (alt === null) return { ok: false, field: `${at}.alt` };
+      const message = text(r.message);
+      if (message === null) return { ok: false, field: `${at}.message` };
+      fromUs.push({ name, photoUrl: url, alt, message });
+    }
+  }
+
+  const highlights: InvitationHighlight[] = [];
+  if (d.highlights !== undefined) {
+    if (!Array.isArray(d.highlights) || d.highlights.length > MAX_HIGHLIGHTS) return { ok: false, field: "highlights" };
+    for (const [i, raw] of d.highlights.entries()) {
+      const at = `highlights.${i}`;
+      if (!raw || typeof raw !== "object") return { ok: false, field: at };
+      const r = raw as Record<string, unknown>;
+      const key = HIGHLIGHT_KEYS.find((k) => k === r.key);
+      if (!key) return { ok: false, field: `${at}.key` };
+      const title = text(r.title);
+      if (title === null) return { ok: false, field: `${at}.title` };
+      const body = text(r.body);
+      if (body === null) return { ok: false, field: `${at}.body` };
+      highlights.push({ key, title, body });
+    }
+  }
+
+  // ★未設定ならご挨拶は出さない★（Issue #173。ふたりからに置き換えた）
+  if (d.showGreeting !== undefined && typeof d.showGreeting !== "boolean") return { ok: false, field: "showGreeting" };
+
+  return { ok: true, value: { hero, fromUs, highlights, showGreeting: d.showGreeting === true } };
 }

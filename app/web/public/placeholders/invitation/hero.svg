@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000">
+  <!-- 仮の画像（Issue #173）。実在の人物を含まないイラスト。本物の写真は public/ に置かない -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2c3e63"/>
+      <stop offset="0.45" stop-color="#c9727a"/>
+      <stop offset="0.68" stop-color="#f2b880"/>
+      <stop offset="0.68" stop-color="#3d5a80"/>
+      <stop offset="1" stop-color="#1d2b44"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#sky)"/>
+  <circle cx="400" cy="640" r="90" fill="#ffd9a0" opacity="0.85"/>
+  <rect x="0" y="680" width="800" height="320" fill="#2a3d5c"/>
+  <g fill="#ffffff" opacity="0.18">
+    <rect x="300" y="720" width="200" height="4" rx="2"/>
+    <rect x="250" y="760" width="300" height="4" rx="2"/>
+    <rect x="200" y="810" width="400" height="4" rx="2"/>
+  </g>
+  <g fill="#141c2b">
+    <circle cx="348" cy="700" r="30"/>
+    <path d="M300 1000 C300 830 316 750 348 750 C380 750 396 830 396 1000 Z"/>
+    <circle cx="452" cy="712" r="27"/>
+    <path d="M408 1000 C408 840 424 762 452 762 C480 762 496 840 496 1000 Z"/>
+  </g>
+</svg>

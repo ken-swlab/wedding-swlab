@@ -109,3 +109,61 @@ test("承認の目安（approvalNote）は任意。文字列で 200 文字まで
     assert.deepEqual(parseInvitationConfig(d), { ok: false, field: "approvalNote" });
   }
 });
+
+test("写真・ふたりから・当日のおたのしみ（Issue #173）は任意。無ければ空で、ご挨拶は出さない", () => {
+  const d = sample();
+  delete d.photos;
+  delete d.fromUs;
+  delete d.highlights;
+  delete d.showGreeting;
+  const r = parseInvitationConfig(d);
+  assert.equal(r.ok, true);
+  assert.equal("photos" in r.value, false);
+  assert.deepEqual(r.value.fromUs, []);
+  assert.deepEqual(r.value.highlights, []);
+  assert.equal(r.value.showGreeting, false);
+
+  const s = parseInvitationConfig(sample());
+  assert.equal(s.ok, true);
+  assert.equal(s.value.photos.hero.url, "/placeholders/invitation/hero.svg");
+  assert.equal(s.value.fromUs.length, 2);
+  assert.deepEqual(s.value.highlights.map((h) => h.key), ["food", "drink", "game"]);
+
+  const g = sample();
+  g.showGreeting = true;
+  assert.equal(parseInvitationConfig(g).value.showGreeting, true);
+});
+
+test("写真の URL は仮の画像（/placeholders/invitation/）か https だけ。空は未設定。alt は必須（Issue #173）", () => {
+  const ok = [
+    (d) => (d.photos.hero.url = ""),
+    (d) => (d.photos.hero.url = "https://media.example.com/site/invitation/0b6f.jpg"),
+    (d) => (d.fromUs[0].photoUrl = ""),
+  ];
+  for (const mutate of ok) {
+    const d = sample();
+    mutate(d);
+    assert.equal(parseInvitationConfig(d).ok, true);
+  }
+  const broken = [
+    [(d) => (d.photos.hero.url = "http://media.example.com/a.jpg"), "photos.hero.url"],
+    [(d) => (d.photos.hero.url = "javascript:alert(1)"), "photos.hero.url"],
+    [(d) => (d.photos.hero.url = "/placeholders/../secret.jpg"), "photos.hero.url"],
+    [(d) => (d.photos.hero.url = "/uploads/hero.jpg"), "photos.hero.url"],
+    [(d) => (d.photos.hero.alt = ""), "photos.hero.alt"],
+    [(d) => (d.photos = "x"), "photos"],
+    [(d) => (d.fromUs[1].photoUrl = "data:image/png;base64,AAAA"), "fromUs.1.photoUrl"],
+    [(d) => delete d.fromUs[0].alt, "fromUs.0.alt"],
+    [(d) => (d.fromUs[0].name = ""), "fromUs.0.name"],
+    [(d) => (d.fromUs[1].message = "あ".repeat(201)), "fromUs.1.message"],
+    [(d) => d.fromUs.push({ ...d.fromUs[0] }), "fromUs"],
+    [(d) => (d.highlights[0].key = "music"), "highlights.0.key"],
+    [(d) => (d.highlights[2].body = ""), "highlights.2.body"],
+    [(d) => (d.showGreeting = "yes"), "showGreeting"],
+  ];
+  for (const [mutate, field] of broken) {
+    const d = sample();
+    mutate(d);
+    assert.deepEqual(parseInvitationConfig(d), { ok: false, field }, field);
+  }
+});
