@@ -22,7 +22,7 @@ type View =
   | { kind: "error"; message: string };
 
 /**
- * マイページから開くオープニング（Issue #131）。
+ * コミュニティから開くオープニング（Issue #131。Issue #174 でマイページから移した）。
  *   - 記録がある人: 「オープニングをもう一度見る」。計測はするが記録しない（表示だけ）。
  *   - 記録が無い人（スキップした・反応なしだった）: 一発勝負に挑戦できる。記録は1回だけ。
  * ★記録の上書きはサーバーが断る★（/api/guest/reaction）。ここで出し分けているのは案内の文言だけ。
@@ -69,7 +69,7 @@ export default function OpeningReplayPage() {
         }}
         onFinish={() => {
           markOpeningSeen();
-          router.replace(GUESTBOOK_PATHS.settings);
+          router.replace(GUESTBOOK_PATHS.community);
         }}
       />
     );
@@ -109,11 +109,9 @@ export default function OpeningReplayPage() {
           </p>
         )}
         <div className="mt-3 flex flex-wrap items-center justify-center">
-          <Link href={GUESTBOOK_PATHS.reaction} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
-            ランキングを見る
-          </Link>
-          <Link href={GUESTBOOK_PATHS.settings} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
-            マイページに戻る
+          {/* ランキングとオープニングの導線はコミュニティにある（Issue #174） */}
+          <Link href={GUESTBOOK_PATHS.community} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
+            コミュニティに戻る（ランキング）
           </Link>
         </div>
       </div>

@@ -10,7 +10,7 @@ import { OPENING_COLORS } from "@/config/opening";
 export const OPENING_NOTE = {
   /** 一発勝負（これが記録になる）。承認前 */
   recordPending: "承認後、ランキングで見られます",
-  /** 一発勝負（これが記録になる）。承認済み（マイページから） */
+  /** 一発勝負（これが記録になる）。承認済み（コミュニティから） */
   record: "これがあなたの記録です",
   /** すでに記録がある（見返し） */
   replay: "見返しのため、記録はされません",

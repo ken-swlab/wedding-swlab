@@ -21,7 +21,7 @@ import {
   type GuestbookView,
 } from "@/config/guestbook";
 
-type NavKey = GuestbookView | "notifications" | "settings";
+type NavKey = GuestbookView | "community" | "notifications" | "settings";
 
 const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
   { key: "timeline", label: "タイムライン", icon: "☰", href: GUESTBOOK_PATHS.home },
@@ -31,6 +31,8 @@ const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
     icon: "▦",
     href: `${GUESTBOOK_PATHS.home}?${GUESTBOOK_VIEW_PARAM}=gallery`,
   },
+  // コミュニティ（Issue #174）。★5つのタブを横に並べる★ 文字は短く（横スクロールを出さない）
+  { key: "community", label: "コミュニティ", icon: "◎", href: GUESTBOOK_PATHS.community },
   { key: "notifications", label: "通知", icon: "♡", href: GUESTBOOK_PATHS.notifications },
   { key: "settings", label: "マイページ", icon: "☺", href: GUESTBOOK_PATHS.settings },
 ];
@@ -117,8 +119,9 @@ function Header({ compact }: { compact: boolean }) {
   const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   const { running } = useGuestbookUpload();
-  // 通知とマイページには検索欄を出さない（探す対象の一覧が無い）。空いた分でロゴを左、＋を右に寄せる
-  const searchable = pathname !== GUESTBOOK_PATHS.notifications && pathname !== GUESTBOOK_PATHS.settings;
+  // 通知・マイページ・コミュニティには検索欄を出さない（探す対象の一覧が無い）。空いた分でロゴを左、＋を右に寄せる
+  const searchable =
+    pathname !== GUESTBOOK_PATHS.notifications && pathname !== GUESTBOOK_PATHS.settings && pathname !== GUESTBOOK_PATHS.community;
   return (
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] group-data-[chrome=compact]/chrome:pointer-events-none">
       <div
@@ -236,10 +239,12 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
   const active: NavKey =
     pathname === GUESTBOOK_PATHS.notifications
       ? "notifications"
-      : // ランキング（Issue #132）はマイページから開くので、ナビではマイページを光らせる
-        pathname === GUESTBOOK_PATHS.settings || pathname === GUESTBOOK_PATHS.reaction
+      : pathname === GUESTBOOK_PATHS.settings
         ? "settings"
-        : view;
+        : // 以前のランキングの画面（Issue #132）はコミュニティへ送るだけなので、コミュニティを光らせる
+          pathname === GUESTBOOK_PATHS.community || pathname === GUESTBOOK_PATHS.reaction
+          ? "community"
+          : view;
   const current = NAV.find((item) => item.key === active) ?? NAV[0];
 
   return (
@@ -264,6 +269,8 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                 <Link
                   href={item.href}
                   aria-current={here ? "page" : undefined}
+                  // 承認後の演出の3つ目の案内で照らす（WelcomeMoment。Issue #174）
+                  data-welcome-community={item.key === "community" ? "" : undefined}
                   onClick={(e) => {
                     if (!here) return;
                     // 表示中のタブをもう一度押したら先頭へ戻す（同じ URL への遷移はしない）

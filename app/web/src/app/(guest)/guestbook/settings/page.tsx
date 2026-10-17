@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { GuestbookShell } from "@/components/guestbook/GuestbookShell";
 import { IconCropper } from "@/components/guestbook/IconCropper";
@@ -13,7 +12,6 @@ import { PostOwnerMenu } from "@/components/guestbook/PostOwnerMenu";
 import { QualityMark } from "@/components/guestbook/QualityMark";
 import { postQuality } from "@/lib/original-status";
 import { TagBadge } from "@/components/guestbook/TagBadge";
-import { GUESTBOOK_PATHS } from "@/config/guestbook";
 import { useMyPosts } from "@/hooks/useMyPosts";
 import { postJson } from "@/lib/api-client";
 import { cropForIcon, loadIconSource, type IconCrop, type IconSource } from "@/lib/image";
@@ -387,30 +385,7 @@ export default function SettingsPage() {
         )}
       </section>
 
-      {/* オープニング演出の見返しと、リアクションタイムの一発勝負（Issue #131） */}
-      <section aria-label="オープニング" className="mt-5 border-t border-stone-200 pt-4">
-        <Link
-          href={GUESTBOOK_PATHS.opening}
-          className="flex min-h-11 touch-manipulation items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 py-3 shadow-sm transition hover:bg-stone-50"
-        >
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-stone-800">オープニングをもう一度見る</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-stone-500">リアクションタイムの記録がまだの方は、ここから挑戦できます（記録は1回だけ）。</span>
-          </span>
-          <span aria-hidden className="shrink-0 text-stone-400">›</span>
-        </Link>
-        {/* ランキング（Issue #132）。タグの切り替えは、投稿の公開範囲の選択と同じ操作 */}
-        <Link
-          href={GUESTBOOK_PATHS.reaction}
-          className="mt-2 flex min-h-11 touch-manipulation items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 py-3 shadow-sm transition hover:bg-stone-50"
-        >
-          <span className="min-w-0">
-            <span className="block text-sm font-medium text-stone-800">リアクションタイムのランキング</span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-stone-500">グループごとに、みんなのタイムを見られます。</span>
-          </span>
-          <span aria-hidden className="shrink-0 text-stone-400">›</span>
-        </Link>
-      </section>
+      {/* オープニングの見返しとランキングは、コミュニティ（/guestbook/community）へ移した（Issue #174）。マイページは「自分のこと」だけ */}
 
       <section aria-label="自分の投稿" className="mt-5 border-t border-stone-200 pt-4">
         {mine.loading ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { COMMUNITY_ATTENDANCE_NOTICE } from "@/config/community";
 import type { ReactNode } from "react";
 import {
   ATTENDANCE_OPTIONS,
@@ -201,6 +202,8 @@ export function AnswerFields({
             ))}
           </div>
           {attendanceHint}
+          {/* ★参加予定を同じグループのゲストに見せることを、回答の前に伝える★（Issue #174。コミュニティの「仲間」）。外さない */}
+          <p className="mt-1.5 text-[11px] leading-relaxed text-stone-500">{COMMUNITY_ATTENDANCE_NOTICE}</p>
           {/* ★出欠が未選択でも、挙式の質問があることが分かるようにする★（Issue #146。選択肢は出席を選んでから） */}
           {value.attendance === "unanswered" && (
             <p className="mt-1.5 text-[11px] text-stone-400">ご出席の方には、挙式へのご参加もうかがいます</p>
