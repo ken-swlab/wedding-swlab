@@ -12,11 +12,13 @@ export const GUESTBOOK_VIEW_PARAM = "view";
 
 export const GUESTBOOK_PATHS = {
   home: "/guestbook",
+  /** コミュニティ（Issue #174）。グループごとの仲間（参加予定のメンバー）・ランキング・オープニングへの導線 */
+  community: "/guestbook/community",
   notifications: "/guestbook/notifications",
   settings: "/guestbook/settings",
-  /** マイページから開くオープニング（見返し・リアクションタイムの一発勝負。Issue #131） */
+  /** コミュニティから開くオープニング（見返し・リアクションタイムの一発勝負。Issue #131） */
   opening: "/guestbook/opening",
-  /** リアクションタイムのランキング（Issue #132） */
+  /** 以前のランキングの画面（Issue #132）。Issue #174 でコミュニティへ移し、ここはコミュニティへ送るだけ */
   reaction: "/guestbook/reaction",
 } as const;
 

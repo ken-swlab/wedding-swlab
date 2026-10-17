@@ -5,7 +5,7 @@ import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { rankEntries } from "@/lib/reaction-ranking";
 import { REACTION_MAX_MS, REACTION_MIN_MS } from "@/config/opening";
-import { RANKING_GUEST_LIMIT, RANKING_TOP } from "@/config/reaction";
+import { RANKING_ALL_TAG, RANKING_GUEST_LIMIT, RANKING_TOP } from "@/config/reaction";
 import { TAG_DEFS, isCustomTagId } from "@/config/tags";
 import type { ReactionRanking, ReactionRankingRow } from "@/types/reaction";
 
@@ -38,6 +38,9 @@ async function _GET(req: Request) {
  * ★承認前の人は 403★ 承認前に見られるのは自分のタイムだけ（GET /api/guest/reaction）。
  * ★返すのは 順位・ニックネーム・アイコン・タイム・自分かどうか だけ★
  *   本名・LINE の表示名・uid・LINE のユーザー ID は返さない（guests から読むのは公開プロフィールの項目だけ）。
+ * ★「全員」（all）のときは、本人以外の名前とアイコンを伏せる★（Issue #174）
+ *   全員のランキングは、知らない人の名前まで並んでしまう。順位とタイムだけを返し、本人の行だけ isMe で目立たせる。
+ *   伏せるのはサーバーで行う（画面で隠すだけにしない）。
  * ★対象は、そのタグを持つ承認済みのゲストのうち、記録がある人★
  *   アクセス停止の人はタグが空になるので入らない。仮登録（名簿だけの行）・統合済みの行も入れない。
  * reactionTimes はクライアントから読めない（Rules の既定の拒否）。ここで Admin SDK で読む。Rules の変更は不要。
@@ -96,16 +99,16 @@ async function handle(req: Request) {
 
   // ★uid はここで落とす★ 応答には入れない
   const ranked = rankEntries(entries);
-  const toRow = (r: (typeof ranked)[number]): ReactionRankingRow => ({
-    rank: r.rank,
-    nickname: r.nickname,
-    photoURL: r.photoURL,
-    reactionMs: r.reactionMs,
-    isMe: r.uid === uid,
-  });
+  const anonymous = tag === RANKING_ALL_TAG;
+  const toRow = (r: (typeof ranked)[number]): ReactionRankingRow => {
+    const isMe = r.uid === uid;
+    const hide = anonymous && !isMe;
+    return { rank: r.rank, nickname: hide ? "" : r.nickname, photoURL: hide ? "" : r.photoURL, reactionMs: r.reactionMs, isMe };
+  };
   const mine = ranked.find((r) => r.uid === uid);
   const res: ReactionRanking = {
     tag,
+    anonymous,
     total: ranked.length,
     rows: ranked.slice(0, RANKING_TOP).map(toRow),
     me: mine ? toRow(mine) : null,

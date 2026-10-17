@@ -15,8 +15,9 @@ import { WelcomeCard } from "./WelcomeCard";
  *   fly    … ハートのあと、カードが縮みながらタイムラインの一番上（WelcomePinned）へ移る（FLIP）
  *   guide1 … 「ここがタイムライン。みんなの写真がここに流れてきます」（固定した投稿を照らす）
  *   guide2 … 「＋ から、あなたも写真を投稿できます」（＋ボタンを照らす）
+ *   guide3 … 「仲間が待っています」（下のコミュニティのタブを照らす。Issue #174）。開くかどうかは任意（強制しない）
  */
-type Phase = "arrive" | "fly" | "guide1" | "guide2";
+type Phase = "arrive" | "fly" | "guide1" | "guide2" | "guide3";
 
 /** 照らす場所（画面の座標） */
 type Spot = { top: number; left: number; width: number; height: number };
@@ -36,6 +37,8 @@ function spotOf(el: Element | null): Spot | null {
  *   - onPin() でタイムラインの一番上に WelcomePinned を hidden で置く（[data-welcome-pin]）。
  *     演出のカードはそこを目がけて縮む。onReveal() で hidden を外す。
  *   - ＋ボタンに data-welcome-plus を付けておく（2つ目の案内で照らす）。
+ *   - コミュニティのタブに data-welcome-community を付けておく（3つ目の案内で照らす。無ければ画面の中ほどに出す）。
+ *   - onOpenCommunity: 3つ目の案内の「コミュニティを見る」を押したとき（渡さなければボタンを出さない）。
  *   - onLike: 本物の投稿のときだけ、いいねを保存する（仮の画像なら渡さない）。
  *   - onDone: 終わった・スキップされた。welcomeSeenAt の記録は呼び出し側（演出を始めたときに API）。
  *
@@ -54,12 +57,14 @@ export function WelcomeMoment({
   onPin,
   onReveal,
   onDone,
+  onOpenCommunity,
 }: {
   content: WelcomeContent;
   onLike?: () => Promise<boolean>;
   onPin: () => void;
   onReveal: () => void;
   onDone: (result: { skipped: boolean; liked: boolean }) => void;
+  onOpenCommunity?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("arrive");
   const [cardOn, setCardOn] = useState(false);
@@ -169,12 +174,15 @@ export function WelcomeMoment({
       setSpot(spotOf(plus));
       setPhase("guide2");
     } else if (phase === "guide2") {
+      setSpot(spotOf(document.querySelector("[data-welcome-community]")));
+      setPhase("guide3");
+    } else if (phase === "guide3") {
       finish(false);
     }
   }
 
   if (typeof document === "undefined") return null;
-  const guiding = phase === "guide1" || phase === "guide2";
+  const guiding = phase === "guide1" || phase === "guide2" || phase === "guide3";
 
   return createPortal(
     <div
@@ -243,7 +251,27 @@ export function WelcomeMoment({
                 : { inset: 0, background: "rgba(0,0,0,0.6)" }
             }
           />
-          <GuideBubble spot={spot} text={phase === "guide1" ? "ここがタイムライン。みんなの写真がここに流れてきます" : "＋ から、あなたも写真を投稿できます"} />
+          <GuideBubble
+            spot={spot}
+            text={
+              phase === "guide1"
+                ? "ここがタイムライン。みんなの写真がここに流れてきます"
+                : phase === "guide2"
+                  ? "＋ から、あなたも写真を投稿できます"
+                  : "仲間が待っています。コミュニティで、同じグループの参加予定のメンバーを見られます"
+            }
+            action={
+              phase === "guide3" && onOpenCommunity
+                ? {
+                    label: "コミュニティを見る",
+                    onClick: () => {
+                      finish(false);
+                      onOpenCommunity();
+                    },
+                  }
+                : undefined
+            }
+          />
         </>
       )}
 
@@ -259,7 +287,7 @@ const BUBBLE_ROOM = 130;
  * 案内の吹き出し。照らす場所の下に置き、入りきらなければ上に置く。
  * ★上下どちらにも入らない（照らす投稿が画面の大半を占める）ときは、画面の下端に重ねる★
  */
-function GuideBubble({ spot, text }: { spot: Spot | null; text: string }) {
+function GuideBubble({ spot, text, action }: { spot: Spot | null; text: string; action?: { label: string; onClick: () => void } }) {
   const h = window.innerHeight;
   let style: CSSProperties = { top: "40%" };
   if (spot) {
@@ -272,7 +300,19 @@ function GuideBubble({ spot, text }: { spot: Spot | null; text: string }) {
       <p className="welcome-fade-in max-w-xs rounded-2xl bg-white px-4 py-3 text-center text-sm font-medium leading-relaxed text-stone-800 shadow-lg">
         {text}
       </p>
-      <p className="mt-2 text-xs text-white/80">タップで次へ</p>
+      {action && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            action.onClick();
+          }}
+          className="pointer-events-auto mt-3 min-h-11 touch-manipulation rounded-full bg-white px-5 text-sm font-medium text-stone-900 shadow"
+        >
+          {action.label}
+        </button>
+      )}
+      <p className="mt-2 text-xs text-white/80">{action ? "ほかの場所をタップで閉じる" : "タップで次へ"}</p>
     </div>
   );
 }

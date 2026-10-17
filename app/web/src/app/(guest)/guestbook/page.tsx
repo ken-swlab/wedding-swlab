@@ -24,6 +24,7 @@ import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
 import { GuestbookShell, selectModeHref, useGuestbookView } from "@/components/guestbook/GuestbookShell";
 import {
   COMPOSER_ANCHOR_ID,
+  GUESTBOOK_PATHS,
   GUESTBOOK_QUERY_PARAM,
   GUESTBOOK_SELECT_PARAM,
   postIdFromPath,
@@ -167,6 +168,8 @@ export default function GuestbookPage() {
             // スキップ（いいねしていない）なら固定しない
             if (!liked) setPin(null);
           }}
+          // 最後の案内「仲間が待っています」から、任意でコミュニティを開く（Issue #174）
+          onOpenCommunity={() => router.push(GUESTBOOK_PATHS.community)}
         />
       )}
       <GuestbookShell>
