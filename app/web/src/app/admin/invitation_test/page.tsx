@@ -15,6 +15,7 @@ import type { WelcomeContent } from "@/types/welcome";
 import { SAMPLE_INVITATION } from "@/config/wedding";
 import { OPENING_NOTE } from "@/config/invitation";
 import { classifyDisplayName } from "@/lib/opening-names";
+import { clearInvitationRead, hasReadInvitation } from "@/lib/invitation-read";
 import { getJson } from "@/lib/api-client";
 import { ScreenFade } from "@/components/ScreenFade";
 import { APPROVED_REVEAL_MS, OPENING_TIMING } from "@/config/opening";
@@ -105,6 +106,8 @@ export default function InvitationTestPage() {
   const [live, setLive] = useState<LiveState>({ kind: "loading" });
   const [liveAttempt, setLiveAttempt] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
+  /** 読んだ記録があるか。パネルを開くたびに読み直す（読み進めたり送信したりすると、途中で付くため） */
+  const [readRecorded, setReadRecorded] = useState(false);
 
   // 本番の値を受け取る。サーバーは最大60秒キャッシュするので、set の直後は古いことがある
   useEffect(() => {
@@ -212,7 +215,10 @@ export default function InvitationTestPage() {
       */}
       <button
         type="button"
-        onClick={() => setPanelOpen((o) => !o)}
+        onClick={() => {
+          if (!panelOpen) setReadRecorded(hasReadInvitation());
+          setPanelOpen((o) => !o);
+        }}
         aria-expanded={panelOpen}
         aria-controls="invitation-test-panel"
         className="fixed right-0 top-1/2 z-[201] min-h-11 -translate-y-1/2 touch-manipulation rounded-l-full bg-stone-900/55 pl-3 pr-2 text-[11px] text-white backdrop-blur"
@@ -231,6 +237,27 @@ export default function InvitationTestPage() {
           <button type="button" onClick={restart} className="min-h-9 touch-manipulation rounded-full bg-stone-900 px-3 text-white hover:bg-stone-700">
             最初から
           </button>
+        </div>
+        {/*
+          読んだ記録（lib/invitation-read.ts。Issue #178）。本番の /invitation と同じ記録なので、ここで最後まで読んだり送信したりすると、
+          次から「エントリーする」が開いてすぐ出る（2回目以降の動き）。消すと初めての人の動き（読み進めてから出す）に戻る。
+          ★パネルは開いたときだけ描く★ localStorage を読むので、サーバーの描画とずれない。
+        */}
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span className="shrink-0">読んだ記録: {readRecorded ? "あり（エントリーをすぐ出す）" : "なし（初回の動き）"}</span>
+          {readRecorded && (
+            <button
+              type="button"
+              onClick={() => {
+                clearInvitationRead();
+                setReadRecorded(false);
+                restart();
+              }}
+              className="min-h-9 touch-manipulation rounded-full border border-stone-200 px-3 text-stone-700 hover:bg-stone-100"
+            >
+              初回に戻す
+            </button>
+          )}
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <span className="shrink-0">直接開く:</span>
