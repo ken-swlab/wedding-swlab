@@ -131,6 +131,11 @@ export const CHROME_TOP_ZONE_PX = 80;
 export const CHROME_COMPACT_AFTER_PX = 24;
 /** 上へこの距離スクロールしたら戻す (px)。「少しでも上へ」で戻すため小さく取る */
 export const CHROME_EXPAND_AFTER_PX = 4;
+/**
+ * 縮めたヘッダーとボトムナビを通常表示に戻させる window のイベント名（Issue #178）。
+ * 承認後の演出が、下のタブ（コミュニティ）を照らす前に投げる（useCompactChrome が受ける）。
+ */
+export const CHROME_EXPAND_EVENT = "guestbook:chrome-expand";
 
 /**
  * ダブルタップでいいね（Issue #96）。

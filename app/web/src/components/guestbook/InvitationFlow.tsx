@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
 import { InvitationView } from "@/components/guestbook/InvitationView";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -11,6 +11,8 @@ import { prefersReducedMotion } from "@/components/opening/timeline";
 import { ScreenFade } from "@/components/ScreenFade";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
+import { hasReadInvitation, markInvitationRead } from "@/lib/invitation-read";
+import { useSeenOnce } from "@/hooks/useSeenOnce";
 import { OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
@@ -19,7 +21,7 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
  *   entrance … 入り口と LINE ログイン（個人の情報なし）
  *   passcode … パスコード入力（個人の情報なし）
  *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
- *   open     … 招待状の本文。画面下の「エントリーする」で、出欠の回答フォーム（エントリー画面）に切り替わる（Issue #166）
+ *   open     … 招待状の本文。「エントリーする」で、出欠の回答フォーム（エントリー画面）に切り替わる（Issue #166）
  *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
  *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。3 秒かタップで承認待ちへ（Issue #156）
  */
@@ -80,6 +82,11 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onPasscodeClea
   if (prev.kind !== step.kind) setPrev({ kind: step.kind, from: prev.kind });
   const [openingSkipped, setOpeningSkipped] = useState(false);
   const reveal: InvitationReveal = step.kind === "open" && prev.from === "opening" ? (openingSkipped ? "skipped" : "dive") : null;
+
+  // 回答を送った端末には、次から画面下の「エントリーする」を最初から出す（Issue #178）
+  useEffect(() => {
+    if (step.kind === "finish") markInvitationRead();
+  }, [step.kind]);
 
   switch (step.kind) {
     case "loading":
@@ -152,7 +159,11 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onPasscodeClea
 
 /**
  * 招待状（読む場所）とエントリー画面（判断する場所）。画面を分ける（Issue #166）。
- *   招待状 … InvitationView。表示されてから ENTRY_BAR_DELAY_MS 後に、画面下の「エントリーする」を下からふわっと出す。
+ *   招待状 … InvitationView。画面下に固定の「エントリーする」、ページの一番下にも同じボタン。
+ *     ★初めての人には、読んでから固定のボタンを出す★（Issue #178）開いた時点では出さず、「当日のおたのしみ」
+ *       （無ければ PROGRAM）が画面に入ったら下からふわっと出す。一度出したら、上に戻っても出したまま。
+ *       開いてすぐ押されて下を読まれない・シルエットの足元にかぶる、を避けるため。
+ *     2回目以降（この端末で回答した・最後まで読んだ）は、表示されてから ENTRY_BAR_DELAY_MS 後に出す。
  *   エントリー画面 … 上部に当日の流れ（ProgramStrip）を固定し、その下に出欠の回答フォーム。
  * ★回答フォームは招待状に戻っても消さない★ hidden で隠すだけにして、入力中の内容を残す。
  * ★切り替えたら一番上へ★ 招待状の下のほうから移っても、フォームの最初（1/4 お名前）から見せる。
@@ -170,12 +181,17 @@ function InvitationOpen({
 }) {
   const [entry, setEntry] = useState(false);
   const [barOn, setBarOn] = useState(false);
+  const [readBefore] = useState(hasReadInvitation);
   // 水が引いて現れたときは、引ききってから entryBarAfterReveal 後に出す（Issue #165）
   const [barDelay] = useState(() => (prefersReducedMotion() ? 0 : reveal === "dive" ? OPENING_TIMING.entryBarAfterReveal : ENTRY_BAR_DELAY_MS));
   useEffect(() => {
+    if (!readBefore) return;
     const t = setTimeout(() => setBarOn(true), barDelay);
     return () => clearTimeout(t);
-  }, [barDelay]);
+  }, [barDelay, readBefore]);
+  const showBar = useCallback(() => setBarOn(true), []);
+  // ページの一番下のボタンまで来たら「最後まで読んだ」
+  const endRef = useSeenOnce<HTMLDivElement>(markInvitationRead);
 
   const go = (next: boolean) => {
     setEntry(next);
@@ -187,11 +203,21 @@ function InvitationOpen({
       <ScreenFade from={reveal === "skipped" ? "dark" : null} />
       <div hidden={entry} className="mx-auto w-full max-w-[26rem]" style={{ paddingBottom: "calc(8rem + env(safe-area-inset-bottom))" }}>
         {/* ★水が引いて現れたときは、ふわっと出す動きを繰り返さない★ 水の下の招待状（InvitationUnderWater）がもう出しきっている */}
-        <InvitationView invitation={invitation} opening={opening} rise={reveal !== "dive"} />
+        <InvitationView
+          invitation={invitation}
+          opening={opening}
+          rise={reveal !== "dive"}
+          onCueSeen={readBefore ? undefined : showBar}
+          footer={
+            <div ref={endRef}>
+              <EntryButton onClick={() => go(true)} />
+            </div>
+          }
+        />
       </div>
       {!entry && (
         <div
-          className={`fixed inset-x-0 bottom-0 z-20 px-[18px] pt-3 transition-[opacity,transform] duration-500 ease-out motion-reduce:transition-none ${
+          className={`fixed inset-x-0 bottom-0 z-20 px-[18px] pt-3 transition-[opacity,transform] duration-[400ms] ease-out motion-reduce:transition-none ${
             barOn ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-5 opacity-0"
           }`}
           style={{
@@ -199,14 +225,7 @@ function InvitationOpen({
             background: `linear-gradient(180deg, ${INVITATION_COLORS.paper}00, ${INVITATION_COLORS.paper} 35%)`,
           }}
         >
-          <button
-            type="button"
-            onClick={() => go(true)}
-            tabIndex={barOn ? 0 : -1}
-            className="mx-auto block min-h-12 w-full max-w-[26rem] touch-manipulation rounded-full bg-stone-900 px-6 py-3.5 text-[15px] font-bold tracking-[0.05em] text-white hover:bg-stone-700"
-          >
-            エントリーする（出欠のご回答）
-          </button>
+          <EntryButton onClick={() => go(true)} hidden={!barOn} />
         </div>
       )}
       <div hidden={!entry} className={entry ? "invitation-entry-lift" : ""}>
@@ -227,6 +246,21 @@ function InvitationOpen({
         </div>
       </div>
     </main>
+  );
+}
+
+/** 「エントリーする」のボタン（画面下の固定とページの一番下で同じもの）。hidden の間はフォーカスを当てない */
+function EntryButton({ onClick, hidden = false }: { onClick: () => void; hidden?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      tabIndex={hidden ? -1 : 0}
+      aria-hidden={hidden || undefined}
+      className="mx-auto block min-h-12 w-full max-w-[26rem] touch-manipulation rounded-full bg-stone-900 px-6 py-3.5 text-[15px] font-bold tracking-[0.05em] text-white hover:bg-stone-700"
+    >
+      エントリーする（出欠のご回答）
+    </button>
   );
 }
 

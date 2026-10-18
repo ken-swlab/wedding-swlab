@@ -15,7 +15,7 @@
   ],
   "approvalNote": "（ダミー）通常、1〜2 日以内に確認します。",
   "photos": {
-    "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "X.XX", "overlayText": "につづく" }
+    "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "", "overlayText": "", "overlayColor": "black" }
   },
   "fromUs": [
     { "name": "太郎", "photoUrl": "/placeholders/invitation/groom.svg", "alt": "（ダミー）新郎の写真", "message": "（ダミー）新郎からのメッセージです。3〜4行くらいの長さを想定しています。来てくれるのを楽しみにしています。" },

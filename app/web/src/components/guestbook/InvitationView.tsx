@@ -1,7 +1,8 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
-import { INVITATION_COLORS } from "@/config/invitation";
+import type { CSSProperties, ReactNode, Ref } from "react";
+import { INVITATION_COLORS, INVITATION_PEEK_PX } from "@/config/invitation";
+import { useSeenOnce } from "@/hooks/useSeenOnce";
 import { weekdayOf } from "@/lib/invitation-program";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 import { InvitationFromUsCards, InvitationHeroPhoto, InvitationHighlights } from "./InvitationExtras";
@@ -19,7 +20,8 @@ const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 /**
  * パスコードを通った人に見せる招待状の本文（Issue #166 で作り直した）。中身は GET /api/guest/invitation から受け取る。
  *
- *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）
+ *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）。
+ *            高さは画面より INVITATION_PEEK_PX 低くし、シルエット写真の上端を画面の下にちらっと見せる（Issue #178）
  *   その先 … シルエット写真・FROM US（ふたりから）・当日のおたのしみ（Issue #173）・PROGRAM（当日の流れ）・
  *            MESSAGE（以前のご挨拶。showGreeting のときだけ）・VENUE（会場・地図・会費）
  *
@@ -31,18 +33,31 @@ export function InvitationView({
   invitation,
   opening,
   rise = true,
+  onCueSeen,
+  footer,
 }: {
   invitation: InvitationContent;
   opening: OpeningContent;
   /** 1画面目を上から順にふわっと出すか。水が引いて現れたあと（Issue #165）は false（出しきった状態で描く） */
   rise?: boolean;
+  /**
+   * 「当日のおたのしみ」（無ければ PROGRAM）が画面に入った（一度だけ。Issue #178）。
+   * 画面下の「エントリーする」を、ここまで読んでから出すために使う。
+   */
+  onCueSeen?: () => void;
+  /** ページの一番下（VENUE の下）に置くもの（エントリーするのボタン。Issue #178） */
+  footer?: ReactNode;
 }) {
   const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee, photos, fromUs, highlights, showGreeting } = invitation;
   const weekday = weekdayOf(opening.date);
+  const cueRef = useSeenOnce<HTMLElement>(onCueSeen);
 
   return (
     <article className={`text-stone-800 ${rise ? "" : "invitation-static"}`}>
-      <header className="relative flex min-h-dvh flex-col items-center justify-center px-6 pb-28 pt-16 text-center">
+      <header
+        className="relative flex flex-col items-center justify-center px-6 pb-20 pt-16 text-center"
+        style={{ minHeight: `calc(100dvh - ${INVITATION_PEEK_PX}px)` }}
+      >
         <p style={delay(0)} className="invitation-rise text-[10px] tracking-[0.45em] text-stone-500">
           WEDDING INVITATION
         </p>
@@ -60,8 +75,8 @@ export function InvitationView({
         <p style={delay(0.6)} className="invitation-rise mt-2 text-sm tracking-[0.2em] text-stone-500">
           {opening.venue}
         </p>
-        {/* 画面下の「エントリーする」の上に出す */}
-        <div aria-hidden className="absolute inset-x-0 text-[10px] tracking-[0.3em] text-stone-500" style={{ bottom: "calc(6rem + env(safe-area-inset-bottom))" }}>
+        {/* 1画面目の下端の少し上。2回目以降は最初から出る画面下の「エントリーする」（下から 80px ほど）にもかぶらない */}
+        <div aria-hidden className="absolute inset-x-0 bottom-6 text-[10px] tracking-[0.3em] text-stone-500">
           SCROLL
           <span className="invitation-scroll-cue mx-auto mt-2 block h-[26px] w-px bg-stone-400" />
         </div>
@@ -77,12 +92,12 @@ export function InvitationView({
       )}
 
       {highlights.length > 0 && (
-        <Section title="当日のおたのしみ">
+        <Section title="当日のおたのしみ" sectionRef={cueRef}>
           <InvitationHighlights items={highlights} />
         </Section>
       )}
 
-      <Section title="PROGRAM">
+      <Section title="PROGRAM" sectionRef={highlights.length > 0 ? undefined : cueRef}>
         <ProgramList program={program} />
       </Section>
 
@@ -117,13 +132,15 @@ export function InvitationView({
           )}
         </div>
       </Section>
+
+      {footer && <div className="px-5 pb-2 pt-3">{footer}</div>}
     </article>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, sectionRef }: { title: string; children: ReactNode; sectionRef?: Ref<HTMLElement> }) {
   return (
-    <section className="px-5 pb-7 pt-2">
+    <section ref={sectionRef} className="px-5 pb-7 pt-2">
       <h2 className="mb-[18px] text-center text-[10px] font-semibold tracking-[0.4em] text-stone-500">{title}</h2>
       {children}
     </section>

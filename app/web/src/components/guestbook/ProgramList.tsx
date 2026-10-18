@@ -9,22 +9,19 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 const TIME_COL_PX = 56;
 const DOT_GAP_PX = 5;
 const DOT_PX = 14;
-const ROPE_PX = 4;
+const LINE_PX = 2;
 
 /**
  * 招待状の PROGRAM（当日の流れ。Issue #166）。時刻・点・項目名・補足を縦に並べる。
- * 点をつなぐ縦線はプールのコースロープ柄。挙式・披露宴（highlight）の点はアクセント色で塗る。
+ * 点をつなぐ縦線はインクの色を薄くした細い1本（Issue #178）。挙式・披露宴（highlight）の点はアクセント色で塗り、
+ * それ以外は白抜き（枠はインク）。★色はインクとオレンジの2色だけ★
  * ★中身は config/invitation の program だけ★ 時刻をコードに書かない。
  */
 export function ProgramList({ program }: { program: readonly ProgramItem[] }) {
-  const ropeLeft = TIME_COL_PX + DOT_GAP_PX + DOT_PX / 2 - ROPE_PX / 2;
+  const lineLeft = TIME_COL_PX + DOT_GAP_PX + DOT_PX / 2 - LINE_PX / 2;
   return (
     <div className="relative mx-1.5">
-      <span
-        aria-hidden
-        className="absolute bottom-2 top-2 rounded-sm opacity-55"
-        style={{ left: ropeLeft, width: ROPE_PX, background: INVITATION_COLORS.rope }}
-      />
+      <span aria-hidden className="absolute bottom-2 top-2" style={{ left: lineLeft, width: LINE_PX, background: INVITATION_COLORS.line }} />
       <ol>
         {program.map((row, i) => {
           const dot: CSSProperties = row.highlight
