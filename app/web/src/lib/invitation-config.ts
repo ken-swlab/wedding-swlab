@@ -1,5 +1,6 @@
 import { NAME_STYLES, type CoupleNames } from "./opening-names.ts";
 import type {
+  InvitationAfterParty,
   InvitationConfig,
   InvitationFromUs,
   InvitationHeroPhoto,
@@ -62,6 +63,10 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
   // 地図のリンクは https だけ（画面が href にそのまま入れる）
   if (venueMapUrl === null || (venueMapUrl && !/^https:\/\//.test(venueMapUrl))) return { ok: false, field: "venueMapUrl" };
 
+  // 2次会の会場。任意（以前の config/invitation もそのまま通す）
+  const afterParty = parseAfterParty(d.afterParty);
+  if (!afterParty.ok) return { ok: false, field: afterParty.field };
+
   if (!Array.isArray(d.greeting) || d.greeting.length === 0 || d.greeting.length > MAX_GREETING_LINES) return { ok: false, field: "greeting" };
   const greeting: string[] = [];
   for (const line of d.greeting) {
@@ -108,6 +113,7 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       venueName: out.venueName,
       venueAddress: out.venueAddress,
       venueMapUrl,
+      ...(afterParty.value ? { afterParty: afterParty.value } : {}),
       greeting,
       program: program.value,
       ...(approvalNote ? { approvalNote } : {}),
@@ -118,6 +124,21 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       opening: { date, venue, names: names as CoupleNames },
     },
   };
+}
+
+/** 2次会の会場の形を確かめる。未設定なら value は undefined */
+function parseAfterParty(v: unknown): { ok: true; value: InvitationAfterParty | undefined } | { ok: false; field: string } {
+  if (v === undefined) return { ok: true, value: undefined };
+  if (!v || typeof v !== "object") return { ok: false, field: "afterParty" };
+  const r = v as Record<string, unknown>;
+  const venueName = text(r.venueName);
+  if (venueName === null) return { ok: false, field: "afterParty.venueName" };
+  const venueAddress = text(r.venueAddress ?? "", true);
+  if (venueAddress === null) return { ok: false, field: "afterParty.venueAddress" };
+  const venueMapUrl = text(r.venueMapUrl ?? "", true);
+  // 地図のリンクは https だけ（画面が href にそのまま入れる）
+  if (venueMapUrl === null || (venueMapUrl && !/^https:\/\//.test(venueMapUrl))) return { ok: false, field: "afterParty.venueMapUrl" };
+  return { ok: true, value: { venueName, venueAddress, venueMapUrl } };
 }
 
 /** 当日の流れの形を確かめる。だめなら、だめだった項目の名前（例: program.2.time）を返す */

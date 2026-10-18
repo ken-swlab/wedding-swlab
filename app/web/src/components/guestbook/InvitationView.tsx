@@ -23,7 +23,7 @@ const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
  *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）。
  *            高さは画面より INVITATION_PEEK_PX 低くし、シルエット写真の上端を画面の下にちらっと見せる（Issue #178）
  *   その先 … シルエット写真・FROM US（ふたりから）・当日のおたのしみ（Issue #173）・PROGRAM（当日の流れ）・
- *            MESSAGE（以前のご挨拶。showGreeting のときだけ）・VENUE（会場・地図・会費）
+ *            MESSAGE（以前のご挨拶。showGreeting のときだけ）・VENUE（会場・地図・2次会の会場・会費）
  *
  * ★飛び込みの直後に読む場所なので、説明文を置かない★ 出欠の回答はエントリー画面（InvitationFlow）に分けた。
  * ★名前・日付・会場は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
@@ -48,7 +48,7 @@ export function InvitationView({
   /** ページの一番下（VENUE の下）に置くもの（エントリーするのボタン。Issue #178） */
   footer?: ReactNode;
 }) {
-  const { groom, bride, venueName, venueAddress, venueMapUrl, greeting, program, fee, photos, fromUs, highlights, showGreeting } = invitation;
+  const { groom, bride, venueName, venueAddress, venueMapUrl, afterParty, greeting, program, fee, photos, fromUs, highlights, showGreeting } = invitation;
   const weekday = weekdayOf(opening.date);
   const cueRef = useSeenOnce<HTMLElement>(onCueSeen);
 
@@ -116,10 +116,15 @@ export function InvitationView({
         <div className="selectable rounded-2xl border border-stone-200/80 bg-white p-4 text-[13px] leading-[1.8]">
           <b className="text-[14px] text-stone-800">{venueName}</b>
           <p className="text-stone-600">{venueAddress}</p>
-          {venueMapUrl && (
-            <a href={venueMapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-[12.5px] text-stone-500 underline underline-offset-4">
-              地図を開く
-            </a>
+          {venueMapUrl && <MapLink href={venueMapUrl} />}
+          {/* 2次会の会場。1次会の下に出す。未設定なら出さない */}
+          {afterParty && (
+            <div className="mt-3 border-t border-stone-100 pt-3">
+              <p className="text-[10.5px] tracking-[0.2em] text-stone-500">2次会</p>
+              <b className="mt-0.5 block text-[14px] text-stone-800">{afterParty.venueName}</b>
+              {afterParty.venueAddress && <p className="text-stone-600">{afterParty.venueAddress}</p>}
+              {afterParty.venueMapUrl && <MapLink href={afterParty.venueMapUrl} />}
+            </div>
           )}
           {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない */}
           {fee && (
@@ -135,6 +140,14 @@ export function InvitationView({
 
       {footer && <div className="px-5 pb-2 pt-3">{footer}</div>}
     </article>
+  );
+}
+
+function MapLink({ href }: { href: string }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-[12.5px] text-stone-500 underline underline-offset-4">
+      地図を開く
+    </a>
   );
 }
 

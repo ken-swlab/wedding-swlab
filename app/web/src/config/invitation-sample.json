@@ -5,6 +5,7 @@
   "venueName": "（ダミー）会場名",
   "venueAddress": "（ダミー）住所",
   "venueMapUrl": "",
+  "afterParty": { "venueName": "（ダミー）2次会の会場名", "venueAddress": "（ダミー）2次会の住所", "venueMapUrl": "" },
   "greeting": ["（ダミー）ご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
   "program": [
     { "time": "11:30", "title": "集合", "note": "挙式に参加される方", "highlight": false, "role": "gather" },
