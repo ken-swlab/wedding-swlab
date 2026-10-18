@@ -48,6 +48,34 @@ test("地図の URL は https だけ通す。余分な項目は捨てる", () =>
   assert.equal("extra" in r.value, false);
 });
 
+test("2次会の会場（afterParty）は任意。会場名は必須、住所と地図は省略できる。地図は https だけ", () => {
+  const r = parseInvitationConfig(sample());
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.value.afterParty, { venueName: "（ダミー）2次会の会場名", venueAddress: "（ダミー）2次会の住所", venueMapUrl: "" });
+
+  const none = sample();
+  delete none.afterParty;
+  assert.equal("afterParty" in parseInvitationConfig(none).value, false);
+
+  const short = sample();
+  short.afterParty = { venueName: "会場", venueMapUrl: "https://maps.app.goo.gl/example" };
+  assert.deepEqual(parseInvitationConfig(short).value.afterParty, { venueName: "会場", venueAddress: "", venueMapUrl: "https://maps.app.goo.gl/example" });
+
+  const broken = [
+    [(d) => (d.afterParty = "会場"), "afterParty"],
+    [(d) => (d.afterParty = null), "afterParty"],
+    [(d) => (d.afterParty.venueName = ""), "afterParty.venueName"],
+    [(d) => (d.afterParty.venueAddress = "あ".repeat(201)), "afterParty.venueAddress"],
+    [(d) => (d.afterParty.venueMapUrl = "javascript:alert(1)"), "afterParty.venueMapUrl"],
+    [(d) => (d.afterParty.venueMapUrl = "http://example.com/"), "afterParty.venueMapUrl"],
+  ];
+  for (const [mutate, field] of broken) {
+    const x = sample();
+    mutate(x);
+    assert.deepEqual(parseInvitationConfig(x), { ok: false, field }, field);
+  }
+});
+
 test("当日の流れ（program）は1行以上。時刻は HH:MM か空（Issue #166）", () => {
   const r = parseInvitationConfig(sample());
   assert.equal(r.ok, true);

@@ -9,6 +9,8 @@ export type InvitationContent = {
   venueAddress: string;
   /** Google マップの共有 URL（空なら出さない） */
   venueMapUrl: string;
+  /** 2次会の会場。VENUE の1次会の下に出す。未設定なら出さない */
+  afterParty?: InvitationAfterParty;
   greeting: readonly string[];
   /**
    * 当日の流れ（Issue #166）。招待状の PROGRAM・エントリー画面の上部・挙式の選択肢の時刻は、すべてここから組み立てる。
@@ -69,6 +71,14 @@ export type InvitationFromUs = {
   /** 読み上げ用の説明（必須） */
   alt: string;
   message: string;
+};
+
+/** 2次会の会場。会場名は必須、住所と地図は任意（空なら出さない） */
+export type InvitationAfterParty = {
+  venueName: string;
+  venueAddress: string;
+  /** Google マップの共有 URL（https だけ。空なら出さない） */
+  venueMapUrl: string;
 };
 
 /** 当日のおたのしみのアイコン（線画）の種類 */
