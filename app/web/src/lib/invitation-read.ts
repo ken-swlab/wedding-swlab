@@ -21,3 +21,12 @@ export function markInvitationRead() {
     /* 覚えられなくても困らない（次回も初回として扱うだけ） */
   }
 }
+
+/** 読んだ記録を消す。テスト画面（/admin/invitation_test）で、初めての人の動きを確かめ直すためだけに使う */
+export function clearInvitationRead() {
+  try {
+    window.localStorage.removeItem(INVITATION_READ_STORAGE_KEY);
+  } catch {
+    /* 消せなくても困らない（テストの確認ができないだけ） */
+  }
+}
