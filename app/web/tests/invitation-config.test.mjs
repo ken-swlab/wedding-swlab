@@ -129,6 +129,13 @@ test("写真・ふたりから・当日のおたのしみ（Issue #173）は任�
   assert.equal(s.value.fromUs.length, 2);
   assert.deepEqual(s.value.highlights.map((h) => h.key), ["food", "drink", "game"]);
 
+  // 重ねる文字の色（Issue #178）。省略なら黒
+  const c = sample();
+  delete c.photos.hero.overlayColor;
+  assert.equal(parseInvitationConfig(c).value.photos.hero.overlayColor, "black");
+  c.photos.hero.overlayColor = "white";
+  assert.equal(parseInvitationConfig(c).value.photos.hero.overlayColor, "white");
+
   const g = sample();
   g.showGreeting = true;
   assert.equal(parseInvitationConfig(g).value.showGreeting, true);
@@ -152,6 +159,7 @@ test("写真の URL は仮の画像（/placeholders/invitation/）か https だ�
     [(d) => (d.photos.hero.url = "/uploads/hero.jpg"), "photos.hero.url"],
     [(d) => (d.photos.hero.alt = ""), "photos.hero.alt"],
     [(d) => (d.photos = "x"), "photos"],
+    [(d) => (d.photos.hero.overlayColor = "red"), "photos.hero.overlayColor"],
     [(d) => (d.fromUs[1].photoUrl = "data:image/png;base64,AAAA"), "fromUs.1.photoUrl"],
     [(d) => delete d.fromUs[0].alt, "fromUs.0.alt"],
     [(d) => (d.fromUs[0].name = ""), "fromUs.0.name"],

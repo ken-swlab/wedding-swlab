@@ -204,25 +204,26 @@ export default function InvitationTestPage() {
   return (
     <>
       {/*
-        テスト用の操作パネル。★左上の小さな「テスト ▾」にたたみ、初期状態はたたむ★（Issue #167）
+        テスト用の操作パネル。★画面の右端の中ほどの小さな「テスト」にたたみ、初期状態はたたむ★（Issue #167）
         たたんでいる間は、画面録画してもゲストと同じ見た目になる（ボタンだけ残る）。
-        ★左上に置く★ オープニング・承認後の演出の「スキップ」は右上か下にあるので重ならない。
+        ★右端の中ほどに置く★（Issue #178）左上はエントリー画面の「PROGRAM 日付」、右上は「スキップ」・「招待状を見る」、
+        下はエントリーのボタンとタブがあり、どれとも重ならない場所。パネルは右端を空けて開き、ボタンでたためるようにする。
         オープニング（z-[100]）・承認後の演出（z-[90]）より上に出し、演出の途中でも開けるようにする。
       */}
-      <div className="fixed left-2.5 z-[200] text-[12px]" style={{ top: "calc(0.625rem + env(safe-area-inset-top))" }}>
-        <button
-          type="button"
-          onClick={() => setPanelOpen((o) => !o)}
-          aria-expanded={panelOpen}
-          aria-controls="invitation-test-panel"
-          className="min-h-9 touch-manipulation rounded-full bg-stone-900/55 px-3 text-[11px] text-white backdrop-blur"
-        >
-          テスト {panelOpen ? "▴" : "▾"}
-        </button>
+      <button
+        type="button"
+        onClick={() => setPanelOpen((o) => !o)}
+        aria-expanded={panelOpen}
+        aria-controls="invitation-test-panel"
+        className="fixed right-0 top-1/2 z-[201] min-h-11 -translate-y-1/2 touch-manipulation rounded-l-full bg-stone-900/55 pl-3 pr-2 text-[11px] text-white backdrop-blur"
+      >
+        テスト {panelOpen ? "▸" : "◂"}
+      </button>
       {panelOpen && (
       <aside
         id="invitation-test-panel"
-        className="mt-2 max-h-[calc(100dvh-4.5rem)] w-[min(24rem,calc(100vw-1.25rem))] overflow-y-auto rounded-2xl border border-stone-200 bg-white/95 p-3 text-stone-600 shadow-lg backdrop-blur"
+        className="fixed left-2.5 z-[200] max-h-[calc(100dvh-1.25rem)] w-[min(24rem,calc(100vw-4.5rem))] overflow-y-auto rounded-2xl border border-stone-200 bg-white/95 p-3 text-[12px] text-stone-600 shadow-lg backdrop-blur"
+        style={{ top: "calc(0.625rem + env(safe-area-inset-top))" }}
       >
         <div className="flex items-center gap-2">
           <Link href="/admin" className="text-stone-400 hover:text-stone-700">← 管理</Link>
@@ -269,7 +270,7 @@ export default function InvitationTestPage() {
           </div>
         )}
         <p className="mt-1.5 leading-relaxed text-stone-500">
-          ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。左上の「テスト」でこのパネルをたたむと、ゲストと同じ画面になります。
+          ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。右端の「テスト」でこのパネルをたたむと、ゲストと同じ画面になります。
         </p>
         <label className="mt-1.5 flex items-center gap-2">
           <span className="shrink-0">LINE 名:</span>
@@ -326,7 +327,6 @@ export default function InvitationTestPage() {
         {note && <p className="mt-1.5 rounded-xl bg-sky-50 px-3 py-2 text-sky-800">{note}</p>}
       </aside>
       )}
-      </div>
       {/* note はパネルをたたんでいても見えるように、画面の下にも出す（「回答を直す」の行き先など） */}
       {note && !panelOpen && (
         <p role="status" className="fixed inset-x-3 z-[200] rounded-xl bg-sky-50/95 px-3 py-2 text-[12px] text-sky-800 shadow" style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}>
@@ -416,12 +416,21 @@ function TestPending({
   );
 }
 
+/** テスト画面の下のタブ（見た目だけ。本番の GuestbookShell の NAV に合わせる） */
+const TEST_NAV = [
+  { label: "タイムライン", icon: "☰", community: false },
+  { label: "ギャラリー", icon: "▦", community: false },
+  { label: "コミュニティ", icon: "◎", community: true },
+  { label: "通知", icon: "♡", community: false },
+  { label: "マイページ", icon: "☺", community: false },
+] as const;
+
 /** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */
 const TEST_WELCOME: WelcomeContent = { postId: null, message: WELCOME_DEFAULT_MESSAGE, media: null, reactionCount: 0, authorPhotoURL: null };
 
 /**
  * 8. 承認後の演出（Issue #150）を、ゲストブックに似せた背景の上で流す。
- * ★本物のタイムラインは読まない★ 背景はダミーのカードと＋ボタン（data-welcome-plus）だけ。
+ * ★本物のタイムラインは読まない★ 背景はダミーのカードと＋ボタン（data-welcome-plus）と下のタブ（data-welcome-community）だけ。
  */
 function WelcomeTestStage({ curtain }: { curtain: boolean }) {
   // 承認待ちから来たときは、幕（ScreenFade の approved）が開ききってから演出を始める（本番の /guestbook と同じ）
@@ -466,6 +475,21 @@ function WelcomeTestStage({ curtain }: { curtain: boolean }) {
           </div>
         ))}
       </main>
+      {/* 本番の下のタブ（GuestbookShell の BottomNav）の代わり。3つ目の案内でコミュニティを照らす（Issue #178） */}
+      <nav aria-hidden className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+        <ul className="mx-auto flex h-16 max-w-xl">
+          {TEST_NAV.map((t) => (
+            <li
+              key={t.label}
+              data-welcome-community={t.community ? "" : undefined}
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-stone-400"
+            >
+              <span className="text-lg leading-none">{t.icon}</span>
+              {t.label}
+            </li>
+          ))}
+        </ul>
+      </nav>
       {running && (
         <WelcomeMoment
           content={TEST_WELCOME}

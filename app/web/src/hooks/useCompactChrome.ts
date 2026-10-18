@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CHROME_COMPACT_AFTER_PX,
   CHROME_EXPAND_AFTER_PX,
+  CHROME_EXPAND_EVENT,
   CHROME_TOP_ZONE_PX,
 } from "@/config/guestbook";
 
@@ -25,6 +26,7 @@ function typing(): boolean {
  *   iOS の端でのバウンド（行き過ぎて戻る）を「上へ戻した」と読まないため。
  * ★モーダル表示中（body が overflow: hidden）と文字入力中は状態を変えない★
  *   どちらもユーザーの「読み進める」操作ではないスクロールが起きる。
+ *   例外は CHROME_EXPAND_EVENT（通常表示に戻すだけ）。
  */
 export function useCompactChrome(resetKey: string) {
   // 画面（resetKey）が変わったら通常表示から始める。effect で setState せず、キーで切り分ける
@@ -76,9 +78,17 @@ export function useCompactChrome(resetKey: string) {
       if (!frame) frame = requestAnimationFrame(update);
     }
 
+    // 外から通常表示に戻させる（承認後の演出が下のタブを照らす前。Issue #178）
+    function onExpandRequest() {
+      down = 0;
+      setCompact(false);
+    }
+
     window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener(CHROME_EXPAND_EVENT, onExpandRequest);
     return () => {
       window.removeEventListener("scroll", onScroll);
+      window.removeEventListener(CHROME_EXPAND_EVENT, onExpandRequest);
       if (frame) cancelAnimationFrame(frame);
     };
   }, [resetKey]);

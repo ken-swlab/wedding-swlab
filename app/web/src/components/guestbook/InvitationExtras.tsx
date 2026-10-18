@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useState, type CSSProperties } from "react";
+import { useSeenOnce } from "@/hooks/useSeenOnce";
+import { INVITATION_COLORS } from "@/config/invitation";
 import { rehost } from "@/lib/media-url";
 import type {
   InvitationFromUs,
@@ -14,7 +16,7 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 
 /**
  * 招待状に足した「行きたい」と思わせる部分（Issue #173）。中身は config/invitation（GET /api/guest/invitation）から。
- *   シルエット写真 … 1画面目の直後。横幅いっぱい・4:5。上に日付と一言を重ねる
+ *   シルエット写真 … 1画面目の直後。横幅いっぱい・4:5。上下はページの地へ溶け込ませる。日付と一言を重ねられる（未設定なら出さない）
  *   ふたりから     … 丸い顔写真・名前・メッセージのカード（写真が未設定なら頭文字の丸）
  *   当日のおたのしみ … 文字中心のカードと小さな線画のアイコン
  *
@@ -28,31 +30,30 @@ function photoSrc(url: string): string {
   return url.startsWith("https://") ? rehost(url) : url;
 }
 
-/** 画面に入ったら true になる（一度だけ）。IntersectionObserver は対象の端末（iOS 12.2 以降の Safari・LINE）すべてにある */
+/** 画面に入ったら true になる（一度だけ） */
 function useRevealOnce<T extends Element>() {
-  const ref = useRef<T>(null);
   const [shown, setShown] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setShown(true);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.2 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const ref = useSeenOnce<T>(() => setShown(true));
   return { ref, shown };
 }
 
 /**
+ * 写真の上下を、ページの地の色へ溶け込ませるマスク（Issue #178）。上下それぞれ高さの 14%。左右は端まで写真のまま。
+ * ★四角い境目を見せない★ スタジオの白背景と紙の地の色の差が、四角く浮いて見えたため。
+ *   マスクは枠（読み込み前の灰色の地を含む）ごと効くので、色を合わせる必要がない。
+ */
+const HERO_FADE_MASK = "linear-gradient(180deg, transparent 0, #000 14%, #000 86%, transparent 100%)";
+
+/** 重ねる文字の色。黒は白背景のスタジオ写真向けで、影を付けない */
+const OVERLAY_STYLE: Record<HeroPhoto["overlayColor"], CSSProperties> = {
+  white: { color: "#fff", textShadow: "0 1px 3px rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.3)" },
+  black: { color: INVITATION_COLORS.ink },
+};
+
+/**
  * シルエット写真。画面に入ったら 1.2 秒でふわっと現れる（わずかに縮小→等倍。globals.css の invitation-reveal）。
  * prefers-reduced-motion では動かさず、はじめから出しておく。
+ * ★重ねる文字は、日付も一言も未設定なら何も出さない★
  */
 export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
   const { ref, shown } = useRevealOnce<HTMLDivElement>();
@@ -62,13 +63,11 @@ export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
         ref={ref}
         data-shown={shown ? "" : undefined}
         className="invitation-reveal relative aspect-[4/5] w-full overflow-hidden bg-stone-200"
+        style={{ maskImage: HERO_FADE_MASK, WebkitMaskImage: HERO_FADE_MASK }}
       >
         <Image src={photoSrc(photo.url)} alt={photo.alt} fill sizes="100vw" className="object-cover" />
         {(photo.overlayDate || photo.overlayText) && (
-          <p
-            className="absolute inset-x-0 top-[13%] text-center text-white"
-            style={{ textShadow: "0 1px 3px rgba(0,0,0,0.45), 0 0 18px rgba(0,0,0,0.3)" }}
-          >
+          <p className="absolute inset-x-0 top-[13%] text-center" style={OVERLAY_STYLE[photo.overlayColor]}>
             {photo.overlayDate && (
               <span className="block text-[40px] font-bold tracking-[0.12em] tabular-nums" style={{ fontFamily: MONO }}>
                 {photo.overlayDate}

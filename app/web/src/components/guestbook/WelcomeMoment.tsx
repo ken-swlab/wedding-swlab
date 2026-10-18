@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import { WELCOME_AFTER_LIKE_MS, WELCOME_FLY_MS } from "@/config/welcome";
+import { CHROME_EXPAND_EVENT, CHROME_MORPH_MS } from "@/config/guestbook";
 import type { WelcomeContent } from "@/types/welcome";
 import { useHeartBursts } from "./HeartBurst";
 import { WelcomeCard } from "./WelcomeCard";
@@ -15,7 +16,9 @@ import { WelcomeCard } from "./WelcomeCard";
  *   fly    … ハートのあと、カードが縮みながらタイムラインの一番上（WelcomePinned）へ移る（FLIP）
  *   guide1 … 「ここがタイムライン。みんなの写真がここに流れてきます」（固定した投稿を照らす）
  *   guide2 … 「＋ から、あなたも写真を投稿できます」（＋ボタンを照らす）
- *   guide3 … 「仲間が待っています」（下のコミュニティのタブを照らす。Issue #174）。開くかどうかは任意（強制しない）
+ *   guide3 … 「仲間が待っています」（下のコミュニティのタブを照らす。Issue #174）。開くかどうかは任意（強制しない）。
+ *            ★照らす前に下のタブを通常表示に戻す★（Issue #178）スクロールで縮んだまま測ると、縮んだ細長い場所を
+ *            照らしていた。戻しても画面の外・大きさ 0・縮んだままなら照らさず、案内の文字だけを画面の中央下に出す。
  */
 type Phase = "arrive" | "fly" | "guide1" | "guide2" | "guide3";
 
@@ -28,6 +31,19 @@ function spotOf(el: Element | null): Spot | null {
   if (!el) return null;
   const r = el.getBoundingClientRect();
   return { top: r.top - SPOT_PAD, left: r.left - SPOT_PAD, width: r.width + SPOT_PAD * 2, height: r.height + SPOT_PAD * 2 };
+}
+
+/**
+ * 画面の中にそのままの大きさで見えているときだけ照らす場所を返す。
+ * 画面の外・大きさ 0・transform で縮んでいる（getBoundingClientRect が本来の大きさより小さい）なら null。
+ */
+function visibleSpotOf(el: Element | null): Spot | null {
+  if (!(el instanceof HTMLElement)) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width < 1 || r.height < 1) return null;
+  if (r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth) return null;
+  if (r.width < el.offsetWidth * 0.9 || r.height < el.offsetHeight * 0.9) return null;
+  return spotOf(el);
 }
 
 /**
@@ -46,9 +62,10 @@ function spotOf(el: Element | null): Spot | null {
  *   iOS のダブルタップでの拡大と競合させない。
  * ★いいねの案内は「タップでいいね」のボタンだけ★（Issue #157 A-4）写真のダブルタップでも同じ流れになるが、
  *   案内はしない（「ダブルタップでいいね」の文字とボタンが同時に出て、どちらを押すか迷わせていた）。
- * ★スキップは「タップでいいね」の下に置く★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
- *   右上に置くと、暗くした下に透けるヘッダーの＋ボタンと重なって見えた（Issue #167）。画面の下に固定すると、
- *   背の低い iPhone でカードと重なるため、カードと同じ列に並べる。
+ * ★演出の最中は背景を黒の 75% とぼかしで沈める★（Issue #178）60% では、見出しが背景の投稿欄の文字と重なって読めなかった。
+ * ★スキップは画面の右上に、枠つきではっきり出す★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
+ *   以前は右上で、透けたヘッダーの＋ボタンと重なって見えた（Issue #167）。次にカードの下に並べたら、透けた背景の
+ *   「コメントする」と重なって見えた（Issue #178）。背景を沈めたうえで、カードと離れた右上に戻す。
  * ★動かすのは transform と opacity だけ★ prefers-reduced-motion では、引き込みの動きを省いてフェードで切り替える。
  */
 export function WelcomeMoment({
@@ -71,6 +88,8 @@ export function WelcomeMoment({
   const [liked, setLiked] = useState(false);
   const [spot, setSpot] = useState<Spot | null>(null);
   const [fading, setFading] = useState(false);
+  /** 下のタブを通常表示に戻している最中（このあいだのタップは無視する） */
+  const settling = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
   const finished = useRef(false);
@@ -174,8 +193,16 @@ export function WelcomeMoment({
       setSpot(spotOf(plus));
       setPhase("guide2");
     } else if (phase === "guide2") {
-      setSpot(spotOf(document.querySelector("[data-welcome-community]")));
-      setPhase("guide3");
+      if (settling.current) return;
+      settling.current = true;
+      // 縮んだ下のタブを戻し、戻りきってから測る
+      window.dispatchEvent(new Event(CHROME_EXPAND_EVENT));
+      setTimeout(() => {
+        settling.current = false;
+        if (finished.current) return;
+        setSpot(visibleSpotOf(document.querySelector("[data-welcome-community]")));
+        setPhase("guide3");
+      }, prefersReducedMotion() ? 50 : CHROME_MORPH_MS + 80);
     } else if (phase === "guide3") {
       finish(false);
     }
@@ -194,7 +221,7 @@ export function WelcomeMoment({
     >
       {!guiding && (
         <>
-          <div ref={backdropRef} className="welcome-fade-in absolute inset-0 bg-black/60" />
+          <div ref={backdropRef} className="welcome-fade-in absolute inset-0 bg-black/75 backdrop-blur-sm" />
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center px-5 transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}
             style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
@@ -224,18 +251,19 @@ export function WelcomeMoment({
                 </button>
               )}
             </div>
-            {/* 案内の間は出さない（どこをタップしても進む）。fly の間も押せる */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                finish(true);
-              }}
-              className="mt-1 min-h-11 touch-manipulation rounded-full px-5 text-xs text-white/80 underline underline-offset-4"
-            >
-              スキップ
-            </button>
           </div>
+          {/* 案内の間は出さない（どこをタップしても進む）。fly の間も押せる */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              finish(true);
+            }}
+            className={`absolute right-3 min-h-11 touch-manipulation rounded-full bg-black/40 px-4 text-[13px] font-medium text-white ring-1 ring-white/60 transition-opacity duration-300 ${fading ? "opacity-0" : ""}`}
+            style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
+          >
+            スキップ
+          </button>
         </>
       )}
 
@@ -253,6 +281,8 @@ export function WelcomeMoment({
           />
           <GuideBubble
             spot={spot}
+            // 照らせなかった「仲間が待っています」は画面の中央下（下のタブのあたり）に出す
+            fallback={phase === "guide3" ? "low" : "middle"}
             text={
               phase === "guide1"
                 ? "ここがタイムライン。みんなの写真がここに流れてきます"
@@ -287,9 +317,20 @@ const BUBBLE_ROOM = 130;
  * 案内の吹き出し。照らす場所の下に置き、入りきらなければ上に置く。
  * ★上下どちらにも入らない（照らす投稿が画面の大半を占める）ときは、画面の下端に重ねる★
  */
-function GuideBubble({ spot, text, action }: { spot: Spot | null; text: string; action?: { label: string; onClick: () => void } }) {
+function GuideBubble({
+  spot,
+  text,
+  action,
+  fallback,
+}: {
+  spot: Spot | null;
+  text: string;
+  action?: { label: string; onClick: () => void };
+  /** 照らす場所が無いときの位置。middle … 画面の中ほど ／ low … 画面の中央下 */
+  fallback: "middle" | "low";
+}) {
   const h = window.innerHeight;
-  let style: CSSProperties = { top: "40%" };
+  let style: CSSProperties = fallback === "low" ? { bottom: "calc(22% + env(safe-area-inset-bottom))" } : { top: "40%" };
   if (spot) {
     if (spot.top + spot.height + BUBBLE_ROOM < h) style = { top: Math.max(spot.top + spot.height + 12, 0) };
     else if (spot.top > BUBBLE_ROOM) style = { bottom: h - spot.top + 12 };

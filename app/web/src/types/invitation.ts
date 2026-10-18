@@ -56,7 +56,11 @@ export type InvitationHeroPhoto = {
   overlayDate: string;
   /** 日付の下に重ねる一言（空なら出さない） */
   overlayText: string;
+  /** 重ねる文字の色（Issue #178）。白背景のスタジオ写真で読めるよう、既定は黒 */
+  overlayColor: InvitationOverlayColor;
 };
+
+export type InvitationOverlayColor = "white" | "black";
 
 /** ふたりからのカード1枚。写真が未設定なら、名前の頭文字の丸を出す */
 export type InvitationFromUs = {

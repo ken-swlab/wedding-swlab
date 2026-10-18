@@ -181,7 +181,10 @@ function parseExtras(d: Record<string, unknown>): { ok: true; value: Extras } | 
       if (overlayDate === null) return { ok: false, field: "photos.hero.overlayDate" };
       const overlayText = text(h.overlayText ?? "", true);
       if (overlayText === null) return { ok: false, field: "photos.hero.overlayText" };
-      hero = { url, alt, overlayDate, overlayText };
+      // 重ねる文字の色（Issue #178）。省略なら黒
+      const overlayColor = h.overlayColor ?? "black";
+      if (overlayColor !== "white" && overlayColor !== "black") return { ok: false, field: "photos.hero.overlayColor" };
+      hero = { url, alt, overlayDate, overlayText, overlayColor };
     }
   }
 
