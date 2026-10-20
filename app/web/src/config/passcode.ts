@@ -25,3 +25,12 @@ export const PASSCODE_LOCK_MINUTES = 30;
  *   解除は管理画面（/admin の「パスコードで停止中」）から。
  */
 export const PASSCODE_MAX_LOCKS = 2;
+
+/**
+ * 間違えたときのヒント（config/invitation の passcodeHint）を、何回目の間違いから出すかの既定（Issue #181）。
+ * config/invitation の passcodeHintFrom で変えられる。1回目はエラーだけにして、打ち間違いと見分ける。
+ */
+export const PASSCODE_HINT_FROM_DEFAULT = 2;
+
+/** ロックまでの残りがこの回数以下になったら、残りの回数を出す（Issue #181） */
+export const PASSCODE_WARN_REMAINING = 2;

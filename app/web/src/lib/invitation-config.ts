@@ -1,4 +1,5 @@
 import { NAME_STYLES, type CoupleNames } from "./opening-names.ts";
+import { PASSCODE_MAX_ATTEMPTS } from "../config/passcode.ts";
 import type {
   InvitationAfterParty,
   InvitationConfig,
@@ -83,6 +84,18 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
   const approvalNote = text(d.approvalNote ?? "", true);
   if (approvalNote === null) return { ok: false, field: "approvalNote" };
 
+  // パスコードを間違えたときのヒント（Issue #181）。任意。空なら出さない
+  const passcodeHint = text(d.passcodeHint ?? "", true);
+  if (passcodeHint === null) return { ok: false, field: "passcodeHint" };
+  // 何回目の間違いから出すか。任意（省略なら PASSCODE_HINT_FROM_DEFAULT）。ロックより後は出せないので上限は PASSCODE_MAX_ATTEMPTS - 1
+  const passcodeHintFrom = d.passcodeHintFrom;
+  if (
+    passcodeHintFrom !== undefined &&
+    (typeof passcodeHintFrom !== "number" || !Number.isInteger(passcodeHintFrom) || passcodeHintFrom < 1 || passcodeHintFrom >= PASSCODE_MAX_ATTEMPTS)
+  ) {
+    return { ok: false, field: "passcodeHintFrom" };
+  }
+
   // 写真・ふたりから・当日のおたのしみ（Issue #173）。どれも任意（以前の config/invitation もそのまま通す）
   const extras = parseExtras(d);
   if (!extras.ok) return { ok: false, field: extras.field };
@@ -117,6 +130,8 @@ export function parseInvitationConfig(data: unknown): { ok: true; value: Invitat
       greeting,
       program: program.value,
       ...(approvalNote ? { approvalNote } : {}),
+      ...(passcodeHint ? { passcodeHint } : {}),
+      ...(passcodeHintFrom !== undefined ? { passcodeHintFrom } : {}),
       ...(extras.value.hero ? { photos: { hero: extras.value.hero } } : {}),
       fromUs: extras.value.fromUs,
       highlights: extras.value.highlights,

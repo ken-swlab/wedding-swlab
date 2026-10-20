@@ -17,6 +17,8 @@ import { OPENING_NOTE } from "@/config/invitation";
 import { classifyDisplayName } from "@/lib/opening-names";
 import { clearInvitationRead, hasReadInvitation } from "@/lib/invitation-read";
 import { getJson } from "@/lib/api-client";
+import { PasscodeError, passcodeFeedback } from "@/lib/passcode-feedback";
+import { PASSCODE_HINT_FROM_DEFAULT } from "@/config/passcode";
 import { ScreenFade } from "@/components/ScreenFade";
 import { APPROVED_REVEAL_MS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationConfig, InvitationStatus } from "@/types/invitation";
@@ -108,6 +110,8 @@ export default function InvitationTestPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   /** 読んだ記録があるか。パネルを開くたびに読み直す（読み進めたり送信したりすると、途中で付くため） */
   const [readRecorded, setReadRecorded] = useState(false);
+  /** パスコードを間違えた回数（Issue #181）。★テスト画面の中だけで数える★ 最初から・パスコードを直接開くと 0 に戻す */
+  const wrongCount = useRef(0);
 
   // 本番の値を受け取る。サーバーは最大60秒キャッシュするので、set の直後は古いことがある
   useEffect(() => {
@@ -137,6 +141,7 @@ export default function InvitationTestPage() {
     console.log("[invitation_test] 最初から");
     setNote(null);
     setPanelOpen(false);
+    wrongCount.current = 0;
     setStep({ kind: "entrance", busy: false, message: null });
   }, []);
 
@@ -148,8 +153,12 @@ export default function InvitationTestPage() {
   const onPasscodeSubmit = useCallback(async (passcode: string) => {
     console.log("[invitation_test] パスコード送信（ダミー）", passcode.length, "桁");
     await new Promise((r) => setTimeout(r, 400));
-    if (passcode === WRONG_PASSCODE) throw new Error("パスコードが違います（ダミーのエラーです）");
-  }, []);
+    // 本番（api/guest/passcode）と同じ文言・ヒント・残りの回数。ヒントは中身の切り替え（本番の値・見本）に従う。ロックはしない
+    if (passcode === WRONG_PASSCODE) {
+      wrongCount.current += 1;
+      throw new PasscodeError("パスコードが違います", passcodeFeedback(wrongCount.current, currentInvitation, "temporary"));
+    }
+  }, [currentInvitation]);
 
   // 枠が線になる演出のあと、オープニングへ（Issue #165。本番の /invitation と同じ順番）
   const onPasscodeCleared = useCallback(() => {
@@ -180,7 +189,10 @@ export default function InvitationTestPage() {
     setPanelOpen(false);
     if (kind === "finish") setStep({ kind, guestName: classifyDisplayName(displayName).guest });
     else if (kind === "welcome") setStep({ kind, run: Date.now(), curtain: false });
-    else if (kind === "passcode") setStep({ kind: "passcode" });
+    else if (kind === "passcode") {
+      wrongCount.current = 0;
+      setStep({ kind: "passcode" });
+    }
     else if (kind === "dive") {
       setStep({
         kind: "opening",
@@ -207,10 +219,11 @@ export default function InvitationTestPage() {
   return (
     <>
       {/*
-        テスト用の操作パネル。★画面の右端の中ほどの小さな「テスト」にたたみ、初期状態はたたむ★（Issue #167）
+        テスト用の操作パネル。★画面の右端の小さな「テスト」にたたみ、初期状態はたたむ★（Issue #167）
         たたんでいる間は、画面録画してもゲストと同じ見た目になる（ボタンだけ残る）。
-        ★右端の中ほどに置く★（Issue #178）左上はエントリー画面の「PROGRAM 日付」、右上は「スキップ」・「招待状を見る」、
-        下はエントリーのボタンとタブがあり、どれとも重ならない場所。パネルは右端を空けて開き、ボタンでたためるようにする。
+        ★右端の下寄り、エントリーのボタンの帯（高さ約 5rem）のすぐ上に置く★（Issue #181）
+          中ほど（Issue #178）はパスコードの4つの枠に重なった。左上はエントリー画面の「PROGRAM 日付」、右上は「スキップ」・
+          「招待状を見る」、一番下はエントリーのボタンとタブがある。パネルは右端を空けて開き、ボタンでたためるようにする。
         オープニング（z-[100]）・承認後の演出（z-[90]）より上に出し、演出の途中でも開けるようにする。
       */}
       <button
@@ -221,7 +234,8 @@ export default function InvitationTestPage() {
         }}
         aria-expanded={panelOpen}
         aria-controls="invitation-test-panel"
-        className="fixed right-0 top-1/2 z-[201] min-h-11 -translate-y-1/2 touch-manipulation rounded-l-full bg-stone-900/55 pl-3 pr-2 text-[11px] text-white backdrop-blur"
+        style={{ bottom: "calc(5.75rem + env(safe-area-inset-bottom))" }}
+        className="fixed right-0 z-[201] min-h-11 touch-manipulation rounded-l-full bg-stone-900/55 pl-3 pr-2 text-[11px] text-white backdrop-blur"
       >
         テスト {panelOpen ? "▸" : "◂"}
       </button>
@@ -297,7 +311,9 @@ export default function InvitationTestPage() {
           </div>
         )}
         <p className="mt-1.5 leading-relaxed text-stone-500">
-          ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します。右端の「テスト」でこのパネルをたたむと、ゲストと同じ画面になります。
+          ログイン・保存はしません。パスコードは {WRONG_PASSCODE} で失敗、それ以外は成功します（ヒント: {currentInvitation.passcodeHint
+            ? `${currentInvitation.passcodeHintFrom ?? PASSCODE_HINT_FROM_DEFAULT}回目の失敗から`
+            : "未設定"}。ロックはしません）。右端の「テスト」でこのパネルをたたむと、ゲストと同じ画面になります。
         </p>
         <label className="mt-1.5 flex items-center gap-2">
           <span className="shrink-0">LINE 名:</span>
