@@ -13,6 +13,7 @@ import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
 import { hasReadInvitation, markInvitationRead } from "@/lib/invitation-read";
 import { useSeenOnce } from "@/hooks/useSeenOnce";
+import { useInView } from "@/hooks/useInView";
 import { OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationContent, OpeningContent } from "@/types/invitation";
 
@@ -164,6 +165,9 @@ export function InvitationFlow({ step, onLogin, onPasscodeSubmit, onPasscodeClea
  *       （無ければ PROGRAM）が画面に入ったら下からふわっと出す。一度出したら、上に戻っても出したまま。
  *       開いてすぐ押されて下を読まれない・シルエットの足元にかぶる、を避けるため。
  *     2回目以降（この端末で回答した・最後まで読んだ）は、表示されてから ENTRY_BAR_DELAY_MS 後に出す。
+ *     ★一番下のボタンが画面に入っている間は、固定のボタンを隠す★（Issue #187）2つが上下に並んで、押す場所が
+ *       2つあるように見えたため。一番下まで来ると、固定のボタンが一番下のボタンに入れ替わるように見せる。
+ *       上に戻って一番下のボタンが画面から出たら、また出す（barOn は一度 true になったら true のまま）。
  *   エントリー画面 … 上部に当日の流れ（ProgramStrip）を固定し、その下に出欠の回答フォーム。
  * ★回答フォームは招待状に戻っても消さない★ hidden で隠すだけにして、入力中の内容を残す。
  * ★切り替えたら一番上へ★ 招待状の下のほうから移っても、フォームの最初（1/4 お名前）から見せる。
@@ -192,6 +196,9 @@ function InvitationOpen({
   const showBar = useCallback(() => setBarOn(true), []);
   // ページの一番下のボタンまで来たら「最後まで読んだ」
   const endRef = useSeenOnce<HTMLDivElement>(markInvitationRead);
+  // 一番下のボタンが少しでも画面に入っているか（Issue #187）。既読の判定（endRef）とは別に見張る
+  const [footerRef, footerInView] = useInView<HTMLDivElement>();
+  const barShown = barOn && !footerInView;
 
   const go = (next: boolean) => {
     setEntry(next);
@@ -210,7 +217,9 @@ function InvitationOpen({
           onCueSeen={readBefore ? undefined : showBar}
           footer={
             <div ref={endRef}>
-              <EntryButton onClick={() => go(true)} />
+              <div ref={footerRef}>
+                <EntryButton onClick={() => go(true)} />
+              </div>
             </div>
           }
         />
@@ -218,14 +227,14 @@ function InvitationOpen({
       {!entry && (
         <div
           className={`fixed inset-x-0 bottom-0 z-20 px-[18px] pt-3 transition-[opacity,transform] duration-[400ms] ease-out motion-reduce:transition-none ${
-            barOn ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-5 opacity-0"
+            barShown ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-5 opacity-0"
           }`}
           style={{
             paddingBottom: "calc(14px + env(safe-area-inset-bottom))",
             background: `linear-gradient(180deg, ${INVITATION_COLORS.paper}00, ${INVITATION_COLORS.paper} 35%)`,
           }}
         >
-          <EntryButton onClick={() => go(true)} hidden={!barOn} />
+          <EntryButton onClick={() => go(true)} hidden={!barShown} />
         </div>
       )}
       <div hidden={!entry} className={entry ? "invitation-entry-lift" : ""}>
