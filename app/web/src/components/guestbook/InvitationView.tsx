@@ -8,14 +8,17 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
 import { InvitationFromUsCards, InvitationHeroPhoto, InvitationHighlights } from "./InvitationExtras";
 import { ProgramList } from "./ProgramList";
 
-const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
-
 /** 上から順にふわっと出す（invitation-rise と組み合わせる）。秒 */
 function delay(sec: number): CSSProperties {
   return { animationDelay: `${sec}s` };
 }
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
+
+/** 項目の間の罫線（白いカードの代わり。Issue #189） */
+const RULE_TOP: CSSProperties = { borderTop: `1px solid ${INVITATION_COLORS.rule}` };
+/** VENUE の小見出し（2次会・会費） */
+const SUBHEAD = "font-serif text-[11px] tracking-[0.3em] text-stone-500";
 
 /**
  * パスコードを通った人に見せる招待状の本文（Issue #166 で作り直した）。中身は GET /api/guest/invitation から受け取る。
@@ -28,6 +31,9 @@ const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
  * ★飛び込みの直後に読む場所なので、説明文を置かない★ 出欠の回答はエントリー画面（InvitationFlow）に分けた。
  * ★名前・日付・会場は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
  *   日付と会場の短い表記は opening（オープニングの「招集」と同じもの）から。
+ * ★書体は CLAUDE.md の書体ルール★（Issue #189）目に留めるもの（名前・日付・見出し・会場名・会費）は明朝、
+ *   読み流すもの（住所・補足）と押すもの（地図を開く）はゴシック。MONO（電光掲示板の書体）は使わない。
+ *   白いカードは使わず、項目の間を罫線（INVITATION_COLORS.rule）で区切る。
  */
 export function InvitationView({
   invitation,
@@ -58,21 +64,22 @@ export function InvitationView({
         className="relative flex flex-col items-center justify-center px-6 pb-20 pt-16 text-center"
         style={{ minHeight: `calc(100dvh - ${INVITATION_PEEK_PX}px)` }}
       >
-        <p style={delay(0)} className="invitation-rise text-[10px] tracking-[0.45em] text-stone-500">
+        <p style={delay(0)} className="invitation-rise font-serif text-[11px] font-medium tracking-[0.4em] text-stone-500">
           WEDDING INVITATION
         </p>
-        <h1 style={delay(0.2)} className="invitation-rise mt-6 font-serif leading-tight">
-          <span className="block text-[34px] tracking-[0.08em]">{groom}</span>
-          <span className="my-1.5 block text-xl" style={{ color: INVITATION_COLORS.amp }}>
+        <h1 style={delay(0.2)} className="invitation-rise mt-6 font-serif font-medium leading-tight">
+          <span className="block text-[32px] tracking-[0.1em]">{groom}</span>
+          <span className="my-1.5 block text-[22px]" style={{ color: INVITATION_COLORS.gold }}>
             &amp;
           </span>
-          <span className="block text-[34px] tracking-[0.08em]">{bride}</span>
+          <span className="block text-[32px] tracking-[0.1em]">{bride}</span>
         </h1>
-        <p style={{ ...delay(0.45), fontFamily: MONO }} className="invitation-rise mt-7 text-[30px] font-bold tracking-[0.12em] tabular-nums">
+        {/* ★日付は名前より目立たせない★（Issue #189）名前が先に目に入るように、小さく・色を一段薄く */}
+        <p style={delay(0.45)} className="invitation-rise mt-7 font-serif text-[24px] font-medium tracking-[0.12em] tabular-nums text-stone-700">
           {opening.date}
-          {weekday && <small className="ml-1.5 text-[13px] font-normal tracking-[0.2em] text-stone-500">{weekday}</small>}
+          {weekday && <small className="ml-1.5 text-[12px] font-normal tracking-[0.2em] text-stone-500">{weekday}</small>}
         </p>
-        <p style={delay(0.6)} className="invitation-rise mt-2 text-sm tracking-[0.2em] text-stone-500">
+        <p style={delay(0.6)} className="invitation-rise mt-2 font-serif text-[12px] tracking-[0.45em] text-stone-500">
           {opening.venue}
         </p>
         {/* 1画面目の下端の少し上。2回目以降は最初から出る画面下の「エントリーする」（下から 80px ほど）にもかぶらない */}
@@ -113,24 +120,24 @@ export function InvitationView({
       )}
 
       <Section title="VENUE">
-        <div className="selectable rounded-2xl border border-stone-200/80 bg-white p-4 text-[13px] leading-[1.8]">
-          <b className="text-[14px] text-stone-800">{venueName}</b>
+        <div className="selectable text-[13px] leading-[1.8]">
+          <p className="font-serif text-[16px] font-semibold text-stone-800">{venueName}</p>
           <p className="text-stone-600">{venueAddress}</p>
           {venueMapUrl && <MapLink href={venueMapUrl} />}
           {/* 2次会の会場。1次会の下に出す。未設定なら出さない */}
           {afterParty && (
-            <div className="mt-3 border-t border-stone-100 pt-3">
-              <p className="text-[10.5px] tracking-[0.2em] text-stone-500">2次会</p>
-              <b className="mt-0.5 block text-[14px] text-stone-800">{afterParty.venueName}</b>
+            <div className="mt-3 pt-3" style={RULE_TOP}>
+              <p className={SUBHEAD}>2次会</p>
+              <p className="mt-0.5 font-serif text-[16px] font-semibold text-stone-800">{afterParty.venueName}</p>
               {afterParty.venueAddress && <p className="text-stone-600">{afterParty.venueAddress}</p>}
               {afterParty.venueMapUrl && <MapLink href={afterParty.venueMapUrl} />}
             </div>
           )}
           {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない */}
           {fee && (
-            <dl className="mt-3 border-t border-stone-100 pt-3">
-              <dt className="text-[10.5px] tracking-[0.2em] text-stone-500">会費</dt>
-              <dd className="mt-0.5 text-[14px] text-stone-700">
+            <dl className="mt-3 pt-3" style={RULE_TOP}>
+              <dt className={SUBHEAD}>会費</dt>
+              <dd className="mt-0.5 font-serif text-[14px] text-stone-700">
                 会食 {yen(fee.partyYen)} ／ 2次会 {yen(fee.secondYen)}
               </dd>
             </dl>
@@ -145,7 +152,7 @@ export function InvitationView({
 
 function MapLink({ href }: { href: string }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-[12.5px] text-stone-500 underline underline-offset-4">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center text-[12px] text-stone-500 underline underline-offset-4">
       地図を開く
     </a>
   );
@@ -154,7 +161,7 @@ function MapLink({ href }: { href: string }) {
 function Section({ title, children, sectionRef }: { title: string; children: ReactNode; sectionRef?: Ref<HTMLElement> }) {
   return (
     <section ref={sectionRef} className="px-5 pb-7 pt-2">
-      <h2 className="mb-[18px] text-center text-[10px] font-semibold tracking-[0.4em] text-stone-500">{title}</h2>
+      <h2 className="mb-[18px] text-center font-serif text-[12px] font-medium tracking-[0.42em] text-stone-600">{title}</h2>
       {children}
     </section>
   );

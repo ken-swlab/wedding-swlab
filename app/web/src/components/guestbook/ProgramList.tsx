@@ -3,18 +3,17 @@ import { INVITATION_COLORS } from "@/config/invitation";
 import { programTime, shortDateLabel } from "@/lib/invitation-program";
 import type { ProgramItem } from "@/types/invitation";
 
-const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
-
 /** 時刻の列の幅と、点の左の余白 (px)。縦線はちょうど点の中心を通す */
 const TIME_COL_PX = 56;
 const DOT_GAP_PX = 5;
-const DOT_PX = 14;
-const LINE_PX = 2;
+const DOT_PX = 12;
+const LINE_PX = 1;
 
 /**
  * 招待状の PROGRAM（当日の流れ。Issue #166）。時刻・点・項目名・補足を縦に並べる。
- * 点をつなぐ縦線はインクの色を薄くした細い1本（Issue #178）。挙式・披露宴（highlight）の点はアクセント色で塗り、
- * それ以外は白抜き（枠はインク）。★色はインクとオレンジの2色だけ★
+ * 点をつなぐ縦線は薄いベージュの細い1本。★点は金の1色だけ★（Issue #189）挙式・披露宴（highlight）は塗り、
+ * それ以外は中抜きの細い線。
+ * ★時刻は明朝★（Issue #189）隣の予定名と同じ書体にそろえる。MONO（電光掲示板の書体）は黒の画面だけで使う。
  * ★中身は config/invitation の program だけ★ 時刻をコードに書かない。
  */
 export function ProgramList({ program }: { program: readonly ProgramItem[] }) {
@@ -25,17 +24,17 @@ export function ProgramList({ program }: { program: readonly ProgramItem[] }) {
       <ol>
         {program.map((row, i) => {
           const dot: CSSProperties = row.highlight
-            ? { background: INVITATION_COLORS.led, borderColor: INVITATION_COLORS.led }
-            : { background: INVITATION_COLORS.paper, borderColor: INVITATION_COLORS.ink };
+            ? { background: INVITATION_COLORS.gold, borderColor: INVITATION_COLORS.gold }
+            : { background: INVITATION_COLORS.paper, borderColor: INVITATION_COLORS.gold };
           return (
             <li key={i} className="relative flex items-center py-3">
-              <span className="shrink-0 whitespace-nowrap text-right text-[17px] font-bold tabular-nums text-stone-800" style={{ width: TIME_COL_PX, fontFamily: MONO }}>
+              <span className="shrink-0 whitespace-nowrap text-right font-serif text-[17px] font-medium tabular-nums text-stone-600" style={{ width: TIME_COL_PX }}>
                 {programTime(row)}
               </span>
-              <span aria-hidden className="relative z-[1] shrink-0 rounded-full border-[2.5px]" style={{ ...dot, width: DOT_PX, height: DOT_PX, marginLeft: DOT_GAP_PX }} />
+              <span aria-hidden className="relative z-[1] shrink-0 rounded-full border-[1.5px]" style={{ ...dot, width: DOT_PX, height: DOT_PX, marginLeft: DOT_GAP_PX }} />
               <span className="ml-4 min-w-0 text-left">
-                <b className="block text-[15px] text-stone-800">{row.title}</b>
-                {row.note && <span className="block text-[11.5px] leading-relaxed text-stone-500">{row.note}</span>}
+                <span className="block font-serif text-[16px] font-semibold text-stone-800">{row.title}</span>
+                {row.note && <span className="block text-[12px] leading-relaxed text-stone-500">{row.note}</span>}
               </span>
             </li>
           );
@@ -48,7 +47,7 @@ export function ProgramList({ program }: { program: readonly ProgramItem[] }) {
 /**
  * エントリー画面（回答フォーム）の上部に固定する当日の流れ（Issue #166）。「何時からだっけ？」で招待状へ戻らなくてよいように。
  * 小さく「PROGRAM 日付 ／ 会場」と、時刻と項目名のチップを横に並べる。幅が足りなければチップの列だけ横にスクロールする
- * （スクロールバーは出さない）。挙式・披露宴のチップは枠をアクセント色にする。
+ * （スクロールバーは出さない）。挙式・披露宴のチップは枠を金にする。時刻と項目名は明朝（招待状の PROGRAM と同じ書体。Issue #189）。
  * ★sticky の位置は呼び出し側が決める★（招待状は画面の上端、回答の修正はヘッダーの下）。className で top を渡す。
  */
 export function ProgramStrip({
@@ -75,7 +74,7 @@ export function ProgramStrip({
       style={{ background: `${INVITATION_COLORS.paper}f0`, ...style }}
     >
       <div className="flex min-h-7 items-center gap-2">
-        <p className="min-w-0 flex-1 truncate text-[9.5px] tracking-[0.35em] text-stone-500">
+        <p className="min-w-0 flex-1 truncate font-serif text-[10px] tracking-[0.35em] text-stone-500">
           PROGRAM {shortDateLabel(date)} ／ {venue}
         </p>
         {action}
@@ -84,13 +83,11 @@ export function ProgramStrip({
         {program.map((row, i) => (
           <li
             key={i}
-            className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 bg-white px-2.5 py-1 text-xs text-stone-700"
-            style={row.highlight ? { borderColor: INVITATION_COLORS.led, background: INVITATION_COLORS.ledSoft } : undefined}
+            className="shrink-0 whitespace-nowrap rounded-full border border-stone-200 bg-white px-2.5 py-1 font-serif text-xs text-stone-700"
+            style={row.highlight ? { borderColor: INVITATION_COLORS.gold, background: INVITATION_COLORS.goldSoft } : undefined}
           >
-            <b className="mr-1 tabular-nums" style={{ fontFamily: MONO }}>
-              {programTime(row)}
-            </b>
-            {row.title}
+            <span className="mr-1 font-medium tabular-nums text-stone-600">{programTime(row)}</span>
+            <span className="font-semibold">{row.title}</span>
           </li>
         ))}
       </ul>

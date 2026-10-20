@@ -120,6 +120,8 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* 明朝（Issue #189。layout.tsx の Shippori Mincho）。読み込むまでは端末の明朝を予備に使う */
+  --font-serif: var(--font-mincho), "Hiragino Mincho ProN", "Yu Mincho", ui-serif, Georgia, serif;
 
   --color-stone-50: var(--t-base-50);
   --color-stone-100: var(--t-base-100);

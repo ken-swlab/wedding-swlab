@@ -258,7 +258,10 @@ function InvitationOpen({
   );
 }
 
-/** 「エントリーする」のボタン（画面下の固定とページの一番下で同じもの）。hidden の間はフォーカスを当てない */
+/**
+ * 「エントリーする」のボタン（画面下の固定とページの一番下で同じもの）。hidden の間はフォーカスを当てない。
+ * 押すものなのでゴシック（Issue #189 の書体ルール）。地は stone-900 より一段やわらかい墨色（INVITATION_COLORS.button）。
+ */
 function EntryButton({ onClick, hidden = false }: { onClick: () => void; hidden?: boolean }) {
   return (
     <button
@@ -266,7 +269,8 @@ function EntryButton({ onClick, hidden = false }: { onClick: () => void; hidden?
       onClick={onClick}
       tabIndex={hidden ? -1 : 0}
       aria-hidden={hidden || undefined}
-      className="mx-auto block min-h-12 w-full max-w-[26rem] touch-manipulation rounded-full bg-stone-900 px-6 py-3.5 text-[15px] font-bold tracking-[0.05em] text-white hover:bg-stone-700"
+      className="mx-auto block min-h-12 w-full max-w-[26rem] touch-manipulation rounded-full px-6 py-3.5 text-[15px] font-semibold tracking-[0.08em] text-white hover:opacity-90"
+      style={{ background: INVITATION_COLORS.button }}
     >
       エントリーする（出欠のご回答）
     </button>
