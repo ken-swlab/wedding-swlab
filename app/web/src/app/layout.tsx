@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Shippori_Mincho } from "next/font/google";
 import "./globals.css";
 import { ACTIVE_THEME, themeVars } from "@/config/theme";
 import { ThemePreviewGate } from "@/components/ThemePreviewGate";
@@ -13,6 +13,20 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/**
+ * 明朝（Issue #189）。Tailwind の font-serif がこれを使う（globals.css の --font-serif）。
+ * ★端末の明朝に任せない★ Android は明朝が入っていないことが多く、font-serif がゴシックで表示されてしまうため。
+ * ★preload しない★ 日本語の文字は細かく分かれたファイルで、使った文字の分だけ読み込まれる（unicode-range）。
+ *   全ページの先頭で読み込ませない。読み込むまではいまの明朝（予備）で出す（display: swap）。
+ */
+const mincho = Shippori_Mincho({
+  variable: "--font-mincho",
+  weight: ["400", "500", "600"],
+  subsets: ["latin"],
+  preload: false,
+  display: "swap",
 });
 
 // LINE でリンクを送るとプレビューにこのタイトルが出る
@@ -46,7 +60,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${mincho.variable} h-full antialiased`}
       // ★テーマの色はサーバーで <html> の style に出す★（Issue #129）
       //   クライアントで後から付けると、読み込みの一瞬だけ元の色が見える。
       //   style 属性は CSP の style-src 'unsafe-inline' で許可済み（nonce は入れない。src/lib/csp.ts の★参照）。

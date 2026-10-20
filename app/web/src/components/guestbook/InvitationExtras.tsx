@@ -12,13 +12,13 @@ import type {
   InvitationHighlightKey,
 } from "@/types/invitation";
 
-const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
-
 /**
  * 招待状に足した「行きたい」と思わせる部分（Issue #173）。中身は config/invitation（GET /api/guest/invitation）から。
  *   シルエット写真 … 1画面目の直後。横幅いっぱい・4:5。上下はページの地へ溶け込ませる。日付と一言を重ねられる（未設定なら出さない）
- *   ふたりから     … 2列のカード。上に 4:5 の写真（顔とお酒まで）、下に名前・メッセージ（写真が未設定なら頭文字）
- *   当日のおたのしみ … 文字中心のカードと小さな線画のアイコン
+ *   ふたりから     … 1人1段。4:5 の写真（顔とお酒まで）と、名前＋メッセージを横に並べ、写真の左右を交互にする
+ *                    （写真が未設定なら頭文字）
+ *   当日のおたのしみ … 小さな線画のアイコンと文字。項目の間を罫線で区切る
+ * ★白いカードを使わない★（Issue #189）白いカードが続くとアプリの画面に見えるため。書体は CLAUDE.md の書体ルール。
  *
  * ★写真の枠の大きさは先に確保する★ 縦横比を CSS で決めてから画像を読む（読み込みで画面がガタつかないように）。
  * ★名前・日付・文言は props でだけ受け取る★ 定数として書かない（公開リポジトリ。CLAUDE.md ルール 4a）。
@@ -69,7 +69,7 @@ export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
         {(photo.overlayDate || photo.overlayText) && (
           <p className="absolute inset-x-0 top-[13%] text-center" style={OVERLAY_STYLE[photo.overlayColor]}>
             {photo.overlayDate && (
-              <span className="block text-[40px] font-bold tracking-[0.12em] tabular-nums" style={{ fontFamily: MONO }}>
+              <span className="block font-serif text-[40px] font-medium tracking-[0.12em] tabular-nums">
                 {photo.overlayDate}
               </span>
             )}
@@ -82,28 +82,34 @@ export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
 }
 
 /**
- * ふたりからのカード（2列に並べる）。写真はカードの上に横幅いっぱい・4:5、その下に名前とメッセージ。
- * ★写真は 4:5★ 顔と手に持ったお酒まで入る大きさにするため（以前は 64px の丸で、顔しか見えなかった）。
+ * ふたりから。1人1段で、写真（4:5・幅 42%）と、その人の名前＋メッセージを横に並べる。写真は1人目が左、2人目が右（以降も交互）。
+ * ★写真の隣に、その人の言葉を置く★（Issue #189）誰のメッセージかが一目で分かるように。2列のカードは1行が8〜9文字で、
+ *   改行が多かった。いまは1行 12 文字以上入る。
+ * ★同じ写真を別の場所で小さく出し直さない★ 試作で、顔のアイコンが重なって分かりにくかったため。
+ * ★写真は 4:5★ 顔と手に持ったお酒まで入る大きさにするため。
  *   ops.mjs の PHOTO_FROM_US_WIDTH / PHOTO_FROM_US_HEIGHT（photo set groom|bride で縮める大きさ）と縦横比をそろえる。
  */
 export function InvitationFromUsCards({ cards }: { cards: readonly InvitationFromUs[] }) {
   return (
-    <ul className="grid grid-cols-2 gap-3">
+    <ul className="space-y-7">
       {cards.map((c, i) => (
-        <li key={i} className="overflow-hidden rounded-2xl border border-stone-200/80 bg-white">
-          <span className="relative block aspect-[4/5] w-full bg-stone-200">
+        <li key={i} className={`flex items-start gap-4 ${i % 2 === 1 ? "flex-row-reverse" : ""}`}>
+          <span className="relative aspect-[4/5] w-[42%] shrink-0 overflow-hidden rounded-[12px] bg-stone-200">
             {c.photoUrl ? (
-              <Image src={photoSrc(c.photoUrl)} alt={c.alt} fill sizes="(max-width: 448px) 50vw, 210px" className="object-cover" />
+              <Image src={photoSrc(c.photoUrl)} alt={c.alt} fill sizes="(max-width: 448px) 42vw, 180px" className="object-cover" />
             ) : (
-              // ★写真が未設定なら、名前の頭文字★
+              // ★写真が未設定なら、名前の頭文字★ 並び（交互）は写真があるときと同じ
               <span aria-hidden className="flex h-full w-full items-center justify-center font-serif text-4xl text-stone-500">
                 {Array.from(c.name)[0]}
               </span>
             )}
           </span>
-          <div className="px-3 pb-4 pt-3">
-            <p className="font-serif text-[15px] tracking-[0.08em] text-stone-800">{c.name}</p>
-            <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-[1.85] text-stone-600">{c.message}</p>
+          <div className="min-w-0 flex-1">
+            <p>
+              <span className="font-serif text-[17px] font-semibold tracking-[0.12em] text-stone-800">{c.name}</span>
+              <span className="ml-1 text-[12px] text-stone-500">より</span>
+            </p>
+            <p className="mt-2 whitespace-pre-line text-justify text-[13.5px] leading-[1.95] text-stone-600">{c.message}</p>
           </div>
         </li>
       ))}
@@ -111,17 +117,17 @@ export function InvitationFromUsCards({ cards }: { cards: readonly InvitationFro
   );
 }
 
-/** 当日のおたのしみのカード（文字中心） */
+/** 当日のおたのしみ（アイコンと文字。項目の間を罫線で区切る） */
 export function InvitationHighlights({ items }: { items: readonly InvitationHighlight[] }) {
   return (
-    <ul className="space-y-3">
+    <ul>
       {items.map((h, i) => (
-        <li key={i} className="flex gap-3.5 rounded-2xl border border-stone-200/80 bg-white p-4">
+        <li key={i} className="flex gap-3.5 py-4" style={i > 0 ? { borderTop: `1px solid ${INVITATION_COLORS.rule}` } : undefined}>
           <span aria-hidden className="mt-0.5 shrink-0 text-stone-500">
             <HighlightIcon kind={h.key} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-medium tracking-[0.1em] text-stone-800">{h.title}</p>
+            <p className="font-serif text-[15px] font-semibold tracking-[0.1em] text-stone-800">{h.title}</p>
             <p className="mt-1 whitespace-pre-line text-[13px] leading-[1.9] text-stone-600">{h.body}</p>
           </div>
         </li>
