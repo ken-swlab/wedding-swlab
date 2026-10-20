@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PASSCODE_LENGTH } from "@/config/passcode";
+import { PASSCODE_LENGTH, PASSCODE_LOCK_MINUTES } from "@/config/passcode";
+import { PasscodeError, type PasscodeFeedback } from "@/lib/passcode-feedback";
 import { CALL_LINE_Y, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import { createTimeline, prefersReducedMotion, type Timeline } from "@/components/opening/timeline";
 
@@ -17,6 +18,7 @@ import { createTimeline, prefersReducedMotion, type Timeline } from "@/component
  *
  * 送信の処理（API の呼び出し）は onSubmit で受け取る。通らなければ Error を投げ、
  * その message を画面に出す（/admin/invitation_test はダミーを渡す）。
+ * PasscodeError に feedback があれば、エラーの下にヒントと「あと◯回」を出す（Issue #181。揺れる動きはそのまま）。
  *
  * ★通ったら、4つの枠を1本の線に縮め、その線を招集の区切り線の位置（CALL_LINE_Y）へ運んでから onCleared★（Issue #165）
  *   次のオープニング（CallScene の intro="passcode"）は、同じ位置の線から始まる。地の色も同じ（OPENING_COLORS.calm）なので、
@@ -29,6 +31,7 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<PasscodeFeedback | null>(null);
   const [locked, setLocked] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [cleared, setCleared] = useState(false);
@@ -49,6 +52,7 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
   async function submit(code: string) {
     setBusy(true);
     setError(null);
+    setFeedback(null);
     try {
       await Promise.all([onSubmit(code), new Promise((r) => setTimeout(r, OPENING_TIMING.passcodeCheckMin))]);
       await collapse();
@@ -58,6 +62,8 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
       // サーバーはロック時に「上限」を含む文言を返す（api/guest/passcode）
       const isLocked = message.includes("上限");
       setError(message);
+      // ロックされたときは、ロックの文言（既存）だけを出す
+      setFeedback(!isLocked && e instanceof PasscodeError ? e.feedback : null);
       setLocked(isLocked);
       setValue("");
       setShakeKey((k) => k + 1);
@@ -170,6 +176,19 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
           >
             {error}
           </p>
+        )}
+        {/* ★ヒントは打ち直している間も残す★ エラーは1桁めで消えるが、ヒントは次に送るまで見えていてほしい */}
+        {feedback && (feedback.hint || feedback.remaining != null) && (
+          <div className="mx-auto mt-2 max-w-[20rem] text-[13px] leading-relaxed text-stone-600">
+            {feedback.hint && <p>ヒント：{feedback.hint}</p>}
+            {feedback.remaining != null && (
+              <p className="mt-1 text-[12px] text-stone-500">
+                {feedback.nextLock === "permanent"
+                  ? `あと${feedback.remaining}回まちがえると、受付を停止します`
+                  : `あと${feedback.remaining}回まちがえると、${PASSCODE_LOCK_MINUTES}分お待ちいただきます`}
+              </p>
+            )}
+          </div>
         )}
       </div>
 

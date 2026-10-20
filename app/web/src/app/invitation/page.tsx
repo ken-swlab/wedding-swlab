@@ -2,7 +2,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
-import { getJson, postJson } from "@/lib/api-client";
+import { ApiError, getJson, postJson } from "@/lib/api-client";
+import { PasscodeError, parsePasscodeFeedback } from "@/lib/passcode-feedback";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { OPENING_NOTE } from "@/config/invitation";
@@ -74,7 +75,13 @@ export default function InvitationPage() {
   //   画面の切り替えは、枠が線になる演出が終わったあと（passcodeCleared）。読み込み中の画面を挟まない
   const afterPasscode = useRef<View | "registered" | null>(null);
   const passcodeSubmit = useCallback(async (passcode: string) => {
-    await postJson("/api/guest/passcode", { passcode });
+    try {
+      await postJson("/api/guest/passcode", { passcode });
+    } catch (e) {
+      // 間違えたときは、ヒントと残りの回数も画面に渡す（Issue #181）
+      if (e instanceof ApiError) throw new PasscodeError(e.message, parsePasscodeFeedback(e.data));
+      throw e;
+    }
     afterPasscode.current = await loadView().catch(() => null);
   }, []);
   const passcodeCleared = useCallback(() => {

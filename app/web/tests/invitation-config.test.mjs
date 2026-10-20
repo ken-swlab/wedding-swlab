@@ -169,6 +169,33 @@ test("写真・ふたりから・当日のおたのしみ（Issue #173）は任�
   assert.equal(parseInvitationConfig(g).value.showGreeting, true);
 });
 
+test("パスコードのヒントと、何回目から出すかは任意。回数は 1〜4 の整数だけ（Issue #181）", () => {
+  const r = parseInvitationConfig(sample());
+  assert.equal(r.value.passcodeHint, "宴の日です");
+  assert.equal(r.value.passcodeHintFrom, 2);
+
+  const none = sample();
+  delete none.passcodeHint;
+  delete none.passcodeHintFrom;
+  const n = parseInvitationConfig(none);
+  assert.equal(n.ok, true);
+  assert.equal("passcodeHint" in n.value, false);
+  assert.equal("passcodeHintFrom" in n.value, false);
+
+  const empty = sample();
+  empty.passcodeHint = "";
+  assert.equal("passcodeHint" in parseInvitationConfig(empty).value, false);
+
+  for (const [v, field] of [[0, "passcodeHintFrom"], [5, "passcodeHintFrom"], [1.5, "passcodeHintFrom"], ["2", "passcodeHintFrom"]]) {
+    const d = sample();
+    d.passcodeHintFrom = v;
+    assert.deepEqual(parseInvitationConfig(d), { ok: false, field });
+  }
+  const long = sample();
+  long.passcodeHint = "あ".repeat(201);
+  assert.deepEqual(parseInvitationConfig(long), { ok: false, field: "passcodeHint" });
+});
+
 test("写真の URL は仮の画像（/placeholders/invitation/）か https だけ。空は未設定。alt は必須（Issue #173）", () => {
   const ok = [
     (d) => (d.photos.hero.url = ""),

@@ -15,6 +15,8 @@
     { "time": "", "title": "2次会", "note": "詳細は後日", "highlight": false }
   ],
   "approvalNote": "（ダミー）通常、1〜2 日以内に確認します。",
+  "passcodeHint": "宴の日です",
+  "passcodeHintFrom": 2,
   "photos": {
     "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "", "overlayText": "", "overlayColor": "black" }
   },

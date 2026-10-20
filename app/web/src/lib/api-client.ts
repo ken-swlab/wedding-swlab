@@ -2,6 +2,14 @@ import { auth } from "@/lib/firebase";
 
 type ApiResult = { ok?: boolean; message?: string };
 
+/** 失敗したときに投げる。data は応答の本文（読めなければ null）。message 以外を使う画面だけが見る（パスコードのヒントなど） */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly data: unknown) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 /**
  * 管理 API を叩く共通処理。
  *
@@ -42,10 +50,10 @@ async function request<T = Record<string, unknown>>(
     const message = data?.message ?? `サーバーエラー (${res.status})`;
     // 5xx は原因を返さない（safeMessage）。問い合わせ用に request_id の先頭8桁を添える
     const rid = res.status >= 500 ? res.headers.get("x-request-id")?.slice(0, 8) : undefined;
-    throw new Error(rid ? `${message}（ID: ${rid}）` : message);
+    throw new ApiError(rid ? `${message}（ID: ${rid}）` : message, res.status, data);
   }
   if (data && data.ok === false) {
-    throw new Error(data.message ?? "操作に失敗しました");
+    throw new ApiError(data.message ?? "操作に失敗しました", res.status, data);
   }
   return (data ?? ({} as T & ApiResult)) as T & ApiResult;
 }

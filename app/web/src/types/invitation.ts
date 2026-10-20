@@ -28,6 +28,13 @@ export type InvitationContent = {
    *   壊さないよう、読み取りだけ残している。
    */
   approvalNote?: string;
+  /**
+   * パスコードを間違えたときのヒント（Issue #181。例: 宴の日です）。画面は「ヒント：」を付けて出す。未設定なら出さない。
+   * ★パスコードそのもの・日付は書かない★ パスコードを通る前の人にも見せる文言。
+   */
+  passcodeHint?: string;
+  /** ヒントを何回目の間違いから出すか（1〜PASSCODE_MAX_ATTEMPTS - 1）。未設定なら PASSCODE_HINT_FROM_DEFAULT */
+  passcodeHintFrom?: number;
   /** 写真（Issue #173）。いまは1画面目の直後のシルエットだけ。未設定なら枠ごと出さない */
   photos?: { hero?: InvitationHeroPhoto };
   /** ふたりから（Issue #173）。上から順にカードで出す（新郎・新婦の順。最大2枚）。空なら見出しごと出さない */

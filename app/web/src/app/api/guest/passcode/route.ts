@@ -4,6 +4,8 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { expectedPasscode, isPasscodeCleared, normalizePasscode, passcodeMatches } from "@/lib/passcode-server";
+import { invitationConfig } from "@/lib/invitation-server";
+import { passcodeFeedback } from "@/lib/passcode-feedback";
 import { PASSCODE_LOCK_MINUTES, PASSCODE_MAX_ATTEMPTS, PASSCODE_MAX_LOCKS } from "@/config/passcode";
 
 export const runtime = "nodejs";
@@ -26,7 +28,7 @@ type Outcome =
   | { kind: "cleared" }
   | { kind: "locked"; minutes: number }
   | { kind: "blocked" }
-  | { kind: "wrong"; count: number; locking: boolean; blocking: boolean };
+  | { kind: "wrong"; count: number; locks: number; locking: boolean; blocking: boolean };
 
 async function handle(req: Request) {
   const { auth, db } = admin();
@@ -121,7 +123,7 @@ async function handle(req: Request) {
       },
       { merge: true },
     );
-    return { kind: "wrong", count, locking, blocking };
+    return { kind: "wrong", count, locks, locking, blocking };
   });
 
   if (outcome.kind === "cleared") return NextResponse.json({ ok: true });
@@ -144,7 +146,17 @@ async function handle(req: Request) {
   if (outcome.locking) {
     return fail(`入力の回数が上限に達しました。お手数ですが、約${PASSCODE_LOCK_MINUTES}分おいてからもう一度お試しください`, 429);
   }
-  return fail(`パスコードが違うようです。もう一度ご入力ください（あと${PASSCODE_MAX_ATTEMPTS - outcome.count}回）`, 403);
+  /**
+   * ★ヒントと残りの回数は、間違えた応答にだけ入れる★（Issue #181）
+   *   ヒント（config/invitation の passcodeHint）は passcodeHintFrom 回目の間違いから。未設定なら入れない。
+   *   ほかの招待状の中身（名前・会場など）は返さない。config/invitation が読めなくてもエラーにしない（ヒントなし）。
+   */
+  const config = await invitationConfig();
+  const nextLock = outcome.locks + 1 >= PASSCODE_MAX_LOCKS ? "permanent" : "temporary";
+  return NextResponse.json(
+    { ok: false, message: "パスコードが違います", feedback: passcodeFeedback(outcome.count, config, nextLock) },
+    { status: 403 },
+  );
 }
 
 // ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----
