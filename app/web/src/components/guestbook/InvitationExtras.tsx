@@ -17,7 +17,7 @@ const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 /**
  * 招待状に足した「行きたい」と思わせる部分（Issue #173）。中身は config/invitation（GET /api/guest/invitation）から。
  *   シルエット写真 … 1画面目の直後。横幅いっぱい・4:5。上下はページの地へ溶け込ませる。日付と一言を重ねられる（未設定なら出さない）
- *   ふたりから     … 丸い顔写真・名前・メッセージのカード（写真が未設定なら頭文字の丸）
+ *   ふたりから     … 2列のカード。上に 4:5 の写真（顔とお酒まで）、下に名前・メッセージ（写真が未設定なら頭文字）
  *   当日のおたのしみ … 文字中心のカードと小さな線画のアイコン
  *
  * ★写真の枠の大きさは先に確保する★ 縦横比を CSS で決めてから画像を読む（読み込みで画面がガタつかないように）。
@@ -81,25 +81,29 @@ export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
   );
 }
 
-/** ふたりからのカード（上下に並べる） */
+/**
+ * ふたりからのカード（2列に並べる）。写真はカードの上に横幅いっぱい・4:5、その下に名前とメッセージ。
+ * ★写真は 4:5★ 顔と手に持ったお酒まで入る大きさにするため（以前は 64px の丸で、顔しか見えなかった）。
+ *   ops.mjs の PHOTO_FROM_US_WIDTH / PHOTO_FROM_US_HEIGHT（photo set groom|bride で縮める大きさ）と縦横比をそろえる。
+ */
 export function InvitationFromUsCards({ cards }: { cards: readonly InvitationFromUs[] }) {
   return (
-    <ul className="space-y-3">
+    <ul className="grid grid-cols-2 gap-3">
       {cards.map((c, i) => (
-        <li key={i} className="flex gap-4 rounded-2xl border border-stone-200/80 bg-white p-4">
-          <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-stone-200">
+        <li key={i} className="overflow-hidden rounded-2xl border border-stone-200/80 bg-white">
+          <span className="relative block aspect-[4/5] w-full bg-stone-200">
             {c.photoUrl ? (
-              <Image src={photoSrc(c.photoUrl)} alt={c.alt} fill sizes="64px" className="object-cover" />
+              <Image src={photoSrc(c.photoUrl)} alt={c.alt} fill sizes="(max-width: 448px) 50vw, 210px" className="object-cover" />
             ) : (
-              // ★写真が未設定なら、名前の頭文字の丸★
-              <span aria-hidden className="flex h-full w-full items-center justify-center font-serif text-2xl text-stone-500">
+              // ★写真が未設定なら、名前の頭文字★
+              <span aria-hidden className="flex h-full w-full items-center justify-center font-serif text-4xl text-stone-500">
                 {Array.from(c.name)[0]}
               </span>
             )}
           </span>
-          <div className="min-w-0 flex-1">
+          <div className="px-3 pb-4 pt-3">
             <p className="font-serif text-[15px] tracking-[0.08em] text-stone-800">{c.name}</p>
-            <p className="mt-1.5 whitespace-pre-line text-[13px] leading-[1.9] text-stone-600">{c.message}</p>
+            <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-[1.85] text-stone-600">{c.message}</p>
           </div>
         </li>
       ))}
