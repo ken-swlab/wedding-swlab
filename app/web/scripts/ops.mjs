@@ -243,9 +243,13 @@ if (cmd === "notify") {
 // ---- invitation の写真（Issue #173）--------------------------------------------
 /** 写真の差し替え先。groom・bride は fromUs の何枚目か */
 const PHOTO_TARGETS = { hero: null, groom: 0, bride: 1 };
-/** 縮める大きさ（px）。シルエットは長辺、顔写真は正方形の一辺（画面では 64px の丸） */
+/**
+ * 縮める大きさ（px）。シルエットは長辺。ふたりからの写真は 4:5（画面では2列のカードの上に横幅いっぱい。約 160〜210px 幅）。
+ * ★ふたりからの写真の縦横比は InvitationExtras.tsx の aspect-[4/5] とそろえる★ 違う比の写真は attention で切り抜く。
+ */
 const PHOTO_HERO_LONG_EDGE = 1200;
-const PHOTO_FACE_EDGE = 600;
+const PHOTO_FROM_US_WIDTH = 640;
+const PHOTO_FROM_US_HEIGHT = 800;
 const PHOTO_JPEG_QUALITY = 80;
 /** ★公開バケットの中の置き場所★ ゲストの u/{uid}/ の外（投稿の削除・ownsKey() が触らない） */
 const PHOTO_KEY_PREFIX = "site/invitation/";
@@ -317,7 +321,7 @@ async function setInvitationPhoto(ref, action, target, file) {
   let img = sharp(abs, { failOn: "error" }).rotate(); // 向き（EXIF の Orientation）を画素に反映してから EXIF を落とす
   img = index === null
     ? img.resize({ width: PHOTO_HERO_LONG_EDGE, height: PHOTO_HERO_LONG_EDGE, fit: "inside", withoutEnlargement: true })
-    : img.resize({ width: PHOTO_FACE_EDGE, height: PHOTO_FACE_EDGE, fit: "cover", position: "attention" });
+    : img.resize({ width: PHOTO_FROM_US_WIDTH, height: PHOTO_FROM_US_HEIGHT, fit: "cover", position: "attention" });
   let out;
   try {
     out = await img.jpeg({ quality: PHOTO_JPEG_QUALITY, mozjpeg: true }).toBuffer();
