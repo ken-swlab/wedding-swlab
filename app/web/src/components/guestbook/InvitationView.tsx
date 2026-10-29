@@ -24,7 +24,8 @@ const SUBHEAD = "font-serif text-[11px] tracking-[0.3em] text-stone-500";
  * パスコードを通った人に見せる招待状の本文（Issue #166 で作り直した）。中身は GET /api/guest/invitation から受け取る。
  *
  *   1画面目 … WEDDING INVITATION・ふたりの名前・日付と曜日・会場の短い表記・SCROLL（スクロールなしで見える範囲）。
- *            高さは画面より INVITATION_PEEK_PX 低くし、シルエット写真の上端を画面の下にちらっと見せる（Issue #178）
+ *            高さは画面より INVITATION_PEEK_PX 低くし、続きがあると分かるようにする（Issue #178）。
+ *            シルエット写真は、その下の大きな余白の先に出す（Issue #193。1画面目にはのぞかせない）
  *   その先 … シルエット写真・FROM US（ふたりから）・当日のおたのしみ（Issue #173）・PROGRAM（当日の流れ）・
  *            MESSAGE（以前のご挨拶。showGreeting のときだけ）・VENUE（会場・地図・2次会の会場・会費）
  *
@@ -89,7 +90,7 @@ export function InvitationView({
         </div>
       </header>
 
-      {/* ★写真が未設定なら枠ごと出さない★（Issue #173） */}
+      {/* ★写真が未設定なら枠ごと出さない★（Issue #173）。上の大きな余白（Issue #193）も一緒に出さない */}
       {photos?.hero?.url && <InvitationHeroPhoto photo={photos.hero} />}
 
       {fromUs.length > 0 && (

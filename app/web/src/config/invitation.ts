@@ -44,9 +44,22 @@ export const ENTRY_BAR_DELAY_MS = 900;
 
 /**
  * 1画面目（名前・日付・会場）を画面の高さより低くする分 (px。Issue #178)。
- * シルエット写真の上端が画面の下にちらっと見え、続きがあると分かるように。
+ * 続きがあると分かるように。シルエット写真は、この下の大きな余白（globals.css の .invitation-hero-space）のさらに下に出す（Issue #193）。
  */
 export const INVITATION_PEEK_PX = 72;
+
+/**
+ * シルエット写真（2色刷り）を「スクロールのご褒美」として出す決まりごと（Issue #193）。
+ *   表紙と写真の間の空白（30svh。svh を使えない環境は 30vh）は CSS で書く（globals.css の .invitation-hero-space）。
+ *   ★1画面目に写真を一切のぞかせない★ SCROLL の線をたどった先で、浮かび上がるのを見せるため。
+ *   revealRootMargin … 写真の上端が画面の下から 20% ほど入ったら出す（目の前で浮かび上がるように）。
+ *   gapBelowPx … 写真の下端から次の見出し（FROM US）まで。ほかの見出しの間（44〜56px）の約2倍で、ひと区切りつける。
+ */
+export const INVITATION_HERO = {
+  widthPercent: 58,
+  revealRootMargin: "0px 0px -20% 0px",
+  gapBelowPx: 96,
+} as const;
 
 /**
  * 招待状を読んだ（回答した・一度最後まで読んだ）印を置く localStorage のキー（Issue #178）。
