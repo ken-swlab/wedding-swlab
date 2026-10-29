@@ -414,12 +414,27 @@ body {
 }
 
 /*
-  招待状のシルエット写真（Issue #173）。画面に入ったら（data-shown）1.2 秒でふわっと現れる。わずかに縮小→等倍。
+  招待状のシルエット写真（Issue #173・#193）。画面に入ったら（data-shown）1.2 秒で、下から少し上がりながら浮かび上がる。
   ★枠（aspect-ratio）は最初から場所を取る★ 見えないのは中身だけで、読み込み・表示で画面がずれない。
+  ★拡大縮小しない★（Issue #193）2色刷りの網点が、拡大縮小でちらつくため。動かすのは位置だけ。
 */
 @keyframes invitation-reveal {
-  from { opacity: 0; transform: scale(1.04); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/*
+  表紙とシルエット写真の間の空白（Issue #193。30svh。iPhone で約 250px）。
+  ★1画面目に写真をのぞかせない★ svh を使えない環境では 30vh。
+*/
+.invitation-hero-space {
+  height: 30svh;
+}
+
+@supports not (height: 1svh) {
+  .invitation-hero-space {
+    height: 30vh;
+  }
 }
 
 .invitation-reveal > * {

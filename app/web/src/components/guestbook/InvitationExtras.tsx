@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState, type CSSProperties } from "react";
 import { useSeenOnce } from "@/hooks/useSeenOnce";
-import { INVITATION_COLORS } from "@/config/invitation";
+import { INVITATION_COLORS, INVITATION_HERO } from "@/config/invitation";
 import { rehost } from "@/lib/media-url";
 import type {
   InvitationFromUs,
@@ -14,7 +14,8 @@ import type {
 
 /**
  * 招待状に足した「行きたい」と思わせる部分（Issue #173）。中身は config/invitation（GET /api/guest/invitation）から。
- *   シルエット写真 … 1画面目の直後。横幅いっぱい・4:5。上下はページの地へ溶け込ませる。日付と一言を重ねられる（未設定なら出さない）
+ *   シルエット写真 … 1画面目のあと、大きな余白を下ろした先に、幅 58%・正方形で出す（Issue #193。2色刷りで地は紙の色）。
+ *                    日付と一言を重ねられる（未設定なら出さない）
  *   ふたりから     … 1人1段。4:5 の写真（顔とお酒まで）と、名前＋メッセージを横に並べ、写真の左右を交互にする
  *                    （写真が未設定なら頭文字）
  *   当日のおたのしみ … 小さな線画のアイコンと文字。項目の間を罫線で区切る
@@ -30,19 +31,12 @@ function photoSrc(url: string): string {
   return url.startsWith("https://") ? rehost(url) : url;
 }
 
-/** 画面に入ったら true になる（一度だけ） */
-function useRevealOnce<T extends Element>() {
+/** 画面に入ったら true になる（一度だけ）。rootMargin で、入ったとみなす範囲を狭められる */
+function useRevealOnce<T extends Element>(threshold?: number, rootMargin?: string) {
   const [shown, setShown] = useState(false);
-  const ref = useSeenOnce<T>(() => setShown(true));
+  const ref = useSeenOnce<T>(() => setShown(true), threshold, rootMargin);
   return { ref, shown };
 }
-
-/**
- * 写真の上下を、ページの地の色へ溶け込ませるマスク（Issue #178）。上下それぞれ高さの 14%。左右は端まで写真のまま。
- * ★四角い境目を見せない★ スタジオの白背景と紙の地の色の差が、四角く浮いて見えたため。
- *   マスクは枠（読み込み前の灰色の地を含む）ごと効くので、色を合わせる必要がない。
- */
-const HERO_FADE_MASK = "linear-gradient(180deg, transparent 0, #000 14%, #000 86%, transparent 100%)";
 
 /** 重ねる文字の色。黒は白背景のスタジオ写真向けで、影を付けない */
 const OVERLAY_STYLE: Record<HeroPhoto["overlayColor"], CSSProperties> = {
@@ -51,21 +45,33 @@ const OVERLAY_STYLE: Record<HeroPhoto["overlayColor"], CSSProperties> = {
 };
 
 /**
- * シルエット写真。画面に入ったら 1.2 秒でふわっと現れる（わずかに縮小→等倍。globals.css の invitation-reveal）。
+ * シルエット写真（2色刷り。Issue #193）。「スクロールのご褒美」として、表紙の下の大きな余白（.invitation-hero-space）の先に出す。
+ * 写真の上端が画面の下から 20% ほど入ったら、1.2 秒で下から少し上がりながら浮かび上がる（globals.css の invitation-reveal）。
  * prefers-reduced-motion では動かさず、はじめから出しておく。
- * ★重ねる文字は、日付も一言も未設定なら何も出さない★
+ * ★地の灰色・上下のフェードを付けない★ 画像そのものが紙の色で、裾も画像の側で紙に溶かしてあるため（灰色の四角が出る）。
+ * ★枠は正方形で先に場所を取り、object-contain で入れる★ 読み込みで画面がずれないように。
+ * ★写真の下には何も置かない★ 次の見出しまで INVITATION_HERO.gapBelowPx 空けて、ひと区切りつける。
+ * ★重ねる文字は、日付も一言も未設定なら何も出さない★（Issue #193 では使わない。仕組みは残す）
  */
 export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
-  const { ref, shown } = useRevealOnce<HTMLDivElement>();
+  const { ref, shown } = useRevealOnce<HTMLDivElement>(0, INVITATION_HERO.revealRootMargin);
+  // 次の見出しの上には Section の pt-2（8px）があるので、その分を引く
   return (
-    <div className="mb-7">
+    <div style={{ marginBottom: INVITATION_HERO.gapBelowPx - 8 }}>
+      <div aria-hidden className="invitation-hero-space" />
       <div
         ref={ref}
         data-shown={shown ? "" : undefined}
-        className="invitation-reveal relative aspect-[4/5] w-full overflow-hidden bg-stone-200"
-        style={{ maskImage: HERO_FADE_MASK, WebkitMaskImage: HERO_FADE_MASK }}
+        className="invitation-reveal relative mx-auto aspect-square"
+        style={{ width: `${INVITATION_HERO.widthPercent}%` }}
       >
-        <Image src={photoSrc(photo.url)} alt={photo.alt} fill sizes="100vw" className="object-cover" />
+        <Image
+          src={photoSrc(photo.url)}
+          alt={photo.alt}
+          fill
+          sizes={`(max-width: 416px) ${INVITATION_HERO.widthPercent}vw, 242px`}
+          className="object-contain"
+        />
         {(photo.overlayDate || photo.overlayText) && (
           <p className="absolute inset-x-0 top-[13%] text-center" style={OVERLAY_STYLE[photo.overlayColor]}>
             {photo.overlayDate && (
