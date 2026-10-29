@@ -61,12 +61,15 @@ export const OPENING_TIMING = {
   afterSettleGuest: 1200,
   /** レーン表を消す */
   laneExit: 450,
-  /** Take のあと */
+  /**
+   * 指を置いてから「離す合図」の案内（画面が白く光り START と出たら…）を出している時間（Issue #192。
+   * スマホで 1 / 1.5 / 2 秒を比べて決めた）。この間に離したらフライングにせず、静かに「長押しで構える」へ戻す
+   */
+  releaseGuide: 2000,
+  /** 案内のあと Take を出してから your まで */
   afterTake: 200,
-  /** your のあと */
+  /** your を出してから marks まで */
   afterYour: 100,
-  /** marks のあと、長押しの案内まで */
-  afterMarks: 800,
   /**
    * 「長押しで構える」を出してから、一度も指を置かないまま待つ時間（Issue #157 A-2）。
    * idleEmphasis を過ぎたら丸を大きく脈打たせて案内の文字を大きくし、idleSkip を過ぎたら
@@ -74,9 +77,7 @@ export const OPENING_TIMING = {
    */
   idleEmphasis: 5000,
   idleSkip: 10_000,
-  /** 指を置いてから「構え」（画面が少し寄る）まで。これより前に離したら静かに戻す */
-  stance: 250,
-  /** 指を置いてから START まで（この範囲のランダム。毎回変える） */
+  /** marks を出し終えてから START まで（この範囲のランダム。毎回変える） */
   startDelayMin: 1100,
   startDelayMax: 1900,
   /** START の光と文字を出している時間 */

@@ -19,7 +19,7 @@ type Scene = "call" | "lanes" | "start" | "dive";
 
 /**
  * オープニング演出「招集」（Issue #131）。合言葉を通った直後に全画面で流す。音は使わない。
- *   招集 → レーン発表 → Take your marks → スタート（リアクションタイム）→ 飛び込み
+ *   招集 → レーン発表 → 長押しで構える → 案内 → Take your marks → スタート（リアクションタイム）→ 飛び込み
  * 場面ごとに部品を分けてある（CallScene / LaneScene / StartScene / DiveScene）。タイミングは config/opening.ts。
  *
  * ★ここは見た目と計測だけ★ API は呼ばない。タイムを保存するか（一発勝負か、見返しか）は親が決める。
