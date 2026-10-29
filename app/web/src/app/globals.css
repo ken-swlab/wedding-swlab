@@ -328,6 +328,47 @@ body {
   animation: start-idle-pulse 1.2s ease-out infinite;
 }
 
+/* 長押しの指（Issue #192）。2 秒周期：近づく → 押し込む（中の丸が縮む・波紋）→ 離れる */
+.start-hand {
+  transform-origin: 30% 10%;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.6));
+  animation: start-hand 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes start-hand {
+  0%, 100% { transform: translate(10px, 10px) rotate(-18deg); opacity: 0; }
+  20%      { transform: translate(4px, 4px) rotate(-18deg); opacity: 1; }
+  35%, 75% { transform: translate(-6px, -8px) rotate(-18deg); opacity: 1; }
+  90%      { transform: translate(4px, 4px) rotate(-18deg); opacity: 0; }
+}
+.start-hand-press {
+  animation: start-hand-press 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes start-hand-press {
+  0%, 30%   { transform: scale(1); }
+  35%, 75%  { transform: scale(0.7); }
+  90%, 100% { transform: scale(1); }
+}
+.start-hand-ripple {
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  animation: start-hand-ripple 2s ease-out infinite;
+}
+@keyframes start-hand-ripple {
+  0%, 30% { transform: scale(1); opacity: 0; }
+  35%     { opacity: 0.8; }
+  75%     { transform: scale(1.7); opacity: 0; }
+  100%    { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 動かさず、押している形で止める */
+  .start-hand { animation: none; transform: translate(-6px, -8px) rotate(-18deg); opacity: 1; }
+  .start-hand-press { animation: none; transform: scale(0.7); }
+  .start-hand-ripple { display: none; }
+}
+
 /* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */
 @keyframes screen-fade {
   from { opacity: 1; }

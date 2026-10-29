@@ -6,36 +6,41 @@ import { createTimeline, prefersReducedMotion } from "./timeline";
 
 /**
  * 長押しの状態。
- *   intro    … Take your marks を出している（まだ押せない）
  *   ready    … 「長押しで構える」を出して待っている
- *   stance   … 指を置いた直後（STANCE までに離したら静かに ready へ戻す）
- *   holding  … 構えた（ここで離すとフライング）
+ *   stance   … 指を置いた直後。「離す合図」の案内を releaseGuide のあいだ出す（ここで離したら静かに ready へ戻す）
+ *   holding  … 構えた。Take your marks を1語ずつ出し、marks のあとランダムな間を待つ（ここで離すとフライング）
  *   starting … START を出すと決めた〜その絵が描かれるフレームまで（ここで離してもフライング）
  *   started  … START が描かれた（ここで離した時刻がリアクションタイム）
  *   foul     … 「フライング！」を出している
  *   done     … 結果が決まった
  */
-type Hold = "intro" | "ready" | "stance" | "holding" | "starting" | "started" | "foul" | "done";
+type Hold = "ready" | "stance" | "holding" | "starting" | "started" | "foul" | "done";
 
 const WORDS = ["Take", "your", "marks"] as const;
 
 /**
- * 3〜4. Take your marks → 長押しで構え、START の合図で指を離す。離すまでの時間がリアクションタイム。
+ * 3〜4. 長押しで構える → 「離す合図」の案内 → Take your marks → START で指を離す。離すまでの時間がリアクションタイム。
+ *
+ * ★押す前は「長押しで構える」だけを出す★（Issue #192）押す前に「離す」まで覚えてもらうのは難しいので、
+ *   離す合図は構えたあとに文字だけで案内する。画面を光らせる見本は出さない（見本につられて離し、フライングになる）。
+ *   案内はフライングのあとも毎回出す。
  *
  * ★計測★ 基準は「START が描かれたフレームの時刻」（requestAnimationFrame の timestamp）、
  *   終わりは pointerup の event.timeStamp。どちらもページを開いてからの同じ時計（performance.now と同じ）。
  * ★START までの残り時間を示すものを出さない★（進捗バーなど）。合図が読めてしまう。
  *   待つ時間は毎回ランダム（startDelayMin〜startDelayMax）。
  * ★判定★
- *   構える前（stance）に離した → フライングにせず、静かに「長押しで構える」に戻す
- *   構えたあと、START の前に離した → フライング（やり直し）
+ *   案内中（stance）に離した → フライングにせず、静かに「長押しで構える」に戻す
+ *   Take your marks 〜 START の前に離した → フライング（「長押しで構える」からやり直し）
  *   START から REACTION_MIN_MS 未満で離した → 合図を予測した反応とみなしてフライング（やり直し）
  *   START から noReaction のあいだ離さない → 反応なし（記録せずに先へ進む）
  * ★長押しで iOS の選択・コピーのメニューを出さない★ 親（Opening）の舞台が user-select / touch-callout /
  *   contextmenu を止めている。ここでは pointerdown を preventDefault する。
  * ★タッチはネイティブのイベントで聞く★ passive でない pointerdown が要る（preventDefault するため）。
  *
- * ★止まったままにしない★（Issue #157 A-2）案内を出してから一度も指を置かないまま idleEmphasis（5 秒）で
+ * ★marks を出し終えてから START までの間を数える★ marks より先に START が出ないようにする。
+ *
+ * ★止まったままにしない★（Issue #157 A-2）「長押しで構える」を出してから一度も指を置かないまま idleEmphasis（5 秒）で
  *   丸と案内を大きくし、idleSkip（10 秒）で「スキップして招待状へ」を下に大きめに出す（右上のスキップと同じ）。
  *
  * onResult: 有効なタイム（ms の整数）か、反応なしの null。1回だけ呼ぶ。
@@ -44,6 +49,7 @@ const WORDS = ["Take", "your", "marks"] as const;
 export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number | null) => void; onSkip: () => void }) {
   const [words, setWords] = useState(0);
   const [hint, setHint] = useState(false);
+  const [guide, setGuide] = useState(false);
   const [tense, setTense] = useState(false);
   const [markHidden, setMarkHidden] = useState(false);
   const [foul, setFoul] = useState<string | null>(null);
@@ -53,7 +59,6 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
   const root = useRef<HTMLElement>(null);
   const flash = useRef<HTMLDivElement>(null);
   const startText = useRef<HTMLDivElement>(null);
-  const ring = useRef<HTMLSpanElement>(null);
   const result = useRef(onResult);
   useEffect(() => {
     result.current = onResult;
@@ -65,10 +70,10 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
     const t = createTimeline();
     const reduce = prefersReducedMotion();
 
-    let hold: Hold = "intro";
+    let hold: Hold = "ready";
     let pointer: number | null = null;
-    let stanceTimer: ReturnType<typeof setTimeout> | null = null;
-    let startTimer: ReturnType<typeof setTimeout> | null = null;
+    // 案内 → Take → your → marks → START の、いま待っている1つ（離したら取り消す）
+    let stepTimer: ReturnType<typeof setTimeout> | null = null;
     let noReactionTimer: ReturnType<typeof setTimeout> | null = null;
     let idleTimers: ReturnType<typeof setTimeout>[] | null = null;
     let touched = false;
@@ -76,16 +81,18 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
     let startAt = 0;
 
     function clearTimers() {
-      t.clear(stanceTimer);
-      t.clear(startTimer);
+      t.clear(stepTimer);
       t.clear(noReactionTimer);
-      stanceTimer = startTimer = noReactionTimer = null;
+      stepTimer = noReactionTimer = null;
       cancelAnimationFrame(frame);
     }
 
     function ready() {
       hold = "ready";
       pointer = null;
+      setGuide(false);
+      setWords(0);
+      setMarkHidden(false);
       setHint(true);
       // 初めて案内を出したときだけ、待ち続けている人への案内を仕込む
       if (!touched && !idleTimers) {
@@ -105,11 +112,26 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
       hold = "foul";
       pointer = null;
       setTense(false);
-      setMarkHidden(false);
       setFoul(message);
       t.after(OPENING_TIMING.foulShow, () => {
         setFoul(null);
         ready();
+      });
+    }
+
+    // 構えた: Take → your → marks を出し、出し終えてからランダムな間で START
+    function marks() {
+      hold = "holding";
+      setGuide(false);
+      setTense(true);
+      setWords(1);
+      stepTimer = t.after(OPENING_TIMING.afterTake, () => {
+        setWords(2);
+        stepTimer = t.after(OPENING_TIMING.afterYour, () => {
+          setWords(3);
+          const delay = OPENING_TIMING.startDelayMin + Math.random() * (OPENING_TIMING.startDelayMax - OPENING_TIMING.startDelayMin);
+          stepTimer = t.after(delay, go);
+        });
       });
     }
 
@@ -145,14 +167,10 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
       hold = "stance";
       pointer = e.pointerId;
       setHint(false);
-      stanceTimer = t.after(OPENING_TIMING.stance, () => {
-        if (hold === "stance") {
-          hold = "holding";
-          setTense(true);
-        }
+      setGuide(true);
+      stepTimer = t.after(OPENING_TIMING.releaseGuide, () => {
+        if (hold === "stance") marks();
       });
-      const delay = OPENING_TIMING.startDelayMin + Math.random() * (OPENING_TIMING.startDelayMax - OPENING_TIMING.startDelayMin);
-      startTimer = t.after(delay, go);
     }
 
     function onUp(e: PointerEvent) {
@@ -182,28 +200,11 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
     el.addEventListener("pointerup", onUp);
     el.addEventListener("pointercancel", onUp);
 
-    const pulse = reduce
-      ? null
-      : ring.current?.animate([{ transform: "scale(1)" }, { transform: "scale(0.7)" }, { transform: "scale(1)" }], {
-          duration: 1400,
-          iterations: Infinity,
-          easing: "ease-in-out",
-        });
-
-    void (async () => {
-      setWords(1);
-      await t.sleep(OPENING_TIMING.afterTake);
-      setWords(2);
-      await t.sleep(OPENING_TIMING.afterYour);
-      setWords(3);
-      await t.sleep(OPENING_TIMING.afterMarks);
-      ready();
-    })();
+    ready();
 
     return () => {
       t.cancel();
       cancelAnimationFrame(frame);
-      pulse?.cancel();
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointerup", onUp);
       el.removeEventListener("pointercancel", onUp);
@@ -223,18 +224,26 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
           ))}
         </p>
         <div className="absolute inset-x-0 bottom-[14%] flex flex-col items-center gap-3 transition-opacity duration-300" style={{ opacity: hint ? 1 : 0 }}>
-          <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className={`relative block h-16 w-16 rounded-full border-2 border-white/70 transition-transform duration-500 motion-reduce:transition-none ${idle >= 1 ? "start-idle-pulse scale-125" : ""}`}
-            >
-              <span ref={ring} className="absolute inset-[14px] rounded-full bg-white/85" />
-            </span>
-            <PressIcon />
-          </div>
+          {/* 指は丸の外へはみ出す（overflow は visible のまま）。放置で丸ごと大きくし、指・波紋も一緒に大きくなる */}
+          <span
+            aria-hidden
+            className={`relative block h-16 w-16 overflow-visible rounded-full border-2 border-white/70 transition-transform duration-500 motion-reduce:transition-none ${idle >= 1 ? "start-idle-pulse scale-125" : ""}`}
+          >
+            <span className="start-hand-press absolute inset-[14px] rounded-full bg-white/85" />
+            <span className="start-hand-ripple" />
+            <PressHand />
+          </span>
           <p className={`tracking-[0.1em] text-white/90 transition-[font-size] ${idle >= 1 ? "mt-2 text-lg font-bold" : "text-sm"}`}>長押しで構える</p>
-          <p className={`tracking-[0.08em] text-white/70 ${idle >= 1 ? "text-sm" : "text-xs"}`}>START の合図で指を離す</p>
         </div>
+        {/* 離す合図の案内（Issue #192）。文字だけ。光らせる見本は出さない */}
+        <p
+          className="absolute inset-x-6 top-1/2 -translate-y-1/2 text-center text-base leading-relaxed tracking-[0.06em] text-white transition-opacity duration-200 sm:text-lg"
+          style={{ opacity: guide ? 1 : 0 }}
+        >
+          画面が白く光り <b className="font-bold">START</b> と出たら、
+          <br />
+          素早く指を離してください
+        </p>
         {idle >= 2 && (
           <div className="welcome-fade-in absolute inset-x-6 flex justify-center" style={{ bottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
             <button
@@ -268,14 +277,14 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
   );
 }
 
-/** 長押しの指の絵（Issue #157 A-2）。丸の横に添える */
-function PressIcon() {
+/** 長押しの指（塗り。Issue #192）。丸（h-16 w-16）の中に absolute で重ねる */
+function PressHand() {
   return (
-    <svg aria-hidden viewBox="0 0 32 32" className="h-9 w-9 text-white/80" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 15V6.5a2 2 0 0 1 4 0V14" />
-      <path d="M16 13.5v-1.5a2 2 0 0 1 4 0V15" />
-      <path d="M20 14a2 2 0 0 1 4 0v4.5c0 4.7-3.3 8.5-8 8.5h-1.2c-2.4 0-4.2-1-5.6-2.9L5.6 19.2a2 2 0 0 1 3.1-2.5L12 20" />
-      <path d="M9 4.5a6 6 0 0 1 10 0" opacity="0.6" />
+    <svg aria-hidden viewBox="0 0 40 52" className="start-hand pointer-events-none absolute" style={{ width: 34, height: 44, left: 30, top: 28 }}>
+      <path
+        d="M13 6a4 4 0 0 1 8 0v17l2-.6a4 4 0 0 1 3 .2l6.5 3.1A6 6 0 0 1 36 31.4V40a10 10 0 0 1-10 10h-6.5a8 8 0 0 1-6.3-3.1L5.4 37a3.6 3.6 0 0 1 5.4-4.7L13 34.5z"
+        fill="rgba(255,255,255,.92)"
+      />
     </svg>
   );
 }
