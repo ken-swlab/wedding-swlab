@@ -24,3 +24,9 @@ export const WELCOME_LIKE_HINT_MS = 3500;
 
 /** ハートを見せてから引き込みを始めるまで (ms) */
 export const WELCOME_AFTER_LIKE_MS = 650;
+
+/** /admin/welcome（Issue #215）: 写真を選ぶ一覧に出す、新郎新婦の投稿の数（1人あたり、新しい順） */
+export const WELCOME_ADMIN_POSTS_PER_AUTHOR = 60;
+
+/** /admin/welcome: couple タグの人を読む上限 */
+export const WELCOME_ADMIN_COUPLE_LIMIT = 10;
