@@ -7,6 +7,7 @@ import { useComments } from "@/hooks/useComments";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import { useGuestbookData } from "./GuestbookDataProvider";
 import { PostCard } from "./PostCard";
+import { useOwnPostActions } from "@/hooks/useOwnPostActions";
 import { PlaceholderPanel } from "./GuestbookShell";
 import { CommentList } from "./CommentArea";
 import { CommentBar } from "./CommentBar";
@@ -29,12 +30,15 @@ export function PostDetail({
   id,
   user,
   onClose,
+  onDeleted,
   scroller,
   content,
 }: {
   id: string;
   user: User;
   onClose: () => void;
+  /** 自分の投稿を削除したあと（Issue #202）。省くと onClose。詳細画面は /guestbook へ、シートは閉じる */
+  onDeleted?: () => void;
   /** スクロールする箱。スワイプの判定とコメント送信後のスクロールに使う */
   scroller: RefObject<HTMLDivElement | null>;
   /** 中身（シートの開閉アニメーションで動かす） */
@@ -49,6 +53,8 @@ export function PostDetail({
   const loading = !cached && remote.loading;
 
   const thread = useComments(id, !!post);
+  // 自分の投稿にだけ「⋯」（編集・削除。Issue #202）
+  const own = useOwnPostActions(user, () => (onDeleted ?? onClose)());
 
   // 通知から開いたとき（URL が #c-{コメントの ID}）は、そのコメントまで1回だけ送る。
   // コメントは購読で届くので、届いて行が描かれてから探す
@@ -88,7 +94,7 @@ export function PostDetail({
             <div data-post-detail className="h-40 animate-pulse bg-stone-200/60" />
           ) : post ? (
             <>
-              <PostCard post={post} user={user} variant="detail" />
+              <PostCard post={post} user={user} variant="detail" actions={own.actionsFor(post)} />
               {/* コメントは投稿のすぐ下に続けて並べる（開閉しない） */}
               <section aria-label="コメント" className="border-t border-stone-100 bg-white px-4 pb-2">
                 {!thread.loading && !thread.error && thread.comments.length === 0 ? (
@@ -116,6 +122,7 @@ export function PostDetail({
 
       {/* 非表示の投稿（本人にだけ見える）にはコメントできない（Rules） */}
       {post && post.status === "visible" && <CommentBar post={post} user={user} onSent={showLatest} />}
+      {own.editor}
     </>
   );
 }
