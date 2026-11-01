@@ -56,7 +56,7 @@ export function PostCard({
   user: User;
   variant?: "timeline" | "detail";
   openAs?: "sheet" | "page";
-  /** カードの右上に置く操作（マイページの「⋯」。Issue #94）。タイムライン・詳細では渡さない */
+  /** カードの右上に置く操作（自分の投稿の「⋯」。マイページは Issue #94、タイムライン・詳細は Issue #202） */
   actions?: ReactNode;
   /** 外枠を黄色（amber）にする。マイページで、低画質版だけの自分の投稿に付ける（Issue #128） */
   warn?: boolean;

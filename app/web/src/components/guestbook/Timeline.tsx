@@ -4,6 +4,7 @@ import type { User } from "firebase/auth";
 import type { FirestoreError } from "firebase/firestore";
 import type { Post } from "@/types";
 import { PostCard } from "./PostCard";
+import { useOwnPostActions } from "@/hooks/useOwnPostActions";
 
 export function Timeline({
   posts, loading, error, user,
@@ -13,6 +14,9 @@ export function Timeline({
   error: FirestoreError | null;
   user: User;
 }) {
+  // 自分の投稿にだけ「⋯」（編集・削除。Issue #202）。削除したカードは購読で一覧から消える
+  const own = useOwnPostActions(user);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -47,7 +51,8 @@ export function Timeline({
 
   return (
     <div className="space-y-3">
-      {posts.map((p) => <PostCard key={p.id} post={p} user={user} />)}
+      {posts.map((p) => <PostCard key={p.id} post={p} user={user} actions={own.actionsFor(p)} />)}
+      {own.editor}
     </div>
   );
 }

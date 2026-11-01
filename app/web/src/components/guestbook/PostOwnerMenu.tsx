@@ -6,8 +6,8 @@ import { deletePost } from "@/lib/posts";
 import type { Post } from "@/types";
 
 /**
- * 自分の投稿の「⋯」（編集・削除）。マイページの自分の投稿一覧でだけ使う（Issue #94）。
- * タイムライン・ギャラリー・投稿の詳細には入口を置かない。
+ * 自分の投稿の「⋯」（編集・削除）。マイページの自分の投稿一覧（Issue #94）と、
+ * タイムライン・投稿の詳細（Issue #202。hooks/useOwnPostActions.tsx）で使う。ギャラリーには入口を置かない。
  *
  * ★削除は確認してから★ コメントといいねも消え、元に戻せない。
  * ★押せる要素はすべて button にする★ PostCard は button などへのタップを「カードを開く」として扱わない。

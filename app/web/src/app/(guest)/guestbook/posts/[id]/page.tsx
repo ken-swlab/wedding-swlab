@@ -50,7 +50,7 @@ export default function PostDetailPage() {
         className="fixed inset-x-0 top-0 z-40 flex h-dvh flex-col bg-white"
         style={{ touchAction: "pan-y" }}
       >
-        <PostDetail id={id} user={user} onClose={back} scroller={scroller} />
+        <PostDetail id={id} user={user} onClose={back} onDeleted={() => router.replace(GUESTBOOK_PATHS.home)} scroller={scroller} />
       </div>
     </AuthorNameProvider>
   );
