@@ -16,6 +16,7 @@ import type { ReencodedJpeg } from "@/lib/thumb-guard";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { TagBadge } from "./TagBadge";
+import { displayVisibleTags } from "@/config/tags";
 import type { MediaItem, Post } from "@/types";
 
 /** 編集で足した写真・動画（まだ送っていない） */
@@ -323,7 +324,7 @@ export function PostEditor({
           <div className="mt-5 rounded-xl bg-stone-50 p-3">
             <p className="text-xs font-medium text-stone-500">公開範囲</p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {post.visibleToTags.map((t) => (
+              {displayVisibleTags(post.visibleToTags).map((t) => (
                 <TagBadge key={t} id={t} />
               ))}
             </div>

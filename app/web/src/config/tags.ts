@@ -9,11 +9,18 @@ export type TagDef = {
   /** 論理削除。ピッカーには出ないが、既存データの表示は壊れない */
   archived?: boolean;
   order?: number;
+  /**
+   * 仕組み用のタグ（Issue #204）。権限（Custom Claims・Rules・公開範囲の判定・API）には使うが、
+   * ゲストにも管理画面の選択肢・一覧にも出さない。データからは消さない。
+   */
+  system?: boolean;
 };
 
 export const TAG_DEFS: TagDef[] = [
   { id: "all",           label: "全員",       className: "bg-tagstone-100 text-tagstone-700 ring-tagstone-200", selectable: true  },
-  { id: "guest",         label: "承認済",     className: "bg-lime-50 text-lime-700 ring-lime-200",          selectable: true  },
+  // ★guest は承認済みの全員に付く仕組み用のタグ★（DEFAULT_GUEST_TAGS）。ゲストブックにいる人は全員承認済みなので、
+  //   見せても意味がない。表示だけ隠し（system）、権限の判定にはこれまでどおり使う（Issue #204）
+  { id: "guest",         label: "承認済",     className: "bg-lime-50 text-lime-700 ring-lime-200",          selectable: true,  system: true },
   { id: "couple",        label: "新郎新婦",   className: "bg-pink-50 text-pink-700 ring-pink-200",          selectable: true  },
   { id: "family",        label: "親族",       className: "bg-rose-50 text-rose-700 ring-rose-200",          selectable: true,  community: true },
   { id: "friends_groom", label: "新郎友人",   className: "bg-sky-50 text-sky-700 ring-sky-200",             selectable: true,  community: true },
@@ -108,3 +115,23 @@ export function tagDef(id: string): TagDef {
 }
 
 export const TAG_QUERY_LIMIT = 30;
+
+/** 仕組み用のタグ（表示しない。Issue #204）か */
+export function isSystemTag(id: string): boolean {
+  return tagDef(id).system === true;
+}
+
+/** 表示用に、仕組み用のタグを除く（データは変えない） */
+export function withoutSystemTags(ids: readonly string[]): string[] {
+  return ids.filter((t) => !isSystemTag(t));
+}
+
+/**
+ * 公開範囲（visibleToTags）の見せ方（Issue #204）。仕組み用のタグを除く。
+ * ★仕組み用のタグだけの公開範囲（guest だけ）は「全員」と同じに見せる★ guest は承認済みの全員に付くので、
+ *   見える人は all と同じ。バッジが1つも無いと公開範囲が分からないため、all に置き換えて出す。
+ */
+export function displayVisibleTags(ids: readonly string[]): string[] {
+  const shown = withoutSystemTags(ids);
+  return shown.length === 0 && ids.length > 0 ? ["all"] : shown;
+}

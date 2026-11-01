@@ -11,6 +11,7 @@ import { HeartIcon } from "./HeartIcon";
 import { useMyReaction } from "@/hooks/useMyReaction";
 import { RichText } from "./RichText";
 import { TagBadge } from "./TagBadge";
+import { displayVisibleTags } from "@/config/tags";
 import { CommentArea } from "./CommentArea";
 import type { Post } from "@/types";
 import { bestSrc } from "@/lib/media-url";
@@ -239,7 +240,7 @@ export function PostLightbox({
               </button>
 
               <div className="ml-auto flex flex-wrap gap-1">
-                {post.visibleToTags.map((t) => <TagBadge key={t} id={t} />)}
+                {displayVisibleTags(post.visibleToTags).map((t) => <TagBadge key={t} id={t} />)}
               </div>
             </div>
 

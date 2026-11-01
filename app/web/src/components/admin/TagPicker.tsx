@@ -10,6 +10,7 @@ import {
   paletteClass,
   tagDef,
   upsertCustomTag,
+  withoutSystemTags,
 } from "@/config/tags";
 import { refreshTagCache, toTagDef, useTags, type CustomTagDoc } from "@/lib/tags-client";
 import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
@@ -102,7 +103,9 @@ export function TagPicker({
   useVisualViewportFrame(frameRef, open && sheet);
 
   const addable = useMemo(
-    () => allTags.filter((t) => !value.includes(t.id)),
+    // ★仕組み用のタグ（「承認済」）は付け外しの選択肢に出さない★（Issue #204）承認・停止のときに
+    //   サーバー（update-guest）が自動で付け外しする
+    () => allTags.filter((t) => !t.system && !value.includes(t.id)),
     [allTags, value],
   );
   const full = value.length >= max;
@@ -332,7 +335,9 @@ export function TagPicker({
 
   return (
     <div className="flex flex-wrap items-center gap-1">
-      {value.map((t) => {
+      {/* ★仕組み用のタグは並べないが、value からは消さない★ 外すときは value から1つだけ除くので、
+          隠したタグはそのまま保存される（Issue #204） */}
+      {withoutSystemTags(value).map((t) => {
         const d = tagDef(t);
         return (
           <span

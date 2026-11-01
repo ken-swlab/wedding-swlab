@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { User } from "firebase/auth";
-import { COUPLE_TAG, tagDef } from "@/config/tags";
+import { COUPLE_TAG, displayVisibleTags, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
@@ -82,11 +82,12 @@ export function Composer({
   // ★カスタムタグも選べる★（「酒豪」など。Issue #147）。選べるかは管理画面のタグ管理（selectable）で決め、アーカイブ済みは出さない
   const { allTags } = useTags();
   const available = useMemo(
-    () => allTags.filter((t) => t.selectable && !t.archived && (tags.includes(t.id) || t.id === COUPLE_TAG)),
+    // ★仕組み用のタグ（「承認済」）は選択肢に出さない★（Issue #204）見える人は「全員」と同じ
+    () => allTags.filter((t) => t.selectable && !t.archived && !t.system && (tags.includes(t.id) || t.id === COUPLE_TAG)),
     [allTags, tags],
   );
   const [selected, setSelected] = useState<string[]>(() =>
-    tags.includes("all") ? ["all"] : tags.slice(0, 1),
+    tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1),
   );
 
   // @メンションの候補は、選んでいる公開範囲が見える人だけ（範囲を変えると候補も変わる）
@@ -454,7 +455,7 @@ export function Composer({
             {coupleOnly
               ? "あなたと新郎新婦だけに表示されます"
               : selected.length > 0
-                ? `${selected.map((t) => tagDef(t).label).join("・")} に表示されます`
+                ? `${displayVisibleTags(selected).map((t) => tagDef(t).label).join("・")} に表示されます`
                 : "1つ以上選んでください"}
           </span>
         </p>
