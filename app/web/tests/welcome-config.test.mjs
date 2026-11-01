@@ -4,15 +4,21 @@ import { test } from "node:test";
 import { parseWelcomeConfig, pickWelcome } from "../src/lib/welcome-config.ts";
 
 test("形の確認", () => {
-  assert.deepEqual(parseWelcomeConfig({}), { ok: true, value: { defaultPostId: "", byTag: {}, message: "", messages: {} } });
+  assert.deepEqual(parseWelcomeConfig({}), { ok: true, value: { defaultPostId: "", byTag: {}, message: "", messages: {}, priority: [] } });
   const ok = parseWelcomeConfig({ defaultPostId: "p1", byTag: { friends_groom: "p2" }, message: " ありがとう ", messages: { c_0000abcd: "部活のみんなへ" } });
-  assert.deepEqual(ok, { ok: true, value: { defaultPostId: "p1", byTag: { friends_groom: "p2" }, message: "ありがとう", messages: { c_0000abcd: "部活のみんなへ" } } });
+  assert.deepEqual(ok, { ok: true, value: { defaultPostId: "p1", byTag: { friends_groom: "p2" }, message: "ありがとう", messages: { c_0000abcd: "部活のみんなへ" }, priority: [] } });
   assert.deepEqual(parseWelcomeConfig(null), { ok: false, field: "(全体)" });
   assert.deepEqual(parseWelcomeConfig({ defaultPostId: "a/b" }), { ok: false, field: "defaultPostId" });
   assert.deepEqual(parseWelcomeConfig({ byTag: { all: 1 } }), { ok: false, field: "byTag" });
   assert.deepEqual(parseWelcomeConfig({ byTag: ["p1"] }), { ok: false, field: "byTag" });
   assert.deepEqual(parseWelcomeConfig({ message: "あ".repeat(61) }), { ok: false, field: "message" });
   assert.deepEqual(parseWelcomeConfig({ messages: { all: "" } }), { ok: false, field: "messages" });
+  assert.deepEqual(parseWelcomeConfig({ priority: ["c_0000abcd", "family"] }).value.priority, ["c_0000abcd", "family"]);
+  assert.deepEqual(parseWelcomeConfig({ priority: "family" }), { ok: false, field: "priority" });
+  assert.deepEqual(parseWelcomeConfig({ priority: ["family", "family"] }), { ok: false, field: "priority" });
+  assert.deepEqual(parseWelcomeConfig({ priority: ["a/b"] }), { ok: false, field: "priority" });
+  assert.deepEqual(parseWelcomeConfig({ priority: [1] }), { ok: false, field: "priority" });
+  assert.deepEqual(parseWelcomeConfig({ priority: Array.from({ length: 51 }, (_, i) => `t${i}`) }), { ok: false, field: "priority" });
 });
 
 test("グループのタグを all・guest より優先し、無ければ既定", () => {
@@ -21,4 +27,32 @@ test("グループのタグを all・guest より優先し、無ければ既定"
   assert.deepEqual(pickWelcome(c, ["all", "guest", "family"]), { postId: "pa", message: "既定", tag: "all" });
   const d = parseWelcomeConfig({ defaultPostId: "pd" }).value;
   assert.deepEqual(pickWelcome(d, ["all", "guest"]), { postId: "pd", message: "", tag: null });
+});
+
+test("重なったタグは priority の順で選ぶ（Issue #215）", () => {
+  const base = { defaultPostId: "pd", byTag: { c_0000aaaa: "pa", c_0000bbbb: "pb" }, message: "既定", messages: { c_0000aaaa: "Aへ", c_0000bbbb: "Bへ" } };
+  const tags = ["all", "guest", "c_0000aaaa", "c_0000bbbb"];
+  const ab = parseWelcomeConfig({ ...base, priority: ["c_0000aaaa", "c_0000bbbb"] }).value;
+  assert.deepEqual(pickWelcome(ab, tags), { postId: "pa", message: "Aへ", tag: "c_0000aaaa" });
+  // ↑↓で入れ替えると、届く写真も入れ替わる
+  const ba = parseWelcomeConfig({ ...base, priority: ["c_0000bbbb", "c_0000aaaa"] }).value;
+  assert.deepEqual(pickWelcome(ba, tags), { postId: "pb", message: "Bへ", tag: "c_0000bbbb" });
+  // 上のタグに写真が無ければ、次のタグの写真。一言は上のタグのもの
+  const noPhoto = parseWelcomeConfig({ ...base, byTag: { c_0000bbbb: "pb" }, priority: ["c_0000aaaa", "c_0000bbbb"] }).value;
+  assert.deepEqual(pickWelcome(noPhoto, tags), { postId: "pb", message: "Aへ", tag: "c_0000bbbb" });
+});
+
+test("全員のみのゲストには全員用の写真（Issue #215）", () => {
+  const c = parseWelcomeConfig({ defaultPostId: "pd", byTag: { family: "pf" }, message: "ようこそ", messages: { family: "親族へ" }, priority: ["family"] }).value;
+  assert.deepEqual(pickWelcome(c, ["all", "guest"]), { postId: "pd", message: "ようこそ", tag: null });
+  // priority に all を入れても、グループのタグより先には当たらない
+  const g = parseWelcomeConfig({ defaultPostId: "pd", byTag: { all: "pall", family: "pf" }, priority: ["all", "family"] }).value;
+  assert.deepEqual(pickWelcome(g, ["all", "guest", "family"]).postId, "pf");
+});
+
+test("priority にないタグは、priority のタグの後に文字順で探す（Issue #215）", () => {
+  const c = parseWelcomeConfig({ defaultPostId: "pd", byTag: { c_0000aaaa: "pa", c_0000bbbb: "pb", friends_groom: "pg" }, priority: ["friends_groom"] }).value;
+  assert.deepEqual(pickWelcome(c, ["all", "c_0000bbbb", "c_0000aaaa", "friends_groom"]).postId, "pg");
+  assert.deepEqual(pickWelcome(c, ["all", "c_0000bbbb", "c_0000aaaa"]).postId, "pa");
+  assert.deepEqual(pickWelcome(c, ["all", "c_0000bbbb"]).postId, "pb");
 });
