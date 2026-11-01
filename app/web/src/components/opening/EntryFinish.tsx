@@ -17,9 +17,9 @@ const ENTRY_TIMING = {
 
 /**
  * 回答の送信完了「エントリー完了」（Issue #149）。オープニング（招集）の電光掲示板の続き。
- *   EVENT 1　ENTRY → FINISH（点灯）→ 4　{ゲストの名前} → 本文
+ *   EVENT 1　ENTRY → FINISH（点灯）→ 4　{ゲストの名前} →「エントリー完了」
  *
- * ★ボタンは置かず、自動で承認待ちへ進む★（Issue #156）出そろってから ENTRY_AUTO_ADVANCE_MS（3 秒）で onNext。
+ * ★ボタンは置かず、自動で承認待ちへ進む★（Issue #156）出そろってから ENTRY_AUTO_ADVANCE_MS（2.2 秒）で onNext。
  *   画面のどこをタップしても、すぐ進む（出そろう前でも）。自動で進むことは、画面下の細い線が伸びることで伝える
  *   （文字では書かない）。onNext は 1 回だけ呼ぶ。
  * ★演出は合計 2〜3 秒以内★ prefers-reduced-motion では動きを省き、最初から全部出す（線も出さない。進む時間は同じ）。
@@ -28,7 +28,7 @@ const ENTRY_TIMING = {
  * ★ゲストの名前はオープニングと同じ表示★（lib/opening-names.ts の classifyDisplayName の guest）。
  */
 export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: () => void }) {
-  // 0: 何も出ていない → 1: EVENT 1 ENTRY → 2: FINISH（点滅して点灯）→ 3: 名前 → 4: 本文とボタン
+  // 0: 何も出ていない → 1: EVENT 1 ENTRY → 2: FINISH（点滅して点灯）→ 3: 名前 → 4:「エントリー完了」
   // ★動きを減らす設定なら最初から全部出す★（送信のあとに出す画面なので、サーバーで描くことはない）
   const [reduce] = useState(() => typeof window !== "undefined" && prefersReducedMotion());
   const [stage, setStage] = useState(reduce ? 4 : 0);
@@ -126,15 +126,10 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
         </div>
       </div>
 
+      {/* ★ここは盛り上げだけ。説明は書かない★（Issue #200）承認の説明は次の承認待ち（PendingApproval）だけで行う。
+          同じ内容を2回読ませると、テンポが落ちる */}
       <div className="mt-10 w-full max-w-[22rem]" style={show(4)}>
-        {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1） */}
-        <p className="text-balance text-[15px] leading-[1.9]">
-          エントリー、完了です。
-          <br />
-          新郎新婦の確認が終わると、
-          <br />
-          次のステージへ進めます。
-        </p>
+        <p className="text-[15px]">エントリー完了</p>
       </div>
 
       {/* 自動で進むまでの残り時間。文字は出さない（Issue #156）。動きを減らす設定では出さない */}

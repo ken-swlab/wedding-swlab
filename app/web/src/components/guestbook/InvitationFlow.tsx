@@ -24,7 +24,7 @@ import type { InvitationContent, OpeningContent } from "@/types/invitation";
  *   opening  … パスコードを通った直後のオープニング演出「招集」（全画面。Issue #131）
  *   open     … 招待状の本文。「エントリーする」で、出欠の回答フォーム（エントリー画面）に切り替わる（Issue #166）
  *   preparing … 招待状の中身がまだ用意できていない（config/invitation が未設定）
- *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。3 秒かタップで承認待ちへ（Issue #156）
+ *   finish   … 初めて回答を送った直後の「エントリー完了」（全画面。Issue #149）。2.2 秒かタップで承認待ちへ（Issue #156・#200）
  */
 export type InvitationStep =
   | { kind: "entrance"; busy: boolean; message: string | null }
