@@ -6,9 +6,9 @@ import { createTimeline, prefersReducedMotion } from "./timeline";
 
 /**
  * 長押しの状態。
- *   ready    … 「長押しで構える」を出して待っている
+ *   ready    … 「長押しで構える」を出して待っている（Take your marks は薄いグレーで置いておく）
  *   stance   … 指を置いた直後。「離す合図」の案内を releaseGuide のあいだ出す（ここで離したら静かに ready へ戻す）
- *   holding  … 構えた。Take your marks を1語ずつ出し、marks のあとランダムな間を待つ（ここで離すとフライング）
+ *   holding  … 構えた。Take your marks を1語ずつグレー → 白に変え、marks のあとランダムな間を待つ（ここで離すとフライング）
  *   starting … START を出すと決めた〜その絵が描かれるフレームまで（ここで離してもフライング）
  *   started  … START が描かれた（ここで離した時刻がリアクションタイム）
  *   foul     … 「フライング！」を出している
@@ -40,6 +40,11 @@ const WORDS = ["Take", "your", "marks"] as const;
  *
  * ★marks を出し終えてから START までの間を数える★ marks より先に START が出ないようにする。
  *
+ * ★Take your marks は押す前から薄いグレーで置いておく★（Issue #211）長押しの前に「このあとスタートが来る」と分かるように。
+ *   ready に入るときに 400ms でフェードインし、holding で今と同じ間のまま1語ずつ白くする。フライングで ready に戻ると3語ともグレーに戻す。
+ *   グレーでも白でも START までの残り時間は示さない（白くなる間は毎回同じで、START までの間は marks のあとにランダムで数える）。
+ *   案内（stance）の間は、案内の文字と重ならないよう text-white/10 まで薄くする（iPhone SE など背の低い画面で重なる）。
+ *
  * ★止まったままにしない★（Issue #157 A-2）「長押しで構える」を出してから一度も指を置かないまま idleEmphasis（5 秒）で
  *   丸と案内を大きくし、idleSkip（10 秒）で「スキップして招待状へ」を下に大きめに出す（右上のスキップと同じ）。
  *
@@ -47,7 +52,10 @@ const WORDS = ["Take", "your", "marks"] as const;
  * onSkip: 「スキップして招待状へ」。
  */
 export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number | null) => void; onSkip: () => void }) {
+  // 白くなった語の数（0〜3）。白くなっていない語は薄いグレー
   const [words, setWords] = useState(0);
+  // Take your marks を出したか（最初の ready でフェードインする）
+  const [marksShown, setMarksShown] = useState(false);
   const [hint, setHint] = useState(false);
   const [guide, setGuide] = useState(false);
   const [tense, setTense] = useState(false);
@@ -93,6 +101,7 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
       setGuide(false);
       setWords(0);
       setMarkHidden(false);
+      setMarksShown(true);
       setHint(true);
       // 初めて案内を出したときだけ、待ち続けている人への案内を仕込む
       if (!touched && !idleTimers) {
@@ -215,9 +224,13 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
     <section ref={root} className="absolute inset-0" style={{ background: "#000", color: OPENING_COLORS.ink }}>
       {/* 構えると画面が少し寄る */}
       <div className="absolute inset-0 transition-transform duration-[1200ms] ease-out motion-reduce:transition-none" style={{ transform: tense ? "scale(1.04)" : "scale(1)" }}>
-        <p className="absolute inset-x-0 top-[36%] text-center text-[30px] font-extrabold tracking-[0.06em]" style={{ visibility: markHidden ? "hidden" : "visible" }}>
+        {/* 押す前から薄いグレーで置き、構えたら1語ずつ白くする（Issue #211）。案内の間はさらに薄く */}
+        <p
+          className="absolute inset-x-0 top-[36%] text-center text-[30px] font-extrabold tracking-[0.06em] transition-opacity duration-[400ms]"
+          style={{ visibility: markHidden ? "hidden" : "visible", opacity: marksShown ? 1 : 0 }}
+        >
           {WORDS.map((w, i) => (
-            <span key={w} className="transition-opacity duration-100" style={{ opacity: words > i ? 1 : 0 }}>
+            <span key={w} className={`transition-colors duration-100 ${words > i ? "" : guide ? "text-white/10" : "text-white/25"}`}>
               {w}
               {i < WORDS.length - 1 ? " " : ""}
             </span>
