@@ -369,6 +369,27 @@ body {
   .start-hand-ripple { display: none; }
 }
 
+/* 承認後の最初の写真で、何もせずに待っている人へのダブルタップの見本（Issue #213。WelcomeMoment）。
+   写真の中央に白い線のハートが一度だけふわっと出て消える（いいねの赤いハートと見分けるため、線だけ・白） */
+.welcome-like-hint {
+  /* 明るい写真の上でも白い線が見えるよう、暗い影を付ける */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  animation: welcome-like-hint 1.4s ease-out both;
+}
+@keyframes welcome-like-hint {
+  0%   { transform: scale(0.6); opacity: 0; }
+  35%  { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 大きさは変えず、出て消えるだけ */
+  .welcome-like-hint { animation-name: welcome-fade-out-hint; }
+  @keyframes welcome-fade-out-hint {
+    0%, 100% { opacity: 0; }
+    35% { opacity: 0.9; }
+  }
+}
+
 /* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */
 @keyframes screen-fade {
   from { opacity: 1; }

@@ -16,5 +16,11 @@ export const WELCOME_AUTHOR_NAME = "新郎新婦";
 /** タイムラインへ引き込む動きの長さ (ms)。0.6〜0.8 秒 */
 export const WELCOME_FLY_MS = 700;
 
+/**
+ * 写真が出てから、何もせずに待っている人にダブルタップの見本（写真の上で白いハートが一度出て消える）を
+ * 見せるまで (ms)。Issue #213（3〜4 秒）。一度だけ。
+ */
+export const WELCOME_LIKE_HINT_MS = 3500;
+
 /** ハートを見せてから引き込みを始めるまで (ms) */
 export const WELCOME_AFTER_LIKE_MS = 650;
