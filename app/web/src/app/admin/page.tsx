@@ -9,7 +9,7 @@ import { HiddenPosts } from "@/components/admin/HiddenPosts";
 import { LineNotifyRetry } from "@/components/admin/LineNotifyRetry";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
-import { tagDef } from "@/config/tags";
+import { tagDef, withoutSystemTags } from "@/config/tags";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { DRINK_LEVELS } from "@/config/drink";
@@ -83,7 +83,7 @@ export default function AdminPage() {
 
   function exportCsv() {
     const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "お酒", "お車代", "アレルギー", "備考", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], r.tags.map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], withoutSystemTags(r.tags).map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));

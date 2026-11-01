@@ -10,6 +10,7 @@ import { useMyReaction } from "@/hooks/useMyReaction";
 import { COMMENT_INPUT_ID, postPath } from "@/config/guestbook";
 import { MediaGrid } from "./MediaGrid";
 import { TagBadge } from "./TagBadge";
+import { displayVisibleTags } from "@/config/tags";
 import { RichText } from "./RichText";
 import { openPostSheet } from "./PostDetailSheet";
 import { AuthorAvatar } from "./AuthorAvatar";
@@ -194,7 +195,7 @@ export function PostCard({
             {post.editedAt && <span className="shrink-0 whitespace-nowrap text-xs text-stone-400">（編集済）</span>}
           </div>
           <div className="mt-1 flex flex-wrap gap-1">
-            {post.visibleToTags.map((t) => <TagBadge key={t} id={t} />)}
+            {displayVisibleTags(post.visibleToTags).map((t) => <TagBadge key={t} id={t} />)}
           </div>
         </div>
         {actions}

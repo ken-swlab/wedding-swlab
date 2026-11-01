@@ -175,7 +175,8 @@ export function EpisodeModal({
                 誰についての話か（グループ）
               </span>
               <div className="mt-1.5 flex flex-wrap gap-1">
-                {TAG_DEFS.map((t) => {
+                {/* 仕組み用のタグ（「承認済」）は出さない。すでに選ばれているときだけ、外せるように出す（Issue #204） */}
+                {TAG_DEFS.filter((t) => !t.system || targetTags.includes(t.id)).map((t) => {
                   const on = targetTags.includes(t.id);
                   return (
                     <button key={t.id} type="button"
@@ -242,7 +243,7 @@ export function EpisodeModal({
                 ミニAI はここで許可した相手にしかこのエピソードを使いません。
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {TAG_DEFS.map((t) => {
+                {TAG_DEFS.filter((t) => !t.system || visibleToTags.includes(t.id)).map((t) => {
                   const on = visibleToTags.includes(t.id);
                   return (
                     <button key={t.id} type="button"

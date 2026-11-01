@@ -9,7 +9,7 @@ import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { useEpisodes } from "@/hooks/useEpisodes";
 import { EpisodeModal } from "@/components/admin/EpisodeModal";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
-import { tagDef } from "@/config/tags";
+import { displayVisibleTags, tagDef, withoutSystemTags } from "@/config/tags";
 import { adminName } from "@/lib/names";
 import type { Episode } from "@/types/episode";
 
@@ -260,7 +260,7 @@ export default function AdminEpisodesPage() {
                             </td>
                             <td className="border-b border-stone-200 px-3 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {ep.targetTags.map((id) => (
+                                {withoutSystemTags(ep.targetTags).map((id) => (
                                   <span key={id}
                                     className={`rounded-full px-1.5 py-0.5 text-[10px] ring-1 ring-inset ${tagDef(id).className}`}>
                                     {tagDef(id).label}
@@ -282,7 +282,7 @@ export default function AdminEpisodesPage() {
                             </td>
                             <td className="border-b border-stone-200 px-3 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {ep.visibleToTags.map((id) => (
+                                {displayVisibleTags(ep.visibleToTags).map((id) => (
                                   <span key={id}
                                     className={`rounded-full px-1.5 py-0.5 text-[10px] ring-1 ring-inset ${tagDef(id).className}`}>
                                     {tagDef(id).label}
