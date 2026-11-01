@@ -68,12 +68,10 @@ export function PostCard({
   // 名前とアイコンは最新を出す（投稿に保存した値は投稿したときのもの。profiles-client の★参照）
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
 
-  // ★いいね済みかの読み取りは詳細画面でだけ行う★（useMyReaction のコメント参照）
-  //   タイムラインは従来どおり白ハートから始める。
-  const [localReacted, setLocalReacted] = useState(false);
+  // ★いいね済みかは自分のいいねの一覧（クエリ1回）で決める★（Issue #212。useMyReaction のコメント参照）
+  //   一覧で分からないときに1件ずつ読むのは詳細画面だけ（タイムラインで読むと投稿の数だけ読みが走る）。
   const mine = useMyReaction(post.id, user.uid, detail);
-  const reacted = detail ? mine.reacted : localReacted;
-  const setReacted = detail ? mine.setReacted : setLocalReacted;
+  const { reacted, setReacted } = mine;
   const [busy, setBusy] = useState(false);
   const { isAdmin } = useGuestSessionContext();
   const [hiding, setHiding] = useState(false);
@@ -106,8 +104,8 @@ export function PostCard({
    * 写真のダブルタップ（MediaGrid・MediaLightbox から呼ぶ。Issue #96）。いいねを付けるだけで、取り消さない。
    * 戻り値は「付いている状態にできたか」。失敗の知らせは、ハートを出した側（写真の上）が出す。
    * ★書き込みは1回だけ★ 続けてタップされても、送信中の1回を使い回す。
-   *   すでに付いているかは likePost がトランザクションの中で読む（タイムラインは白ハートから始まるため、
-   *   画面の状態では分からない）。付けたら、下のハートのボタンも「いいね済み」にそろえる。
+   *   すでに付いているかは likePost がトランザクションの中で読む（一覧で分からない投稿は白ハートから始まるため、
+   *   画面の状態では分からないことがある）。付けたら、下のハートのボタンも「いいね済み」にそろえる。
    */
   const liking = useRef<Promise<boolean> | null>(null);
   function onLike(): Promise<boolean> {
@@ -131,10 +129,20 @@ export function PostCard({
     return run;
   }
 
+  /**
+   * ハートのボタン。赤なら取り消し、白なら付ける。
+   * ★いいね済みか分からないまま白いとき（mine.certain が false）は、付けるだけで取り消さない★（Issue #212）
+   *   toggleReaction を呼ぶと、実は付いていたいいねを外してしまう。likePost は付いていれば何もしない。
+   */
   async function onReact() {
-    if (busy || (detail && !mine.loaded)) return;
+    if (busy || !mine.loaded) return;
     setBusy(true);
     try {
+      if (!reacted && !mine.certain) {
+        await likePost(post.id, user.uid);
+        setReacted(true);
+        return;
+      }
       setReacted(await toggleReaction(post.id, user.uid));
     } catch (e) {
       console.error(e);
@@ -227,7 +235,7 @@ export function PostCard({
               e.stopPropagation();
               void onReact();
             }}
-            disabled={busy}
+            disabled={busy || !mine.loaded}
             aria-pressed={reacted}
             aria-label={`いいね ${post.reactionCount}件`}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${

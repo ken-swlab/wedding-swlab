@@ -307,7 +307,8 @@ table("reactions: 本人の1件だけ", [
   ["admin", ALLOW, "一覧は limit 500 まで", list("posts/p_all/reactions", limit(500))],
   ["admin", DENY, "limit 501 の一覧は拒否", list("posts/p_all/reactions", limit(501))],
   ["guest", ALLOW, "見える投稿に自分のいいねを作れる", myReaction("p_all")],
-  ["guest", ALLOW, "emoji だけでも作れる（uid と createdAt は任意）", myReaction("p_all", (d) => without(d, "uid", "createdAt"))],
+  ["guest", ALLOW, "createdAt は任意", myReaction("p_all", (d) => without(d, "createdAt"))],
+  ["guest", DENY, "再発防止: uid の無いいいねは作れない（自分のいいねの一覧から漏れる。Issue #212）", myReaction("p_all", (d) => without(d, "uid", "createdAt"))],
   ["groomFriend", ALLOW, "自分のいいねの絵文字を変えられる", myReaction("p_all", { emoji: "🎉" })],
   ["guest", DENY, "他人の名前のいいねは作れない", set("posts/p_all/reactions/u_groom", { emoji: "❤️", uid: "u_groom" })],
   ["guest", DENY, "uid フィールドを他人にはできない", myReaction("p_all", { uid: "u_groom" })],
@@ -321,6 +322,23 @@ table("reactions: 本人の1件だけ", [
   ["groomFriend", ALLOW, "自分のいいねを消せる", del("posts/p_all/reactions/u_groom")],
   ["guest", DENY, "他人のいいねは消せない", del("posts/p_all/reactions/u_groom")],
   ["admin", DENY, "現状: 管理者も他人のいいねは消せない", del("posts/p_all/reactions/u_groom")],
+]);
+
+// 自分のいいねの一覧（collectionGroup("reactions")。Issue #212）
+const allReactions = (...constraints) => (db) => getDocs(query(collectionGroup(db, "reactions"), ...constraints));
+
+table("reactions: 自分のいいねの一覧（collection group）", [
+  ["groomFriend", ALLOW, "自分の uid で絞れば、自分のいいねを横断で一覧できる", allReactions(where("uid", "==", "u_groom"), limit(500))],
+  ["guest", ALLOW, "いいねが無くても自分の uid なら一覧できる（空）", allReactions(where("uid", "==", "u_guest"), limit(500))],
+  ["guest", DENY, "他人の uid では一覧できない", allReactions(where("uid", "==", "u_groom"), limit(500))],
+  ["guest", DENY, "uid の条件なしは拒否", allReactions(limit(10))],
+  ["groomFriend", DENY, "limit 501 は拒否", allReactions(where("uid", "==", "u_groom"), limit(501))],
+  ["groomFriend", DENY, "limit なしは拒否", allReactions(where("uid", "==", "u_groom"))],
+  ["admin", DENY, "管理者も他人の uid では一覧できない", allReactions(where("uid", "==", "u_groom"), limit(500))],
+  ["admin", ALLOW, "管理者も自分の uid なら一覧できる", allReactions(where("uid", "==", "u_admin"), limit(500))],
+  ["pending", DENY, "未承認の人も他人の uid では一覧できない", allReactions(where("uid", "==", "u_groom"), limit(500))],
+  ["anon", DENY, "未ログインは読めない", allReactions(where("uid", "==", "u_groom"), limit(500))],
+  ["guest", DENY, "再発防止: 1つの投稿のいいねも、他人の uid では一覧できない", list("posts/p_all/reactions", where("uid", "==", "u_groom"), limit(10))],
 ]);
 
 // ---------------------------------------------------------------------------
@@ -512,5 +530,5 @@ table("Rules に書かれていないパス（既定拒否）", [
   ...lockedDown("posts の下の知らないサブコレクション", "posts/p_all/secret/x1"),
   ["anon", DENY, "未ログインは知らないコレクションを読めない", get("unknown/x1")],
   ["guest", DENY, "知らないコレクションを横断で一覧できない", (db) => getDocs(query(collectionGroup(db, "secret"), limit(1)))],
-  ["admin", DENY, "管理者もいいねを横断で一覧できない", (db) => getDocs(query(collectionGroup(db, "reactions"), limit(1)))],
+  ["admin", DENY, "管理者も uid の条件なしでいいねを横断で一覧できない（Issue #212 で uid で絞るルールを足した）", (db) => getDocs(query(collectionGroup(db, "reactions"), limit(1)))],
 ]);

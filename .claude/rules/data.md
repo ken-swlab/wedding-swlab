@@ -19,7 +19,7 @@ paths:
 | `guestAdmin/{uid}` | 管理者 | サーバー |
 | `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の直接の更新は `media`・`updatedAt` だけ（本文の編集は `/api/posts/[id]`）。カウンタは ±1（`reactionCount` は自分のいいねの作成・削除と同じ書き込みのときだけ） |
 | `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
-| `posts/{id}/reactions/{uid}` | 本人の1件だけ（管理者は読める） | 本人の1件だけ（その投稿が読める人） |
+| `posts/{id}/reactions/{uid}` | 本人の分だけ（管理者は1件ずつ読める）。自分のいいねの一覧は `collectionGroup("reactions")` を `uid == 自分` と `limit(500)` 以下で絞ったときだけ（管理者も同じ。Issue #212） | 本人の1件だけ（その投稿が読める人）。`uid`（自分の uid）は必須 |
 | `notifications/{uid}/items/{id}` | 本人 | 作成はサーバー（`/api/notifications/mention`）。本人の更新は `read` を `true` にするだけ |
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
@@ -44,7 +44,7 @@ paths:
 
 ## クライアントのクエリ
 - Rules はフィルタではない。条件と `limit()` が Rules と合わないクエリは全体が拒否される。
-- `limit()` の上限: posts 50 / comments 100 / notifications の items 50 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
+- `limit()` の上限: posts 50 / comments 100 / 自分のいいねの一覧（reactions の collection group）500 / notifications の items 50 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
 - posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。管理者（新郎新婦）の一覧だけはタグの条件を付けず、全投稿を出す（`usePosts`。インデックス `posts_timeline_admin`）。
 - 「新郎新婦あて」の投稿は `visibleToTags: ["couple"]` だけ（ほかのタグと混ぜない。Rules が拒否する）。誰でも作れ、見えるのは投稿者本人と新郎新婦だけ。投稿者のタイムラインには出さず、マイページ（`useMyPosts`）にだけ出す。`/screen` は `SCREEN_TAGS`（既定 `all`）だけを出す。
 - コメントの横断購読（`collectionGroup("comments")`）は `match /{path=**}/comments/{id}` のルールが別に要る。
@@ -57,7 +57,7 @@ paths:
 - カウンタ（`reactionCount` / `commentCount`）は `increment(±1)` と `updatedAt` だけを更新する。
 
 ## インデックスと TTL
-- 複合インデックスは Terraform の `google_firestore_index` で管理する（`firestore_rules.tf`・`faces.tf`・`episodes.tf`・`screen.tf`）。新しいクエリの形には index を足し、PR に「terraform apply が必要」と書く。
+- 複合インデックスは Terraform の `google_firestore_index` で管理する（`firestore_rules.tf`・`faces.tf`・`episodes.tf`・`screen.tf`。単一フィールドの collection group のインデックスは `google_firestore_field`。`reactions.tf`）。新しいクエリの形には index を足し、PR に「terraform apply が必要」と書く。
 - `infra/firestore/firestore.indexes.json` の posts(authorUid, createdAt) だけは Terraform 管理外（webhook が使う）。
 - TTL は `rateLimits.expiresAt` と `auditLogs.expiresAt`（Timestamp 型でなければ消えない）。監査ログ（`auditLogs`）は `create()` だけで、更新・削除しない。終了の記録に件数（`counts`。数だけ）を添えたいルートは、応答ヘッダ `x-audit-counts`（`config/audit.ts`）に JSON で入れる。`withGuard` が読んで外す。
 - `deletedMedia`（投稿の削除で消した高画質版の印。Issue #122）は消さない・TTL を付けない（端末に残った原本が、何日もあとに送られて公開されうる）。

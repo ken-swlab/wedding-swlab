@@ -130,21 +130,34 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isAdmin() || (signedIn() && resource.data.authorUid == myUid());
       }
-      // ★リアクションは本人の1件だけを読み書きする★
+      // ★リアクションは本人の分だけを読み書きする★
       //   以前は読み取りをサインイン済みの全員に開けていた（承認前の人や、投稿が見えない人でも、
-      //   誰がどの投稿にいいねしたかを読めた）。クライアントが読むのは自分の1件だけ（useMyReaction）。
+      //   誰がどの投稿にいいねしたかを読めた）。クライアントが読むのは自分の分だけ
+      //   （1件ずつは useMyReaction、まとめては下の collection group のルールと MyReactionsContext）。
       //   作成も、その投稿が見える人に限る。
+      // ★uid の項目は必須で、ドキュメント ID（自分の uid）と同じ★（Issue #212）
+      //   自分のいいねの一覧は collectionGroup("reactions") を uid で絞って読む。uid が無いいいねは一覧から漏れ、
+      //   タイムラインで白いハートになり、押すと取り消しになってしまう。
       match /reactions/{uid} {
         allow get: if isAdmin() || (signedIn() && uid == myUid());
         allow list: if isAdmin() && request.query.limit <= 500;
         allow create, update: if signedIn() && uid == myUid()
           && canRead(get(/databases/$(database)/documents/posts/$(postId)).data)
+          && request.resource.data.keys().hasAll(['emoji','uid'])
           && request.resource.data.keys().hasOnly(['emoji','uid','createdAt'])
           && request.resource.data.emoji is string && request.resource.data.emoji.size() <= 8
-          && (!('uid' in request.resource.data) || request.resource.data.uid == myUid())
+          && request.resource.data.uid == myUid()
           && (!('createdAt' in request.resource.data) || request.resource.data.createdAt == request.time);
         allow delete: if signedIn() && uid == myUid();
       }
+    }
+    // ★自分のいいねの一覧（collectionGroup("reactions")）は、自分の uid で絞ったクエリだけ★（Issue #212）
+    //   タイムライン・ギャラリーを開いたときに1回だけ読み、ハートの赤白を決める（MyReactionsContext）。
+    //   uid の条件が無い・他人の uid のクエリは全体が拒否される（Rules はフィルタではない）。管理者も同じ
+    //   （誰が何にいいねしたかを横断で読ませない）。get は上の posts/{postId}/reactions/{uid} のルールだけで決まる。
+    //   読めるのは投稿 ID と絵文字だけ（自分がいいねした投稿のもの）。上限は MY_REACTIONS_LIMIT（config/guestbook.ts）と同じ。
+    match /{path=**}/reactions/{reactionId} {
+      allow list: if signedIn() && request.query.limit <= 500 && resource.data.uid == myUid();
     }
     match /challenges/{challengeId} { allow get:  if signedIn() && resource != null && canSee(resource.data); allow list: if signedIn() && request.query.limit <= 100 && canSee(resource.data); allow write: if false; }
     match /solves/{solveId} { allow get, list: if signedIn() && (isAdmin() || resource.data.uid == myUid()); allow write: if false; }
