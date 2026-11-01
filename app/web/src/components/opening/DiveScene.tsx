@@ -169,7 +169,7 @@ export function DiveScene({ reactionMs, note, under, onDone }: { reactionMs: num
         <p className="text-[64px] font-extrabold leading-none tabular-nums" style={{ fontFamily: MONO }}>
           {reactionMs === null ? "--.--" : formatReaction(reactionMs)}
         </p>
-        <p className="px-6 text-center text-xs tracking-[0.08em] text-white/70">{reactionMs === null ? "反応なし" : note}</p>
+        <p className="whitespace-pre-line px-6 text-center text-xs leading-relaxed tracking-[0.08em] text-white/70">{reactionMs === null ? "反応なし" : note}</p>
       </div>
     </section>
   );

@@ -8,14 +8,15 @@ import { InvitationFlow, type InvitationStep } from "@/components/guestbook/Invi
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { OPENING_NOTE } from "@/config/invitation";
 import { hasSeenOpening, markOpeningSeen } from "@/lib/opening-seen";
-import { classifyDisplayName } from "@/lib/opening-names";
+import { classifyDisplayName, formatReaction } from "@/lib/opening-names";
+import { rememberOpeningRun } from "@/lib/opening-run";
 import type { InvitationContent, InvitationStatus, OpeningContent, ReactionStatus } from "@/types/invitation";
 
 type View =
   | { kind: "checking" }
   | { kind: "passcode" }
-  /** recorded: すでにリアクションタイムの記録があるか（あれば今回は記録しない） */
-  | { kind: "opening"; invitation: InvitationContent; opening: OpeningContent; recorded: boolean }
+  /** recordedMs: すでにあるリアクションタイムの記録（無ければ null。あれば今回は記録しない。Issue #199） */
+  | { kind: "opening"; invitation: InvitationContent; opening: OpeningContent; recordedMs: number | null }
   | { kind: "open"; invitation: InvitationContent; opening: OpeningContent }
   /** 初めて回答を送った直後のエントリー完了（Issue #149） */
   | { kind: "finish"; guestName: string }
@@ -104,7 +105,7 @@ export default function InvitationPage() {
       opening: view.opening,
       invitation: view.invitation,
       displayName: user.displayName,
-      note: view.recorded ? OPENING_NOTE.replay : OPENING_NOTE.recordPending,
+      note: view.recordedMs !== null ? OPENING_NOTE.replay(formatReaction(view.recordedMs)) : OPENING_NOTE.recordPending,
     };
   } else step = view;
 
@@ -115,11 +116,13 @@ export default function InvitationPage() {
       onPasscodeSubmit={passcodeSubmit}
       onPasscodeCleared={passcodeCleared}
       onOpeningReaction={(reactionMs) => {
-        if (view.kind !== "opening" || view.recorded) return;
+        if (view.kind !== "opening" || view.recordedMs !== null) return;
         // 保存は演出を止めずに行う。失敗しても先へ進める（記録が無い人は、あとでマイページから挑戦できる）
         postJson("/api/guest/reaction", { reactionMs }).catch((e: unknown) => console.error("[invitation] リアクションタイムの保存に失敗しました", e));
       }}
-      onOpeningEnd={() => {
+      onOpeningEnd={(result) => {
+        // 今回のタイムを承認待ちへ渡す（記録と違えば、承認待ちに小さく添える。Issue #199）
+        rememberOpeningRun(result.reactionMs);
         markOpeningSeen();
         if (view.kind === "opening") setView({ kind: "open", invitation: view.invitation, opening: view.opening });
       }}
@@ -153,5 +156,5 @@ async function loadView(): Promise<View | "registered"> {
   if (!s.ready || !s.invitation || !s.opening) return { kind: "preparing" };
   if (hasSeenOpening()) return { kind: "open", invitation: s.invitation, opening: s.opening };
   const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
-  return { kind: "opening", invitation: s.invitation, opening: s.opening, recorded: reaction?.reactionMs != null };
+  return { kind: "opening", invitation: s.invitation, opening: s.opening, recordedMs: reaction?.reactionMs ?? null };
 }

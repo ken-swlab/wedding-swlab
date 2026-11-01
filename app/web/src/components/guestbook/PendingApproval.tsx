@@ -22,7 +22,7 @@ const MONO = "ui-monospace, Menlo, monospace";
  * ★ボタンは置かない★（Issue #156）承認されたら、呼び出し側が自動で先へ進める（hooks/useApprovalAdvance.ts）。
  *   自動で進めないとき（stale）だけ、小さなリンク「画面が切り替わらない場合はこちら」を出す。
  * ★1画面に収める★（Issue #167）幅 375px の iPhone でスクロールなしに見えるよう、出すのは
- *   見出し・本文・リアクションタイムのカード・「回答を直す」の4つだけ。同じ意味の文（自動で切り替わる・
+ *   見出し・本文・リアクションタイム（記録）のカード・「回答を直す」の4つだけ。同じ意味の文（自動で切り替わる・
  *   ページが開く）、ぼかしたスマホの絵、回答の要約、確認までの目安（approvalNote）は出さない。
  *   回答の中身は「回答を直す」の先で確かめられる。
  * ★表示中は html と body の背景も黒にする★（Issue #156）LINE アプリ内ブラウザで、上の帯（ページの題名）と
@@ -30,6 +30,8 @@ const MONO = "ui-monospace, Menlo, monospace";
  */
 export function PendingApproval({
   reactionMs,
+  currentMs = null,
+  test = false,
   approved,
   stale,
   onRetry,
@@ -40,6 +42,13 @@ export function PendingApproval({
    * オープニングのリアクションタイム (ms。Issue #131)。記録が無ければ null、読み込み中・読めなかったときは undefined（カードを出さない）
    */
   reactionMs?: number | null;
+  /**
+   * 招待状で今回走ったタイム (ms。Issue #199)。/pending を直接開いたとき・反応なしのときは null。
+   * 記録と（表示の 1/100 秒で）違うときだけ、記録の下に小さく添える
+   */
+  currentMs?: number | null;
+  /** 管理者のテスト画面。reactionMs は今回のテストのタイムで、記録ではないことを添える */
+  test?: boolean;
   /** 承認された（ID トークンにタグが乗るまでの、自動で先へ進む途中） */
   approved: boolean;
   /** 自動で先へ進めない（取り直しの失敗か、時間切れ）。小さなリンクを出す */
@@ -65,6 +74,8 @@ export function PendingApproval({
   }, [approved]);
   useEffect(() => () => markDarkExit(approvedRef.current ? "approved" : "dark"), []);
 
+  // 表示の形（1/100 秒・切り捨て）で比べる。同じに見える値なら添えない
+  const currentDiffers = reactionMs != null && currentMs !== null && formatReaction(currentMs) !== formatReaction(reactionMs);
   const card = { borderColor: OPENING_COLORS.laneLine, background: "rgba(255,255,255,0.04)" };
   const editClass = "inline-flex min-h-11 touch-manipulation items-center text-sm underline underline-offset-4";
 
@@ -95,19 +106,27 @@ export function PendingApproval({
           <br />
           投稿できるようになります。
         </p>
+        {/* ★見出しは「あなたの記録」★（Issue #199）記録は最初の1回だけ（サーバーが上書きを断る）。見返しで走った
+            今回のタイムと違うときは、下に小さく添えて言い分ける（違う数字が出ても「壊れている」と思われないように）。
+            テスト画面では、今回のテストのタイムを「記録されません」と添えて出す（管理者自身の本当の記録は出さない） */}
         {reactionMs !== undefined && (
-          <section aria-label="あなたのリアクションタイム" className="mt-7 rounded-2xl border px-5 py-4" style={card}>
+          <section aria-label={test ? "今回のタイム" : "あなたの記録"} className="mt-7 rounded-2xl border px-5 py-4" style={card}>
             {reactionMs !== null ? (
               <>
                 <p className="text-[13px]" style={{ color: OPENING_COLORS.ink }}>
-                  あなたのリアクションタイム
+                  {test ? "今回のタイム" : "あなたの記録"}
                   <strong className="ml-2 text-3xl font-extrabold tabular-nums" style={{ fontFamily: MONO, color: OPENING_COLORS.led }}>
                     {formatReaction(reactionMs)}
                   </strong>
                   <span className="ml-1">秒</span>
                 </p>
+                {!test && currentDiffers && currentMs !== null && (
+                  <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
+                    今回 <span className="tabular-nums">{formatReaction(currentMs)}</span> 秒（記録は最初の1回だけです）
+                  </p>
+                )}
                 <p className="mt-2 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
-                  承認後、マイページのランキングで確認できます。
+                  {test ? "（テスト・記録されません）" : "承認後、マイページのランキングで確認できます。"}
                 </p>
               </>
             ) : (

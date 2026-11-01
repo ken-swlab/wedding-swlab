@@ -62,7 +62,7 @@ export default function OpeningReplayPage() {
         guestName={cast.guestName}
         date={view.opening.date}
         venue={view.opening.venue}
-        note={challenge ? OPENING_NOTE.record : OPENING_NOTE.replay}
+        note={view.recordedMs === null ? OPENING_NOTE.record : OPENING_NOTE.replay(formatReaction(view.recordedMs))}
         onReaction={(reactionMs) => {
           if (!challenge) return;
           postJson("/api/guest/reaction", { reactionMs }).catch((e: unknown) => console.error("[opening] リアクションタイムの保存に失敗しました", e));

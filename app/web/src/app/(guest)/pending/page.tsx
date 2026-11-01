@@ -8,6 +8,7 @@ import { useApprovalAdvance } from "@/hooks/useApprovalAdvance";
 import { PendingApproval } from "@/components/guestbook/PendingApproval";
 import { SplashScreen } from "@/components/SplashScreen";
 import { APPROVED_REVEAL_MS } from "@/config/opening";
+import { lastOpeningRun } from "@/lib/opening-run";
 
 /**
  * 承認待ち。承認されたら自動でトークンを取り直し、タグが乗れば (guest)/layout が /guestbook へ移す
@@ -22,6 +23,8 @@ export default function PendingPage() {
   const { stale, retry } = useApprovalAdvance({ approved, refresh: refreshTags, delayMs: APPROVED_REVEAL_MS });
   // オープニングのリアクションタイム（Issue #131）。読めなくても承認待ちの画面は出す
   const [reactionMs, setReactionMs] = useState<number | null | undefined>(undefined);
+  // 招待状で今回走ったタイム（Issue #199）。/pending を直接開いたときは null（記録だけを出す）
+  const [currentMs] = useState(lastOpeningRun);
   const uid = user?.uid;
   useEffect(() => {
     if (!uid) return;
@@ -41,6 +44,7 @@ export default function PendingPage() {
   return (
     <PendingApproval
       reactionMs={reactionMs}
+      currentMs={currentMs}
       approved={approved}
       stale={stale}
       onRetry={retry}
