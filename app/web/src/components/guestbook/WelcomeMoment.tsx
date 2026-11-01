@@ -4,15 +4,16 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Mous
 import { createPortal } from "react-dom";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
-import { WELCOME_AFTER_LIKE_MS, WELCOME_FLY_MS } from "@/config/welcome";
+import { WELCOME_AFTER_LIKE_MS, WELCOME_FLY_MS, WELCOME_LIKE_HINT_MS } from "@/config/welcome";
 import { CHROME_EXPAND_EVENT, CHROME_MORPH_MS } from "@/config/guestbook";
 import type { WelcomeContent } from "@/types/welcome";
 import { useHeartBursts } from "./HeartBurst";
+import { HEART_PATH, HeartIcon } from "./HeartIcon";
 import { WelcomeCard } from "./WelcomeCard";
 
 /**
  * 段階:
- *   arrive … 画面が暗くなり「新郎新婦から、思い出の写真が届きました」→ 写真のカード →「タップでいいね」
+ *   arrive … 画面が暗くなり「新郎新婦から、思い出の写真が届きました」→ 写真のカード →「写真をダブルタップでいいね」
  *   fly    … ハートのあと、カードが縮みながらタイムラインの一番上（WelcomePinned）へ移る（FLIP）
  *   guide1 … 「ここがタイムライン。みんなの写真がここに流れてきます」（固定した投稿を照らす）
  *   guide2 … 「＋ から、あなたも写真を投稿できます」（＋ボタンを照らす）
@@ -60,8 +61,10 @@ function visibleSpotOf(el: Element | null): Spot | null {
  *
  * ★ダブルタップは useDoubleTap（click の時刻と位置）で見分ける★ 写真の箱は touch-action: manipulation で、
  *   iOS のダブルタップでの拡大と競合させない。
- * ★いいねの案内は「タップでいいね」のボタンだけ★（Issue #157 A-4）写真のダブルタップでも同じ流れになるが、
- *   案内はしない（「ダブルタップでいいね」の文字とボタンが同時に出て、どちらを押すか迷わせていた）。
+ * ★いいねは写真のダブルタップだけ。案内は「写真をダブルタップでいいね」の文字だけ（ボタンにしない）★（Issue #213）
+ *   以前の「タップでいいね」のボタン（Issue #157 A-4）は、押してもタイムラインでのいいね（写真のダブルタップ）に
+ *   つながらず、いいねの仕組みが伝わらなかった。文字とボタンを両方出すと、どちらを押すか迷わせる（#157）。
+ *   何もせずに WELCOME_LIKE_HINT_MS 待っていると、写真の上で白い線のハートを一度だけ見せる（見本。いいねはしない）。
  * ★演出の最中は背景を黒の 75% とぼかしで沈める★（Issue #178）60% では、見出しが背景の投稿欄の文字と重なって読めなかった。
  * ★スキップは画面の右上に、枠つきではっきり出す★ 押したら演出をやめてタイムラインへ（いいねはしない）。案内の間は、どこをタップしても進む。
  *   以前は右上で、透けたヘッダーの＋ボタンと重なって見えた（Issue #167）。次にカードの下に並べたら、透けた背景の
@@ -88,6 +91,8 @@ export function WelcomeMoment({
   const [liked, setLiked] = useState(false);
   const [spot, setSpot] = useState<Spot | null>(null);
   const [fading, setFading] = useState(false);
+  /** ダブルタップの見本を見せたか（一度だけ） */
+  const [hinted, setHinted] = useState(false);
   /** 下のタブを通常表示に戻している最中（このあいだのタップは無視する） */
   const settling = useRef(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -110,11 +115,18 @@ export function WelcomeMoment({
     };
   }, []);
 
-  // 届く → 写真が現れる（「タップでいいね」も一緒に出す）
+  // 届く → 写真が現れる（「写真をダブルタップでいいね」も一緒に出す）
   useEffect(() => {
     const a = setTimeout(() => setCardOn(true), 900);
     return () => clearTimeout(a);
   }, []);
+
+  // 写真が出てから何もせずに待っていたら、ダブルタップの見本を一度だけ見せる
+  useEffect(() => {
+    if (!cardOn || liked || phase !== "arrive") return;
+    const h = setTimeout(() => setHinted(true), WELCOME_LIKE_HINT_MS);
+    return () => clearTimeout(h);
+  }, [cardOn, liked, phase]);
 
   const finish = useCallback((skipped: boolean) => {
     if (finished.current) return;
@@ -158,7 +170,7 @@ export function WelcomeMoment({
     setPhase("guide1");
   }, []);
 
-  /** いいね（ダブルタップ・「タップでいいね」のどちらからも） */
+  /** いいね（写真のダブルタップ） */
   const like = useCallback(
     (point: TapPoint) => {
       hearts.show(point);
@@ -179,11 +191,6 @@ export function WelcomeMoment({
   function onPhotoClick(e: MouseEvent<HTMLDivElement>) {
     if (phase !== "arrive" || !cardOn) return;
     tap(e, like);
-  }
-
-  function onTapButton() {
-    const r = cardRef.current?.querySelector("[data-welcome-photo]")?.getBoundingClientRect();
-    like(r ? { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 } : { clientX: innerWidth / 2, clientY: innerHeight / 2 });
   }
 
   /** 案内はどこをタップしても次へ */
@@ -238,17 +245,25 @@ export function WelcomeMoment({
                 cardOn ? "translate-y-0 scale-100 opacity-100" : "translate-y-4 scale-95 opacity-0"
               }`}
             >
-              <WelcomeCard content={content} liked={liked} photoOverlay={hearts.layer} onPhotoClick={onPhotoClick} />
+              <WelcomeCard
+                content={content}
+                liked={liked}
+                photoOverlay={
+                  <>
+                    {hearts.layer}
+                    {hinted && !liked && <LikeHint />}
+                  </>
+                }
+                onPhotoClick={onPhotoClick}
+              />
             </div>
-            <div className={`mt-5 flex min-h-12 flex-col items-center gap-2 transition-opacity duration-300 ${cardOn && phase === "arrive" ? "opacity-100" : "opacity-0"}`}>
+            {/* いいねの案内は文字だけ（Issue #213）。枠なし・ゴシック・14px・白。押すものに見せない */}
+            <div className={`mt-5 flex min-h-12 items-center justify-center transition-opacity duration-300 ${cardOn && phase === "arrive" ? "opacity-100" : "opacity-0"}`}>
               {!liked && (
-                <button
-                  type="button"
-                  onClick={onTapButton}
-                  className="min-h-11 touch-manipulation rounded-full bg-white px-5 text-sm font-medium text-stone-900 shadow"
-                >
-                  タップでいいね
-                </button>
+                <p className="flex items-center gap-1.5 text-[14px] tracking-[0.08em] text-white">
+                  <HeartIcon filled={false} className="h-4 w-4" />
+                  写真をダブルタップでいいね
+                </p>
               )}
             </div>
           </div>
@@ -307,6 +322,20 @@ export function WelcomeMoment({
 
     </div>,
     document.body,
+  );
+}
+
+/**
+ * ダブルタップの見本（Issue #213）。写真の中央に白い線のハートが一度だけふわっと出て消える。
+ * ★いいねの赤いハート（HeartBurst）と見分けるため、塗らずに白い線だけにする★ タップは写真へ通す。
+ */
+function LikeHint() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 flex items-center justify-center">
+      <svg viewBox="0 0 24 24" className="welcome-like-hint h-16 w-16 fill-none stroke-white" strokeWidth={2}>
+        <path d={HEART_PATH} />
+      </svg>
+    </div>
   );
 }
 
