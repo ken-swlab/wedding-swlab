@@ -80,7 +80,7 @@ export async function createPost(params: {
  * すでに付いていれば何も書かず false、新しく付けたら true を返す。
  *
  * ★自分のいいねの有無は、トランザクションの中で読む★
- *   タイムラインは「いいね済みか」を読まずに白ハートから始める（useMyReaction の★参照）ので、
+ *   自分のいいねの一覧（MyReactionsContext）で分からない投稿は白ハートから始まる（useMyReaction の★参照）ので、
  *   画面の状態を信じて toggleReaction を呼ぶと、付いているいいねを外してしまう。
  *   何度続けて呼んでも、いいねは1つしか付かない。
  * 書き込みの形は toggleReaction と同じ（Rules の「自分のリアクションの作成と同時に +1」を通る）。

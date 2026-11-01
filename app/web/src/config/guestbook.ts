@@ -72,6 +72,13 @@ export const GUESTBOOK_QUERY_PARAM = "q";
 /** 入力が止まってから検索に反映するまで (ms) */
 export const SEARCH_DEBOUNCE_MS = 250;
 
+/**
+ * 自分のいいねの一覧を読む件数の上限（Issue #212。MyReactionsContext）。
+ * ★Rules の match /{path=**}/reactions の limit（500）と同じ値にする★ 超えると一覧の読み込みが全体で拒否される。
+ * これを超えていいねしている人は、一覧に入らなかった投稿を「分からない」として扱う（白いハートで始め、押すと付けるだけ）。
+ */
+export const MY_REACTIONS_LIMIT = 500;
+
 /** ハッシュタグの候補の最大件数 */
 export const MAX_HASHTAG_SUGGESTIONS = 8;
 

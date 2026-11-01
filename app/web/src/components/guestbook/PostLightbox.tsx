@@ -118,7 +118,8 @@ export function PostLightbox({
   onClose: () => void;
 }) {
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
-  const { reacted, setReacted, loaded } = useMyReaction(post.id, user.uid, true);
+  // 自分のいいねの一覧で分かればそれを使い、分からなければ1件を読む（Issue #212。useMyReaction の★参照）
+  const { reacted, setReacted, loaded, certain } = useMyReaction(post.id, user.uid, true);
   const [busy, setBusy] = useState(false);
 
   /**
@@ -184,6 +185,12 @@ export function PostLightbox({
     if (busy || !loaded) return;
     setBusy(true);
     try {
+      // いいね済みか分からないまま白いときは、付けるだけで取り消さない（PostCard の onReact の★参照）
+      if (!reacted && !certain) {
+        await likePost(post.id, user.uid);
+        setReacted(true);
+        return;
+      }
       setReacted(await toggleReaction(post.id, user.uid));
     } catch (e) {
       console.error(e);
