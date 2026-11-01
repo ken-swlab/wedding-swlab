@@ -76,7 +76,7 @@ const JUMP_LABEL: Record<JumpKind, string> = {
   welcome: "8. 承認後の演出",
 };
 
-/** 承認待ちに出すダミーのリアクションタイム (ms) */
+/** 承認待ち・飛び込みに出すダミーのリアクションタイム (ms)。承認待ちは、テストで走ったあとはそのタイムを出す */
 const DUMMY_REACTION_MS = 210;
 
 const STEP_LABEL: Record<TestStep["kind"], string> = {
@@ -110,6 +110,8 @@ export default function InvitationTestPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   /** 読んだ記録があるか。パネルを開くたびに読み直す（読み進めたり送信したりすると、途中で付くため） */
   const [readRecorded, setReadRecorded] = useState(false);
+  /** このテストで走ったリアクションタイム（Issue #199）。承認待ちに出す。まだ走っていなければ null（ダミーを出す） */
+  const [testRunMs, setTestRunMs] = useState<number | null>(null);
   /** パスコードを間違えた回数（Issue #181）。★テスト画面の中だけで数える★ 最初から・パスコードを直接開くと 0 に戻す */
   const wrongCount = useRef(0);
 
@@ -168,6 +170,7 @@ export default function InvitationTestPage() {
   // ★記録しない★ /api/guest/reaction を呼ばない。タイムは画面と console に出すだけ
   const onOpeningEnd = useCallback((result: { reactionMs: number | null; skipped: boolean }) => {
     console.log("[invitation_test] オープニングが終了", result);
+    setTestRunMs(result.reactionMs);
     setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
   }, [currentInvitation, currentOpening]);
 
@@ -386,6 +389,7 @@ export default function InvitationTestPage() {
           // 承認の押し方を変えたら作り直す（自動の流れを最初から見る）
           key={step.approval === null ? "waiting" : step.approval.stuck ? "stuck" : "approved"}
           approval={step.approval}
+          reactionMs={testRunMs ?? DUMMY_REACTION_MS}
           // 本番は承認待ち → /guestbook で幕が開く（ScreenFade の approved）。テストでも幕から見せる
           onApproved={() => setStep({ kind: "welcome", run: Date.now(), curtain: true })}
           onEdit={() => {
@@ -430,10 +434,13 @@ const DUMMY_REFRESH_MS = 800;
  */
 function TestPending({
   approval,
+  reactionMs,
   onApproved,
   onEdit,
 }: {
   approval: TestApproval;
+  /** 今回のテストのタイム（走っていなければダミー）。★管理者自身の本当の記録は出さない★（Issue #199） */
+  reactionMs: number;
   onApproved: () => void;
   onEdit: () => void;
 }) {
@@ -450,7 +457,8 @@ function TestPending({
   const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh, delayMs: APPROVED_REVEAL_MS });
   return (
     <PendingApproval
-      reactionMs={DUMMY_REACTION_MS}
+      reactionMs={reactionMs}
+      test
       approved={approval !== null}
       stale={stale}
       onRetry={retry}

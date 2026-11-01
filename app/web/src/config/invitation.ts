@@ -10,8 +10,12 @@ export const OPENING_NOTE = {
   recordPending: "承認後、ランキングで見られます",
   /** 一発勝負（これが記録になる）。承認済み（コミュニティから） */
   record: "これがあなたの記録です",
-  /** すでに記録がある（見返し） */
-  replay: "見返しのため、記録はされません",
+  /**
+   * すでに記録がある（見返し）。recorded は保存済みの記録を formatReaction で整えたもの（Issue #199）。
+   * ★大きい数字は今回のタイム、ここで記録を言い分ける★ 2つの数字が違っても「壊れている」と思われないように。
+   * 改行は DiveScene が whitespace-pre-line で出す
+   */
+  replay: (recorded: string) => `記録は最初の1回だけ。\nあなたの記録は ${recorded} 秒`,
   /** 管理者の確認用ページ */
   test: "テストのため、記録はされません",
 } as const;
