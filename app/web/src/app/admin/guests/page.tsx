@@ -5,12 +5,13 @@ import { givenName } from "@/config/persona";
 import { useTags } from "@/lib/tags-client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { compareGuests } from "@/lib/roster";
 import { adminName } from "@/lib/names";
-import { INVITATION_STATUSES, invitationDef } from "@/config/roster";
+import { INVITATION_STATUSES, NEW_GUEST_NAME, invitationDef } from "@/config/roster";
+import { TruncatedWarning } from "@/components/admin/TruncatedWarning";
 import { RosterImportDialog } from "@/components/admin/RosterImportDialog";
 import { CARD_BUTTON, CARD_INPUT, CARD_SELECT, CardField, CardToggle, MobileSaveBar } from "@/components/admin/MobileCard";
 import type { GuestRow } from "@/types/admin";
@@ -26,12 +27,20 @@ async function callRoster(payload: Record<string, unknown>) {
 
 export default function AdminRosterPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
-  const { rows, loading, error } = useAdminGuests(isAdmin);
+  const { rows, truncated, loading, error } = useAdminGuests(isAdmin);
 
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [tagFilter, setTagFilter] = useState<string>("");
   const [registered, setRegistered] = useState<"" | "yes" | "no">("");
+  /**
+   * 行の種類で絞り込む（Issue #203）。roster … 名簿の行（仮ゲスト）、self … LINE でログインした本人の行。
+   * ★このリストには本人の行も並ぶ★ 本人が回答すると本名が入り「登録済」になるので、名簿の行と見分けにくい。
+   *   承認待ちの「紐付けて承認」の候補に出るのは名簿の行だけ。
+   */
+  const [kind, setKind] = useState<"" | "roster" | "self">("");
+  /** 「＋ 個別追加」で作った行。一覧に届いたら名前の入力欄にフォーカスする（Issue #203） */
+  const focusUid = useRef<string | null>(null);
   const [q, setQ] = useState("");
   const [importing, setImporting] = useState(false);
   const [merging, setMerging] = useState<GuestRow | null>(null);
@@ -65,9 +74,10 @@ export default function AdminRosterPage() {
       .some((k) => d[k] !== undefined && d[k] !== row[k]);
   }
 
-  const save = useCallback(async (row: GuestRow) => {
+  /** 下書きを保存する。保存できた（下書きが無かった）ら true */
+  const save = useCallback(async (row: GuestRow): Promise<boolean> => {
     const d = drafts[row.uid];
-    if (!d) return;
+    if (!d) return true;
     setSaving((s) => ({ ...s, [row.uid]: true }));
     try {
       await callRoster({
@@ -78,8 +88,10 @@ export default function AdminRosterPage() {
         invitationStatus: d.invitationStatus ?? row.invitationStatus,
       });
       setDrafts((p) => { const n = { ...p }; delete n[row.uid]; return n; });
+      return true;
     } catch (e) {
       setToast(e instanceof Error ? e.message : "保存に失敗しました");
+      return false;
     } finally {
       setSaving((s) => ({ ...s, [row.uid]: false }));
     }
@@ -151,9 +163,10 @@ export default function AdminRosterPage() {
     return rowsWithTags
       .filter((r) => !tagFilter || r.tags.includes(tagFilter))
       .filter((r) => registered === "" ? true : registered === "yes" ? r.isRegistered : !r.isRegistered)
+      .filter((r) => kind === "" ? true : kind === "roster" ? r.isPreRegistered : !r.isPreRegistered)
       .filter((r) => !needle || `${r.displayName} ${r.kana} ${r.nickname} ${r.realName}`.toLowerCase().includes(needle))
       .sort(compareGuests);
-  }, [rowsWithTags, tagFilter, registered, q]);
+  }, [rowsWithTags, tagFilter, registered, kind, q]);
 
   const dirtyRows = visible.filter(isDirty);
   const loggedIn = useMemo(() => rows.filter((r) => !r.isPreRegistered), [rows]);
@@ -161,13 +174,48 @@ export default function AdminRosterPage() {
   function saveAll() {
     void (async () => { for (const r of dirtyRows) await save(r); setToast("保存しました"); })();
   }
+  /**
+   * ★追加した行は、すぐ名前を入れられるようにする★（Issue #203）「新しいゲスト」のまま保存し忘れると、
+   *   紐付けの候補で見分けられない。絞り込みを外して行を見せ、スマホではカードを開き、名前の入力欄にフォーカスする。
+   */
   function addOne() {
-    void callRoster({ action: "upsert", displayName: "新しいゲスト" }).then(() => setToast("1名追加しました")).catch((e) => setToast(e.message));
+    void callRoster({ action: "upsert", displayName: NEW_GUEST_NAME })
+      .then((r) => {
+        setToast("1名追加しました。名前を入れて保存してください");
+        setQ(""); setTagFilter(""); setRegistered(""); setKind("");
+        const uid = r.uid;
+        if (typeof uid === "string") {
+          setExpanded((p) => ({ ...p, [uid]: true }));
+          focusUid.current = uid;
+        }
+      })
+      .catch((e) => setToast(e.message));
+  }
+  // 追加した行が購読で届いたら、見えているほう（スマホのカード・PC の表）の名前の欄にフォーカスする
+  useEffect(() => {
+    const uid = focusUid.current;
+    if (!uid || !visible.some((r) => r.uid === uid)) return;
+    const inputs = Array.from(document.querySelectorAll<HTMLInputElement>(`input[data-name-input="${uid}"]`));
+    const el = inputs.find((i) => i.offsetParent !== null);
+    if (!el) return;
+    focusUid.current = null;
+    el.focus();
+    el.select();
+    el.scrollIntoView({ block: "center" });
+  }, [visible, expanded]);
+
+  /** 統合の前に下書きを保存する（Issue #203）。保存した名前で「本人と統合」を開く */
+  async function startMerge(row: GuestRow, dirty: boolean) {
+    if (dirty) {
+      const name = field(row, "displayName");
+      if (!(await save(row))) return;
+      setMerging({ ...row, displayName: name });
+    } else setMerging(row);
   }
 
   // ---- 行の入力。表（PC）とカード（スマホ）で同じものを出す。card のときは 16px・44px にする ----
   function nameInput(row: GuestRow, card: boolean) {
-    return <input value={field(row, "displayName")} onChange={(e) => patch(row.uid, { displayName: e.target.value })} maxLength={40} aria-label="名前" className={card ? CARD_INPUT : `${CELL_INPUT} font-medium text-stone-800`} />;
+    return <input value={field(row, "displayName")} onChange={(e) => patch(row.uid, { displayName: e.target.value })} maxLength={40} aria-label="名前" data-name-input={row.uid} className={card ? CARD_INPUT : `${CELL_INPUT} font-medium text-stone-800`} />;
   }
   function kanaInput(row: GuestRow, card: boolean) {
     return <input value={field(row, "kana")} onChange={(e) => patch(row.uid, { kana: e.target.value })} maxLength={40} placeholder="まえかわ たろう" aria-label="ふりがな" className={card ? CARD_INPUT : `${CELL_INPUT} text-xs text-stone-600 placeholder:text-stone-300`} />;
@@ -196,6 +244,16 @@ export default function AdminRosterPage() {
       />
     );
   }
+  /** 行の種類（Issue #203）。名簿の行か、LINE でログインした本人の行か */
+  function kindBadge(row: GuestRow) {
+    return row.isPreRegistered
+      ? <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-600" title="招待予定者リストで追加した行。本人と紐付ける前">名簿</span>
+      : <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700" title="LINE でログインした本人の行。名簿の行ではないので、紐付けの候補には出ません">本人（LINE）</span>;
+  }
+  /** 保存していない下書きがある行の印（Issue #203） */
+  function unsavedBadge(dirty: boolean) {
+    return dirty ? <span className="shrink-0 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-900">未保存</span> : null;
+  }
   function registeredBadge(row: GuestRow) {
     return row.isRegistered ? <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">登録済</span> : <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-500">未登録</span>;
   }
@@ -203,10 +261,11 @@ export default function AdminRosterPage() {
     return (
       <div className="flex justify-end gap-1">
         {dirty && <button type="button" onClick={() => void save(row)} disabled={saving[row.uid]} className={`bg-stone-900 text-white disabled:opacity-50 ${card ? CARD_BUTTON : "rounded-md px-2.5 py-1 text-xs font-medium"}`}>{saving[row.uid] ? "…" : "保存"}</button>}
-        {row.isPreRegistered && !dirty && (
+        {/* ★統合は下書きがあっても押せる★ 押したら先に保存してから選ぶ（Issue #203） */}
+        {row.isPreRegistered && (
           <>
-            <button type="button" onClick={() => setMerging(row)} className={`border border-stone-200 text-stone-500 hover:bg-stone-50 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>統合</button>
-            <button type="button" onClick={() => void callRoster({ action: "delete", uid: row.uid }).then(() => setToast("削除しました")).catch((e) => setToast(e.message))} className={`border border-stone-200 text-stone-400 hover:bg-rose-50 hover:text-rose-600 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>削除</button>
+            <button type="button" onClick={() => void startMerge(row, dirty)} disabled={saving[row.uid]} className={`border border-stone-200 text-stone-500 hover:bg-stone-50 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>統合</button>
+            <button type="button" disabled={dirty} onClick={() => void callRoster({ action: "delete", uid: row.uid }).then(() => setToast("削除しました")).catch((e) => setToast(e.message))} className={`border border-stone-200 text-stone-400 hover:bg-rose-50 hover:text-rose-600 ${card ? CARD_BUTTON : "rounded-md px-2 py-1 text-xs"}`}>削除</button>
           </>
         )}
       </div>
@@ -225,6 +284,7 @@ export default function AdminRosterPage() {
             <div>
               <h1 className="font-serif text-xl text-stone-900">招待予定者リスト</h1>
               <p className="mt-1 text-xs text-stone-500 md:text-sm">本人がログインする前でも、顔やエピソードの紐付け先として使えます。タグは即時保存され、権限として効き始めるのは本登録・承認の時点です。</p>
+              <p className="mt-1 text-xs text-stone-500 md:text-sm">LINE でログインした本人の行（<span className="font-medium text-sky-700">本人（LINE）</span>）もここに並びます。承認待ちの「紐付けて承認」の候補に出るのは、<span className="font-medium text-stone-700">名簿</span>の行だけです。</p>
             </div>
             <div className="flex items-center gap-4 text-sm">
               <div className="text-center"><p className="tabular-nums text-lg font-semibold text-stone-900">{stats.total}</p><p className="text-[11px] text-stone-400">総数</p></div>
@@ -241,13 +301,16 @@ export default function AdminRosterPage() {
             <button type="button" onClick={() => setImporting(true)} className="min-h-11 shrink-0 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600">一括追加</button>
             <button type="button" onClick={addOne} className="min-h-11 shrink-0 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600">＋ 個別追加</button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <select value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} aria-label="タグで絞り込む" className="min-h-11 min-w-0 rounded-lg border border-stone-200 bg-white px-2 text-base text-stone-700">
               <option value="">タグ: すべて</option>
               {allTags.filter((t) => t.community).map((t) => <option key={t.id} value={t.id}>{t.label}（{stats.by[t.id] ?? 0}）</option>)}
             </select>
             <select value={registered} onChange={(e) => setRegistered(e.target.value as "" | "yes" | "no")} aria-label="登録の状態で絞り込む" className="min-h-11 min-w-0 rounded-lg border border-stone-200 bg-white px-2 text-base text-stone-700">
               <option value="">登録: すべて</option><option value="yes">登録済のみ</option><option value="no">未登録のみ</option>
+            </select>
+            <select value={kind} onChange={(e) => setKind(e.target.value as "" | "roster" | "self")} aria-label="行の種類で絞り込む" className="min-h-11 min-w-0 rounded-lg border border-stone-200 bg-white px-2 text-base text-stone-700">
+              <option value="">種類: すべて</option><option value="roster">名簿のみ</option><option value="self">本人のみ</option>
             </select>
           </div>
         </div>
@@ -269,12 +332,16 @@ export default function AdminRosterPage() {
           <select value={registered} onChange={(e) => setRegistered(e.target.value as "" | "yes" | "no")} className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
             <option value="">登録: すべて</option><option value="yes">登録済のみ</option><option value="no">未登録のみ</option>
           </select>
+          <select value={kind} onChange={(e) => setKind(e.target.value as "" | "roster" | "self")} aria-label="行の種類で絞り込む" className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm">
+            <option value="">種類: すべて</option><option value="roster">名簿のみ</option><option value="self">本人のみ</option>
+          </select>
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ふりがなで検索" className="min-w-[160px] flex-1 rounded-lg border border-stone-200 px-3 py-1.5 text-sm outline-none focus:border-stone-400" />
           <button type="button" onClick={() => setImporting(true)} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">一括追加</button>
           <button type="button" onClick={addOne} className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm text-stone-600 hover:bg-stone-100">＋ 個別追加</button>
           <button type="button" disabled={dirtyRows.length === 0} onClick={saveAll} className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40">まとめて保存{dirtyRows.length > 0 ? ` (${dirtyRows.length})` : ""}</button>
         </div>
 
+        {truncated && <TruncatedWarning />}
         {error ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">読み込みに失敗しました（{error.code}）</div>
         ) : loading ? (
@@ -294,8 +361,10 @@ export default function AdminRosterPage() {
                 return (
                   <li key={row.uid} className={`rounded-xl border px-3 py-2 ${dirty ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-white"}`}>
                     <div className="flex items-center gap-2">
-                      <button type="button" aria-expanded={open} onClick={toggle} className="flex min-h-11 min-w-0 flex-1 touch-manipulation items-center text-left">
+                      <button type="button" aria-expanded={open} onClick={toggle} className="flex min-h-11 min-w-0 flex-1 touch-manipulation flex-col items-start justify-center gap-0.5 text-left">
                         <span className="min-w-0 break-words text-base font-medium leading-snug text-stone-900">{name}</span>
+                        {/* 行の種類と未保存の印は名前の下に（1行目に並べると、幅 375px で招待状況が押し出される） */}
+                        <span className="flex gap-1">{kindBadge(row)}{unsavedBadge(dirty)}</span>
                       </button>
                       {statusSelect(row, true)}
                       <CardToggle open={open} onClick={toggle} label={name} />
@@ -331,7 +400,10 @@ export default function AdminRosterPage() {
                     const dirty = isDirty(row);
                     return (
                       <tr key={row.uid} className={dirty ? "bg-amber-50/60" : "hover:bg-stone-50/60"}>
-                        <td className="border-b border-stone-200 px-2 py-1.5">{nameInput(row, false)}</td>
+                        <td className="border-b border-stone-200 px-2 py-1.5">
+                          {nameInput(row, false)}
+                          <div className="mt-0.5 flex gap-1 px-1.5">{kindBadge(row)}{unsavedBadge(dirty)}</div>
+                        </td>
                         <td className="border-b border-stone-200 px-2 py-1.5">{kanaInput(row, false)}</td>
                         <td className="border-b border-stone-200 px-2 py-1.5">{statusSelect(row, false)}</td>
                         <td className="border-b border-stone-200 px-2 py-1.5">{tagPicker(row)}</td>
