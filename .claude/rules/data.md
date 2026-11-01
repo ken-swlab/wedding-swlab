@@ -64,5 +64,5 @@ paths:
 
 ## タグ
 - 組み込みタグは `src/config/tags.ts`（`all` / `guest` / `couple` / `family` / `friends_groom` / `friends_bride` / `colleagues` / `ceremony` / `after_party` など）。承認時に `all` と `guest` が付く。
-- カスタムタグは `tags` コレクション（ID は `c_` + 8 桁の16進数、物理削除せず `archived`）。Composer・EpisodeModal・`visibility.ts` はまだ組み込みタグ前提。
+- カスタムタグは `tags` コレクション（ID は `c_` + 8 桁の16進数、物理削除せず `archived`）。作るのは `TagPicker` の「＋ 新しいタグを作成…」、名前・色・コミュニティ・並び順・アーカイブを直すのはタグの管理（`/admin/tags`。Issue #221。書き込みは `/api/admin/tags` の PATCH だけ）。Composer・EpisodeModal・`visibility.ts` はまだ組み込みタグ前提。
 - Tailwind のクラス文字列は Firestore に保存しない（パレットのキーだけを保存し、クラスは `TAG_PALETTES` から引く）。
