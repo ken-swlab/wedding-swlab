@@ -235,12 +235,17 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
           </span>
           <p className={`tracking-[0.1em] text-white/90 transition-[font-size] ${idle >= 1 ? "mt-2 text-lg font-bold" : "text-sm"}`}>長押しで構える</p>
         </div>
-        {/* 離す合図の案内（Issue #192）。文字だけ。光らせる見本は出さない */}
+        {/* 離す合図の案内（Issue #192）。文字だけ。光らせる見本は出さない
+            ★一番大事な指示なので大きく出す★（Issue #201。黒の地で 16px は目に入りにくかった）
+            ★「START」は合図で出る START（下の startText）と同じ太さ・字間にする★「この文字が出たら」と一致させるため。
+            改行は文の切れ目に手で入れる（iOS の Safari は word-break: auto-phrase に未対応）。幅 320px の画面でも3行に収まる */}
         <p
-          className="absolute inset-x-6 top-1/2 -translate-y-1/2 text-center text-base leading-relaxed tracking-[0.06em] text-white transition-opacity duration-200 sm:text-lg"
+          className="absolute inset-x-6 top-1/2 -translate-y-1/2 text-center text-[19px] leading-[1.7] tracking-[0.06em] text-white transition-opacity duration-200"
           style={{ opacity: guide ? 1 : 0 }}
         >
-          画面が白く光り <b className="font-bold">START</b> と出たら、
+          画面が白く光り
+          <br />
+          <b className="text-[24px] font-black tracking-[0.08em]">START</b> と出たら、
           <br />
           素早く指を離してください
         </p>
