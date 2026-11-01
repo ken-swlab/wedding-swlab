@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { TagPicker } from "@/components/admin/TagPicker";
 import { CARD_BUTTON, CARD_INPUT, CARD_SELECT, CARD_TEXTAREA, CardField, CardToggle, MobileSaveBar } from "@/components/admin/MobileCard";
 import { adminName } from "@/lib/names";
-import { compareGuests } from "@/lib/roster";
+import { compareGuests, rosterCandidateLabel } from "@/lib/roster";
+import { RosterLinkDialog } from "@/components/admin/RosterLinkDialog";
 import { DRINK_LEVELS } from "@/config/drink";
 import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
@@ -43,13 +44,18 @@ function AnswerChangeBadge({ row, onAck, busy, card = false }: { row: GuestRow; 
 
 function sameTags(a: string[], b: string[]) { return a.length === b.length && a.every((t, i) => t === b[i]); }
 
-export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { mode: "pending" | "approved"; rows: GuestRow[]; preGuests?: GuestRow[]; onSave: (uid: string, patch: GuestPatch) => Promise<void>; onApprove?: (row: GuestRow, preUid: string) => Promise<void>; }) {
+/**
+ * linkedUids / onLink（Issue #203）: 承認済みの行に「名簿と紐付ける」を出す。名簿と紐付け済みの人（linkedUids）には出さない。
+ */
+export function GuestTable({ mode, rows, preGuests = [], linkedUids, onSave, onApprove, onLink }: { mode: "pending" | "approved"; rows: GuestRow[]; preGuests?: GuestRow[]; linkedUids?: ReadonlySet<string>; onSave: (uid: string, patch: GuestPatch) => Promise<void>; onApprove?: (row: GuestRow, preUid: string) => Promise<void>; onLink?: (row: GuestRow, preUid: string) => Promise<void>; }) {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [states, setStates] = useState<Record<string, SaveState>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [linkTo, setLinkTo] = useState<Record<string, string>>({});
   /** スマホのカードで詳細を開いている行 */
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  /** 「名簿と紐付ける」を開いている行（承認済み。Issue #203） */
+  const [linking, setLinking] = useState<GuestRow | null>(null);
 
   function field<K extends keyof Draft>(row: GuestRow, key: K): NonNullable<Draft[K]> { const d = drafts[row.uid]?.[key]; return (d !== undefined ? d : row[key]) as NonNullable<Draft[K]>; }
   function patch(uid: string, p: Draft) { setDrafts((prev) => ({ ...prev, [uid]: { ...prev[uid], ...p } })); setStates((prev) => ({ ...prev, [uid]: "idle" })); }
@@ -89,11 +95,16 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
     );
   }
   function linkSelect(row: GuestRow, card: boolean) {
-    return <select value={linkTo[row.uid] ?? ""} onChange={(e) => setLinkTo((p) => ({ ...p, [row.uid]: e.target.value }))} aria-label="紐付ける名簿" className={card ? `${CARD_SELECT} w-full min-w-0 border border-stone-200 bg-white font-normal text-stone-700` : "w-full rounded-md border border-stone-200 bg-white px-2 py-1 text-xs"}><option value="">紐付けない（新規ゲスト）</option>{sortedPre.map((g) => <option key={g.uid} value={g.uid}>{adminName(g)}{g.kana ? `（${g.kana}）` : ""}</option>)}</select>;
+    return <select value={linkTo[row.uid] ?? ""} onChange={(e) => setLinkTo((p) => ({ ...p, [row.uid]: e.target.value }))} aria-label="紐付ける名簿" className={card ? `${CARD_SELECT} w-full min-w-0 border border-stone-200 bg-white font-normal text-stone-700` : "w-full rounded-md border border-stone-200 bg-white px-2 py-1 text-xs"}><option value="">紐付けない（新規ゲスト）</option>{sortedPre.map((g) => <option key={g.uid} value={g.uid}>{rosterCandidateLabel(g)}</option>)}</select>;
   }
   function approveButton(row: GuestRow, card: boolean) {
     const saving = stateOf(row) === "saving";
     return <button type="button" disabled={saving || !onApprove} onClick={() => onApprove && void run(row, onApprove(row, linkTo[row.uid] ?? ""))} className={`bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50 ${card ? `${CARD_BUTTON} shrink-0` : "w-full rounded-md px-3 py-1.5 text-xs font-medium"}`}>{saving ? "処理中…" : "承認する"}</button>;
+  }
+  /** 承認済みの人を、あとから追加した名簿の行と紐付ける（Issue #203）。紐付け済みなら出さない */
+  function linkButton(row: GuestRow, card: boolean) {
+    if (mode !== "approved" || !onLink || linkedUids?.has(row.uid)) return null;
+    return <button type="button" onClick={() => setLinking(row)} className={card ? `${CARD_BUTTON} border border-stone-200 bg-white text-stone-600` : "w-full rounded-full border border-stone-200 px-2.5 py-1 text-[11px] font-medium text-stone-600 hover:bg-stone-50"}>名簿と紐付ける</button>;
   }
   function unapprove(row: GuestRow) { void run(row, onSave(row.uid, { isApproved: false })); }
   // ★停止はタグを空にし、リフレッシュトークンも失効させる★
@@ -176,6 +187,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                     <span className="mr-auto">{uidButton(row)}</span>
                     {mode === "approved" && (
                       <>
+                        {linkButton(row, true)}
                         <button type="button" onClick={() => unapprove(row)} className={`${CARD_BUTTON} border border-stone-200 bg-white text-stone-600`}>承認を解除</button>
                         <button type="button" onClick={() => ban(row)} className={`${CARD_BUTTON} border border-rose-200 bg-white text-rose-600`}>アクセス停止</button>
                       </>
@@ -231,6 +243,7 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
                       <div className="space-y-1">
                         <button type="button" onClick={() => unapprove(row)} className="w-full rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-100">✓ 承認済</button>
                         <button type="button" onClick={() => ban(row)} className="w-full rounded-full border border-rose-200 px-2.5 py-1 text-[11px] font-medium text-rose-600 hover:bg-rose-50">アクセス停止</button>
+                        {linkButton(row, false)}
                       </div>
                     )}
                   </td>
@@ -258,6 +271,9 @@ export function GuestTable({ mode, rows, preGuests = [], onSave, onApprove }: { 
           </tbody>
         </table>
       </div>
+      {linking && onLink && (
+        <RosterLinkDialog guest={linking} candidates={sortedPre} onLink={(preUid) => onLink(linking, preUid)} onClose={() => setLinking(null)} />
+      )}
     </div>
   );
 }

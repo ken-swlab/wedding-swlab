@@ -1,4 +1,6 @@
-import { DEFAULT_INVITATION, toInvitationStatus, toTag, type InvitationStatus } from "@/config/roster";
+import { DEFAULT_INVITATION, NEW_GUEST_NAME, toInvitationStatus, toTag, type InvitationStatus } from "@/config/roster";
+import { adminName } from "@/lib/names";
+import type { GuestRow } from "@/types/admin";
 
 export type RosterEntry = { displayName: string; kana: string; tags: string[]; invitationStatus: InvitationStatus; };
 export type ParsedRow = RosterEntry & { line: number; duplicate: boolean; };
@@ -45,4 +47,14 @@ export function compareGuests(
   b: { kana?: string; realName?: string; nickname?: string; displayName: string }
 ): number {
   return guestSortKey(a).localeCompare(guestSortKey(b), "ja");
+}
+
+/**
+ * 紐付けの候補（仮ゲスト）に出す名前（Issue #203）。「＋ 個別追加」のまま名前を保存していない行は、
+ * 「新しいゲスト」が並んで見分けられないので「名前が未入力」と添える。
+ */
+export function rosterCandidateLabel(g: GuestRow): string {
+  const name = adminName(g);
+  if (g.displayName.trim() === NEW_GUEST_NAME) return `${name}（名前が未入力）`;
+  return g.kana ? `${name}（${g.kana}）` : name;
 }

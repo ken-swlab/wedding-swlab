@@ -34,3 +34,6 @@ export function invitationDef(id: string) { return INVITATION_STATUSES.find((s) 
 export function toTag(raw: string): string | null { return TAG_MAP.get(raw.trim()) ?? null; }
 export function toInvitationStatus(raw: string): InvitationStatus | null { return STATUS_MAP.get(raw.trim()) ?? null; }
 export const isPreRegisteredUid = (uid: string) => uid.startsWith("pre_");
+
+/** 招待予定者リストの「＋ 個別追加」で作る行の仮の名前。紐付けの候補では「名前が未入力」と添える（Issue #203） */
+export const NEW_GUEST_NAME = "新しいゲスト";

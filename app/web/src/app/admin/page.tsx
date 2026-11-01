@@ -5,6 +5,7 @@ import { postJson } from "@/lib/api-client";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { useAdminGuests } from "@/hooks/useAdminGuests";
 import { GuestTable, type GuestPatch } from "@/components/admin/GuestTable";
+import { TruncatedWarning } from "@/components/admin/TruncatedWarning";
 import { HiddenPosts } from "@/components/admin/HiddenPosts";
 import { LineNotifyRetry } from "@/components/admin/LineNotifyRetry";
 import { adminName } from "@/lib/names";
@@ -19,7 +20,7 @@ const NAV_LINK = "inline-flex min-h-11 touch-manipulation items-center rounded-f
 
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
-  const { rows, loading, error } = useAdminGuests(isAdmin);
+  const { rows, linkedUids, truncated, loading, error } = useAdminGuests(isAdmin);
   const [q, setQ] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
@@ -47,6 +48,12 @@ export default function AdminPage() {
     if (preUid) await postJson("/api/admin/roster", { action: "merge", fromUid: preUid, toUid: row.uid });
     await postJson("/api/admin/update-guest", { uid: row.uid, isApproved: true });
     setToast(preUid ? `${adminName(row)} を承認し、名簿と紐付けました` : `${adminName(row)} を承認しました`);
+  }, []);
+
+  // 承認済みの人を、あとから追加した名簿の行と紐付ける（Issue #203）。承認の状態は変えない
+  const onLink = useCallback(async (row: GuestRow, preUid: string) => {
+    const r = await postJson("/api/admin/roster", { action: "merge", fromUid: preUid, toUid: row.uid });
+    setToast(`${adminName(row)} を名簿と紐付けました（顔 ${r.faces ?? 0} 件 / 投稿 ${r.posts ?? 0} 件）`);
   }, []);
 
   const filtered = useMemo(() => {
@@ -132,15 +139,16 @@ export default function AdminPage() {
           </div>
         </header>
 
+        {truncated && <TruncatedWarning />}
         {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">読み込みに失敗しました</div> : loading ? <div className="h-64 animate-pulse rounded-2xl bg-stone-200/60" /> : (
           <div className="space-y-8">
             <section>
-              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">承認待ち</h2><p className="text-xs text-stone-400">LINE ログイン直後のゲストです。名簿の誰かを選んでから「承認する」を押すと紐付きます。</p></div>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">承認待ち</h2><p className="text-xs text-stone-400">LINE ログイン直後のゲストです。名簿の誰かを選んでから「承認する」を押すと紐付きます。候補に出るのは、招待予定者リストの「名簿」の行（まだ誰とも紐付いていないもの）だけです。</p></div>
               <GuestTable mode="pending" rows={pending} preGuests={preGuests} onSave={onSave} onApprove={onApprove} />
             </section>
             <section>
-              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2></div>
-              <GuestTable mode="approved" rows={approved} onSave={onSave} />
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">本登録（承認済み）</h2><p className="text-xs text-stone-400">あとから招待予定者リストに追加した人は、行の「名簿と紐付ける」で紐付けられます。</p></div>
+              <GuestTable mode="approved" rows={approved} preGuests={preGuests} linkedUids={linkedUids} onSave={onSave} onLink={onLink} />
             </section>
             <section>
               <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5"><h2 className="text-sm font-semibold text-stone-800">非表示の投稿</h2><p className="text-xs text-stone-400">ゲストブックで投稿を開き「非表示にする（管理者）」を押すとここに入ります。コメントも一緒に隠れます。</p></div>

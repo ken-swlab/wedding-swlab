@@ -10,7 +10,13 @@ import type {
 } from "@/types/admin";
 import { isDrinkLevel } from "@/config/drink";
 
-const PAGE = 500;
+/**
+ * 3つのコレクションをそれぞれ読む上限。★届いたら画面に警告を出す（truncated）★（Issue #203）
+ *   uid で突き合わせているので、どれか1つだけ取りこぼすと、名前が空・停止扱いなどの行ができる。
+ *   guests には統合済み・アーカイブ済みの行も残るので、ゲストの人数より先に上限へ届く。
+ */
+export const ADMIN_GUESTS_LIMIT = 500;
+const PAGE = ADMIN_GUESTS_LIMIT;
 
 /**
  * guests / guestPrivate / guestAdmin の3つを購読して uid で結合する。
@@ -28,6 +34,8 @@ export function useAdminGuests(enabled: boolean) {
   const [adm, setAdm] = useState<Record<string, GuestAdmin>>({});
   const [error, setError] = useState<FirestoreError | null>(null);
   const [ready, setReady] = useState({ pub: false, priv: false, adm: false });
+  /** 上限まで届いたコレクションがあるか（取りこぼしているかもしれない） */
+  const [full, setFull] = useState({ pub: false, priv: false, adm: false });
 
   useEffect(() => {
     if (!enabled) return;
@@ -49,6 +57,7 @@ export function useAdminGuests(enabled: boolean) {
         };
       }
       setPub(next);
+      setFull((s) => ({ ...s, pub: snap.size >= PAGE }));
       setReady((s) => ({ ...s, pub: true }));
     }, setError);
   }, [enabled]);
@@ -84,6 +93,7 @@ export function useAdminGuests(enabled: boolean) {
         };
       }
       setPriv(next);
+      setFull((s) => ({ ...s, priv: snap.size >= PAGE }));
       setReady((s) => ({ ...s, priv: true }));
     }, setError);
   }, [enabled]);
@@ -119,6 +129,7 @@ export function useAdminGuests(enabled: boolean) {
         };
       }
       setAdm(next);
+      setFull((s) => ({ ...s, adm: snap.size >= PAGE }));
       setReady((s) => ({ ...s, adm: true }));
     }, setError);
   }, [enabled]);
@@ -177,5 +188,21 @@ export function useAdminGuests(enabled: boolean) {
     [pub, priv, adm],
   );
 
-  return { rows, loading: enabled && !(ready.pub && ready.priv && ready.adm), error };
+  /**
+   * 名簿（仮ゲスト）と紐付け済みの本人の uid（Issue #203）。統合すると仮ゲストの行に mergedInto が付く。
+   * rows からは統合済みの行を外しているので、ここで別に集める
+   */
+  const linkedUids = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of Object.values(pub)) if (p.mergedInto) s.add(p.mergedInto);
+    return s;
+  }, [pub]);
+
+  return {
+    rows,
+    linkedUids,
+    truncated: full.pub || full.priv || full.adm,
+    loading: enabled && !(ready.pub && ready.priv && ready.adm),
+    error,
+  };
 }
