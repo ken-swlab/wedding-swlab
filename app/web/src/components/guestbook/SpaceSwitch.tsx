@@ -1,25 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import { GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
 import { INVITATION_COLORS } from "@/config/invitation";
 import { GUIDE_PATHS, type AppSpace } from "@/config/guide";
+import { ChevronDownIcon, ClipboardIcon, CrownIcon, FlowerIcon } from "@/components/icons";
 
-const SPACES: { key: AppSpace; icon: string; label: string; sub: string; href: string }[] = [
+// アイコンは線のアイコン（components/icons.tsx。Issue #227）
+const SPACES: { key: AppSpace; icon: ReactNode; label: string; sub: string; href: string }[] = [
   {
     key: "guestbook",
-    icon: "🌸",
+    icon: <FlowerIcon className="h-6 w-6" />,
     label: "SNS・写真共有",
     sub: "タイムライン・ギャラリー",
     href: GUESTBOOK_PATHS.home,
   },
   {
     key: "guide",
-    icon: "📋",
+    icon: <ClipboardIcon className="h-6 w-6" />,
     label: "ご案内・各種手続き",
     sub: "当日のご案内・座席・会費",
     href: GUIDE_PATHS.home,
@@ -51,7 +53,7 @@ export function SpaceSwitch({ current, notice }: { current: AppSpace | "admin"; 
           <span style={{ color: INVITATION_COLORS.gold, fontSize: "0.85em", margin: "0 1px" }}>{GUESTBOOK_LOGO.amp}</span>
           {GUESTBOOK_LOGO.right}
         </span>
-        <span aria-hidden className="text-[10px] text-stone-400">▾</span>
+        <ChevronDownIcon className="h-3 w-3 text-stone-400" />
       </button>
       {open && <SpaceSheet current={current} notice={notice} onClose={() => setOpen(false)} />}
     </>
@@ -134,7 +136,7 @@ function SpaceSheet({
                     here ? "border-stone-900 bg-stone-50" : "border-stone-200 hover:bg-stone-50"
                   }`}
                 >
-                  <span aria-hidden className="text-2xl leading-none">{s.icon}</span>
+                  <span aria-hidden className="flex text-stone-700">{s.icon}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[15px] font-semibold text-stone-900">{s.label}</span>
                     <span className="block text-xs text-stone-500">{s.sub}</span>
@@ -159,7 +161,7 @@ function SpaceSheet({
             aria-current={current === "admin" ? "page" : undefined}
             className="mt-3 flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-full text-xs text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
           >
-            <span aria-hidden>👑</span>管理者画面{current === "admin" && "（表示中）"}
+            <CrownIcon className="h-4 w-4" />管理者画面{current === "admin" && "（表示中）"}
           </Link>
         )}
       </div>

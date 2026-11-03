@@ -19,6 +19,7 @@ import {
   SAVE_BATCH_MAX_BYTES,
   SAVE_BATCH_MAX_FILES,
 } from "@/config/guestbook";
+import { CheckIcon } from "@/components/icons";
 
 /**
  * ギャラリーの「保存する写真を選ぶ」モード。
@@ -136,7 +137,7 @@ export function PhotoPicker({
                       : "border-white/90 bg-black/15 text-transparent"
                   }`}
                 >
-                  ✓
+                  <CheckIcon className="h-3.5 w-3.5" />
                 </span>
               </button>
             );

@@ -23,6 +23,7 @@ import { useGuestSessionContext } from "./GuestSessionContext";
 import type { MediaItem } from "@/types";
 import { TagChips } from "./TagChips";
 import { COMPOSER_HINT_MS } from "@/config/guestbook";
+import { CameraIcon } from "@/components/icons";
 
 type Picked = {
   id: string;
@@ -408,7 +409,8 @@ export function Composer({
           >
             キャンセル
           </button>
-          <h2 className="font-serif text-base text-stone-900">新しい投稿</h2>
+          {/* 操作のバーの見出しはゴシック（Issue #227。押す部品と並ぶため）。強弱は太さで付ける */}
+          <h2 className="text-[16px] font-semibold text-stone-900">新しい投稿</h2>
           <button
             type="button"
             onClick={onSubmitTap}
@@ -447,7 +449,7 @@ export function Composer({
             title={storageReady ? undefined : "Storage バケットが未設定です"}
             className="flex h-40 w-full touch-manipulation flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50 text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
           >
-            <CameraIcon />
+            <CameraIcon className="h-8 w-8" />
             <span className="text-sm font-medium">写真・動画を選ぶ</span>
             <span className="text-[11px] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
           </button>
@@ -635,15 +637,6 @@ export function Composer({
   );
 }
 
-function CameraIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden className="h-8 w-8 fill-none stroke-current" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-      <circle cx="12" cy="13" r="3.5" />
-    </svg>
-  );
-}
-
 /**
  * 公開範囲を選ぶシート（投稿画面の上に、下から出す）。チップは今までと同じ TagChips（ランキングと共通）。
  * 選び方（「新郎新婦」は単独だけ）は Composer の toggleTag のまま。
@@ -677,7 +670,7 @@ function ScopeSheet({
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between">
-          <p id="composer-scope-title" className="font-serif text-base text-stone-900">公開範囲</p>
+          <p id="composer-scope-title" className="text-[16px] font-semibold text-stone-900">公開範囲</p>
           <button type="button" onClick={onClose} className="min-h-11 touch-manipulation px-2 text-sm font-medium text-stone-900">
             完了
           </button>

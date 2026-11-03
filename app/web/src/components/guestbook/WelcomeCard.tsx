@@ -6,6 +6,7 @@ import { thumbSrc } from "@/lib/media-url";
 import { WELCOME_AUTHOR_NAME, WELCOME_PLACEHOLDER_IMAGE } from "@/config/welcome";
 import type { WelcomeContent } from "@/types/welcome";
 import { HeartIcon } from "./HeartIcon";
+import { CommentIcon } from "@/components/icons";
 
 /**
  * 承認後の初回の演出に出す投稿カード（Issue #150）。見た目は PostCard（タイムライン）に合わせる。
@@ -70,7 +71,10 @@ export function WelcomeCard({
             <HeartIcon filled={liked} />
             <span className="tabular-nums">{count}</span>
           </span>
-          <span className="inline-flex min-h-11 items-center rounded-full px-3 text-sm text-stone-500">💬 コメントする</span>
+          <span className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500">
+            <CommentIcon className="h-[18px] w-[18px]" />
+            コメントする
+          </span>
         </div>
       </footer>
     </article>

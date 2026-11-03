@@ -118,8 +118,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ゴシック（Issue #227）。body と同じ並び。和文と欧文・数字が同じ家族で出る（Arial を混ぜない） */
+  --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+  /* 等幅は Geist Mono（layout.tsx で読み込む）。黒い画面の MONO（config/opening.ts）と、コピーする番号・コード（font-mono）で使う */
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   /* 明朝（Issue #189。layout.tsx の Shippori Mincho）。読み込むまでは端末の明朝を予備に使う */
   --font-serif: var(--font-mincho), "Hiragino Mincho ProN", "Yu Mincho", ui-serif, Georgia, serif;
 
@@ -176,10 +178,18 @@
   }
 }
 
+/*
+ * ★ゴシックは和文と欧文・数字を同じ家族で出す★（Issue #227）
+ *   以前は Arial, Helvetica, sans-serif で、日本語は端末のゴシック、英字と数字だけ Arial になっていた（「11/1 15:48」など）。
+ *   iPhone はヒラギノ角ゴで、英数字まで和文と同じ書体で出る。
+ *   Android には「Noto Sans JP」という名前の書体が無いことが多く、その場合は sans-serif に落ちて英数字は Roboto、
+ *   和文は Noto Sans CJK になる（厳密には別の家族）。★読み込みを増やさないため、Noto Sans JP は読み込まない★
+ *   （オーナーの判断。Issue #227）。--font-sans と同じ並び。
+ */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 @theme {

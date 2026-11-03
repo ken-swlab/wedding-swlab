@@ -11,6 +11,7 @@ import { COMPOSER_ANCHOR_ID, COMPOSER_TOAST_MS, GUESTBOOK_PATHS } from "@/config
 import { Composer, type ComposerNotice } from "./Composer";
 import { AuthorNameProvider } from "./AuthorNameProvider";
 import { useGuestSessionContext } from "./GuestSessionContext";
+import { CameraIcon } from "@/components/icons";
 
 type ComposerSheetApi = { open: () => void };
 
@@ -172,7 +173,7 @@ export function ComposerStrip() {
       onClick={open}
       className="flex h-[52px] w-full touch-manipulation items-center gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 text-left text-sm text-stone-500 shadow-sm transition hover:bg-stone-50"
     >
-      <span aria-hidden className="text-lg leading-none">📷</span>
+      <CameraIcon className="h-5 w-5 text-stone-600" />
       <span className="min-w-0 flex-1 truncate">写真や一言を投稿する</span>
       <span aria-hidden className="text-stone-400">＋</span>
     </button>

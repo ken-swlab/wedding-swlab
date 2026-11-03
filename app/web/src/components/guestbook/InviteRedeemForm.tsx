@@ -76,7 +76,8 @@ export function InviteRedeemForm({
       onSubmit={onSubmit}
       className="rounded-2xl border border-stone-200 bg-white p-6 text-center shadow-sm"
     >
-      <h2 className="font-serif text-lg text-stone-900">招待コードを入力</h2>
+      {/* フォームの中の見出しはゴシック（押す・入力する場面。Issue #227）。強弱は太さで付ける */}
+      <h2 className="text-base font-semibold text-stone-900">招待コードを入力</h2>
       <p className="mt-2 text-sm leading-relaxed text-stone-500">
         招待状に記載されたコードを入力すると、
         <br />

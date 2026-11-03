@@ -1,21 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  LANE_BRIDE,
-  LANE_COUNT,
-  LANE_FONT_MIN_PX,
-  LANE_FONT_PX,
-  LANE_GROOM,
-  LANE_GUEST,
-  NAME_SCALE_MAX,
-  NAME_SIDE_MARGIN_PX,
-  OPENING_COLORS,
-  OPENING_TIMING,
-} from "@/config/opening";
+import { LANE_BRIDE, LANE_COUNT, LANE_FONT_MIN_PX, LANE_FONT_PX, LANE_GROOM, LANE_GUEST, MONO, NAME_SCALE_MAX, NAME_SIDE_MARGIN_PX, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import { createTimeline, prefersReducedMotion } from "./timeline";
 
-const MONO = "ui-monospace, Menlo, monospace";
 const LANES = Array.from({ length: LANE_COUNT }, (_, i) => i + 1);
 /** 大きく出す名前の行の高さ（文字の大きさに対する比） */
 const LINE = 1.25;

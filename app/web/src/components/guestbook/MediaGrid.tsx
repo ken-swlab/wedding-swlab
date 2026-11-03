@@ -7,6 +7,7 @@ import { MediaLightbox, measureMedia, type MediaSize } from "./MediaLightbox";
 import { thumbSrc } from "@/lib/media-url";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";
+import { PlayIcon } from "@/components/icons";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
 function cellClass(count: number, i: number) {
@@ -73,8 +74,8 @@ export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise
               <>
                 <video src={thumbSrc(m)} muted playsInline preload="metadata"
                   className="h-full w-full object-cover" />
-                <span className="absolute inset-0 flex items-center justify-center text-3xl text-white/90 drop-shadow">
-                  ▶
+                <span className="absolute inset-0 flex items-center justify-center text-white/90 drop-shadow">
+                  <PlayIcon className="h-9 w-9" />
                 </span>
               </>
             ) : (

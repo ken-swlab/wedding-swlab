@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { DIVE_BUBBLES, OPENING_COLORS, OPENING_TIMING, SPLASH_DROPS } from "@/config/opening";
+import { DIVE_BUBBLES, MONO, OPENING_COLORS, OPENING_TIMING, SPLASH_DROPS } from "@/config/opening";
 import { formatReaction } from "@/lib/opening-names";
 import { createTimeline, prefersReducedMotion } from "./timeline";
-
-const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 
 /**
  * 5. 飛び込み。指を離す → 水しぶきと水が満ちる → 水しぶきの上にタイムを表示 → 終わり。
