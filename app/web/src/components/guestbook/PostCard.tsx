@@ -18,6 +18,7 @@ import { useGuestSessionContext } from "./GuestSessionContext";
 import { HeartIcon } from "./HeartIcon";
 import { postJson } from "@/lib/api-client";
 import { useAuthorProfile } from "@/lib/profiles-client";
+import { CommentIcon } from "@/components/icons";
 
 function relativeTime(post: Post): string {
   if (!post.createdAt) return "送信中…";
@@ -253,16 +254,17 @@ export function PostCard({
               aria-label={`コメント ${post.commentCount}件。コメントを書く`}
               className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
             >
-              <span aria-hidden>💬</span>
+              <CommentIcon />
               <span aria-hidden className="tabular-nums">{post.commentCount}</span>
             </button>
           ) : (
             <Link
               href={href}
               onClick={onLinkClick}
-              className="inline-flex min-h-11 items-center rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
             >
-              💬 {post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}
+              <CommentIcon className="h-[18px] w-[18px]" />
+              <span className="tabular-nums">{post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}</span>
             </Link>
           )}
         </div>

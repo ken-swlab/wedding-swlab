@@ -5,17 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
+import { EnvelopeIcon, SeatIcon, SparkleIcon, YenIcon } from "@/components/icons";
 
 /**
  * also: タブには無いが、そのタブの中の画面として扱うパス（開いている間そのタブを濃くする）。
  * アンケート（出欠・アレルギー）はご案内のトップから開く。
  */
-const NAV: { key: string; label: string; icon: string; href: string | null; also?: string[] }[] = [
-  { key: "home", label: "ご案内", icon: "✉", href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire] },
-  { key: "guests", label: "座席", icon: "◎", href: GUIDE_PATHS.guests },
-  { key: "payment", label: "会費", icon: "¥", href: GUIDE_PATHS.payment },
+// アイコンは線のアイコン（components/icons.tsx。Issue #227）
+const NAV: { key: string; label: string; icon: ReactNode; href: string | null; also?: string[] }[] = [
+  { key: "home", label: "ご案内", icon: <EnvelopeIcon />, href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire] },
+  { key: "guests", label: "座席", icon: <SeatIcon />, href: GUIDE_PATHS.guests },
+  { key: "payment", label: "会費", icon: <YenIcon />, href: GUIDE_PATHS.payment },
   // まだ画面が無い。押せないタブとして「予定」を見せる
-  { key: "ai", label: "ミニAI", icon: "✦", href: null },
+  { key: "ai", label: "ミニAI", icon: <SparkleIcon />, href: null },
 ];
 
 /**
@@ -53,7 +55,7 @@ function GuideNav() {
             return (
               <li key={item.key} className="flex-1">
                 <span aria-disabled="true" className={`${tab} text-stone-300`}>
-                  <span aria-hidden className="text-lg leading-none">{item.icon}</span>
+                  <span aria-hidden className="flex h-5 items-center">{item.icon}</span>
                   <span>
                     {item.label}
                     <span className="ml-0.5 text-[9px]">（予定）</span>
@@ -72,7 +74,7 @@ function GuideNav() {
                 aria-current={here ? "page" : undefined}
                 className={`${tab} transition ${on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
               >
-                <span aria-hidden className="text-lg leading-none">{item.icon}</span>
+                <span aria-hidden className="flex h-5 items-center">{item.icon}</span>
                 {item.label}
               </Link>
             </li>

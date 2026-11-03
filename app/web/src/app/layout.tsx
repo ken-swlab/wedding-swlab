@@ -1,15 +1,16 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
-import { Geist, Geist_Mono, Shippori_Mincho } from "next/font/google";
+import { Geist_Mono, Shippori_Mincho } from "next/font/google";
 import "./globals.css";
 import { ACTIVE_THEME, themeVars } from "@/config/theme";
 import { ThemePreviewGate } from "@/components/ThemePreviewGate";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
+/*
+ * ★ゴシックはフォントを読み込まない★（Issue #227）端末のゴシック（ヒラギノ角ゴ・Noto Sans）を使う（globals.css の --font-sans）。
+ *   以前読み込んでいた Geist（Sans）はどこでも使っておらず、読み込みの無駄だったので外した。
+ * 等幅は Geist Mono。黒い画面（オープニング・承認待ち）の MONO と、コピーする番号・コード（font-mono）を、
+ *   iPhone と Android で同じ書体にそろえる（config/opening.ts の MONO）。
+ */
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -60,7 +61,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} ${mincho.variable} h-full antialiased`}
+      className={`${geistMono.variable} ${mincho.variable} h-full antialiased`}
       // ★テーマの色はサーバーで <html> の style に出す★（Issue #129）
       //   クライアントで後から付けると、読み込みの一瞬だけ元の色が見える。
       //   style 属性は CSP の style-src 'unsafe-inline' で許可済み（nonce は入れない。src/lib/csp.ts の★参照）。

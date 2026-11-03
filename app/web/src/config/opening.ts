@@ -67,6 +67,11 @@ export const OPENING_TIMING = {
    * この間に離したらフライングにせず、静かに「長押しで構える」へ戻す
    */
   releaseGuide: 2500,
+  /**
+   * 案内を消してから Take を白くし始めるまでの余白。案内の文字が消えきる前に Take が光ると、続けて読めてしまい
+   * 構える間が無かった。この間に離しても、案内中と同じくフライングにしない（静かに「長押しで構える」へ戻す）
+   */
+  afterGuide: 500,
   /** 案内のあと Take を出してから your まで */
   afterTake: 200,
   /** your を出してから marks まで */
@@ -160,6 +165,14 @@ export const OPENING_SEEN_KEY = "wedding:opening-seen";
  * オープニングの色。競泳の電光掲示板と水を模した専用の場面なので、テーマ（stone など）には従わせない
  * （/screen と同じく、ここだけ独立した配色）。
  */
+/**
+ * 等幅（MONO）。黒い画面（レースの瞬間）の電光掲示板の文字だけで使う（CLAUDE.md の書体ルール。読む画面では使わない）。
+ * ★定義はここ1か所★（Issue #227）以前は CallScene・DiveScene・LaneScene・EntryFinish・PendingApproval でそれぞれ
+ *   ui-monospace … を書いていて、iPhone と Android で違う書体になっていた。layout.tsx で読み込んだ Geist Mono を使う。
+ *   Geist Mono に無い文字（日本語）は、端末の書体で出る。
+ */
+export const MONO = "var(--font-geist-mono), ui-monospace, monospace";
+
 export const OPENING_COLORS = {
   /** 招集: 落ち着いた背景と文字。★入口（LINE ログイン）とパスコードも同じ色★（Issue #165。切り替わりで地の色を変えない） */
   calm: "#ece4d8",

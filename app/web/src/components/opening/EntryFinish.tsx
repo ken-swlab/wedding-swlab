@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ENTRY_AUTO_ADVANCE_MS, LANE_GUEST, OPENING_COLORS } from "@/config/opening";
+import { ENTRY_AUTO_ADVANCE_MS, MONO, OPENING_COLORS } from "@/config/opening";
 import { createTimeline, prefersReducedMotion } from "./timeline";
-
-const MONO = "ui-monospace, Menlo, monospace";
 
 /** 1行ずつ出す間隔と、FINISH を点灯させるまでの間 (ms)。合計 2〜3 秒以内に収める（Issue #149） */
 const ENTRY_TIMING = {
@@ -17,7 +15,7 @@ const ENTRY_TIMING = {
 
 /**
  * 回答の送信完了「エントリー完了」（Issue #149）。オープニング（招集）の電光掲示板の続き。
- *   EVENT 1　ENTRY → FINISH（点灯）→ 4　{ゲストの名前} →「エントリー完了」
+ *   EVENT 1　ENTRY → FINISH（点灯）→ {ゲストの名前} →「エントリー完了」
  *
  * ★ボタンは置かず、自動で承認待ちへ進む★（Issue #156）出そろってから ENTRY_AUTO_ADVANCE_MS（2.2 秒）で onNext。
  *   画面のどこをタップしても、すぐ進む（出そろう前でも）。自動で進むことは、画面下の細い線が伸びることで伝える
@@ -26,6 +24,8 @@ const ENTRY_TIMING = {
  * ★初回の送信のときだけ出す★ 回答の修正（/guide/questionnaire・/onboarding からの送り直し）では出さない。
  *   出すかどうかは呼び出し側が決める。
  * ★ゲストの名前はオープニングと同じ表示★（lib/opening-names.ts の classifyDisplayName の guest）。
+ * ★名前の左にレーンの番号（LANE_GUEST）を出さない★（Issue #214）FINISH の直後に「4」があると「4位」に見えた。
+ *   レーンの番号はレーン発表（LaneScene）とレース中だけで使う。
  */
 export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: () => void }) {
   // 0: 何も出ていない → 1: EVENT 1 ENTRY → 2: FINISH（点滅して点灯）→ 3: 名前 → 4:「エントリー完了」
@@ -113,14 +113,12 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
         >
           FINISH
         </p>
+        {/* 名前だけを中央に出す（Issue #214。番号は順位に見えるので出さない）。長い名前は1行で切る */}
         <div
-          className="mt-8 flex items-center gap-4 border-y py-3 text-left"
+          className="mt-8 flex items-center justify-center border-y py-3 text-center"
           style={{ ...show(3), borderColor: OPENING_COLORS.laneLine }}
         >
-          <span className="w-8 shrink-0 text-center text-xl" style={{ color: OPENING_COLORS.led }}>
-            {LANE_GUEST}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-lg font-bold" style={{ color: OPENING_COLORS.led }}>
+          <span className="min-w-0 truncate text-lg font-bold" style={{ color: OPENING_COLORS.led }}>
             {guestName}
           </span>
         </div>

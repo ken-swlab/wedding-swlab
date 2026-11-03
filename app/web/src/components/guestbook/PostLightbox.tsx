@@ -215,7 +215,7 @@ export function PostLightbox({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{author.name}</p>
-            <p className="text-[11px] text-white/40">{fullDate(post)}</p>
+            <p className="text-[11px] tabular-nums text-white/40">{fullDate(post)}</p>
           </div>
           <button
             type="button"

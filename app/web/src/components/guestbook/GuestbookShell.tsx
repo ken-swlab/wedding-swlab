@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
+import { useComposerSheet } from "./ComposerSheet";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
@@ -14,27 +15,28 @@ import { UNREAD_BADGE_LIMIT } from "@/config/mentions";
 import {
   CHROME_MORPH_EASING,
   CHROME_MORPH_MS,
-  COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
   GUESTBOOK_SELECT_PARAM,
   GUESTBOOK_VIEW_PARAM,
   type GuestbookView,
 } from "@/config/guestbook";
+import { CommunityIcon, DownloadIcon, GalleryIcon, NotificationIcon, TimelineIcon, UserIcon } from "@/components/icons";
 
 type NavKey = GuestbookView | "community" | "notifications" | "settings";
 
-const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
-  { key: "timeline", label: "タイムライン", icon: "☰", href: GUESTBOOK_PATHS.home },
+// アイコンは線のアイコン（components/icons.tsx。Issue #227）。記号（☰ など）は端末で見え方がばらばらだった
+const NAV: { key: NavKey; label: string; icon: ReactNode; href: string }[] = [
+  { key: "timeline", label: "タイムライン", icon: <TimelineIcon />, href: GUESTBOOK_PATHS.home },
   {
     key: "gallery",
     label: "ギャラリー",
-    icon: "▦",
+    icon: <GalleryIcon />,
     href: `${GUESTBOOK_PATHS.home}?${GUESTBOOK_VIEW_PARAM}=gallery`,
   },
   // コミュニティ（Issue #174）。★5つのタブを横に並べる★ 文字は短く（横スクロールを出さない）
-  { key: "community", label: "コミュニティ", icon: "◎", href: GUESTBOOK_PATHS.community },
-  { key: "notifications", label: "通知", icon: "♡", href: GUESTBOOK_PATHS.notifications },
-  { key: "settings", label: "マイページ", icon: "☺", href: GUESTBOOK_PATHS.settings },
+  { key: "community", label: "コミュニティ", icon: <CommunityIcon />, href: GUESTBOOK_PATHS.community },
+  { key: "notifications", label: "通知", icon: <NotificationIcon />, href: GUESTBOOK_PATHS.notifications },
+  { key: "settings", label: "マイページ", icon: <UserIcon />, href: GUESTBOOK_PATHS.settings },
 ];
 
 /** /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー） */
@@ -119,6 +121,7 @@ function Header({ compact }: { compact: boolean }) {
   const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   const { running } = useGuestbookUpload();
+  const composer = useComposerSheet();
   // 通知・マイページ・コミュニティには検索欄を出さない（探す対象の一覧が無い）。空いた分でロゴを左、＋を右に寄せる
   const searchable =
     pathname !== GUESTBOOK_PATHS.notifications && pathname !== GUESTBOOK_PATHS.settings && pathname !== GUESTBOOK_PATHS.community;
@@ -128,7 +131,8 @@ function Header({ compact }: { compact: boolean }) {
         aria-hidden
         className={`absolute inset-0 -z-10 border-b border-stone-200/80 bg-white/95 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
       />
-      <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
+      {/* 部品の間は 6px（gap-1.5）。ロゴ「H&K」（Issue #226）が「GB」より広いので、幅 320px でも検索欄を 160px 以上残す */}
+      <div className="mx-auto flex h-14 max-w-xl items-center gap-1.5 px-4">
         {/* 背景が消えても読めるよう、全画面のときだけロゴの下に白い丸地を出す */}
         <div className="pointer-events-auto relative isolate shrink-0">
           <span
@@ -167,18 +171,21 @@ function Header({ compact }: { compact: boolean }) {
                 : "border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
             }`}
           >
-            <span aria-hidden>⤓</span>
+            <DownloadIcon />
           </Link>
         )}
-        <Link
-          href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
+        {/* ★リンクではなくボタン★（Issue #224）押すと全画面の投稿画面（ComposerSheet）を開く。
+            以前は /guestbook#composer へのリンクで、タイムラインの投稿欄までスクロールするだけだった */}
+        <button
+          type="button"
+          onClick={composer.open}
           aria-label="新しく投稿する"
           // 承認後の初回の演出（Issue #150）の2つ目の案内で照らす
           data-welcome-plus=""
           className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
         >
           <span aria-hidden>＋</span>
-        </Link>
+        </button>
       </div>
     </header>
   );
@@ -281,7 +288,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                     on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}
                 >
-                  <span aria-hidden className="relative text-lg leading-none">
+                  <span aria-hidden className="relative flex h-5 items-center leading-none">
                     {item.icon}
                     {item.key === "notifications" && <UnreadBadge count={unread} className="-right-3 -top-1.5" />}
                   </span>
@@ -302,7 +309,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         aria-label={`メニューを開く（いまは${current.label}${unread > 0 ? `。通知の未読 ${unreadLabel}` : ""}）`}
         className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-stone-900/90 text-xl leading-none text-white shadow-lg backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
       >
-        <span aria-hidden>{current.icon}</span>
+        <span aria-hidden className="flex">{current.icon}</span>
         <UnreadBadge count={unread} className="right-0 top-0" />
       </button>
     </>

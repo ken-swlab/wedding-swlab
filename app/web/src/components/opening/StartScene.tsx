@@ -7,7 +7,8 @@ import { createTimeline, prefersReducedMotion } from "./timeline";
 /**
  * 長押しの状態。
  *   ready    … 「長押しで構える」を出して待っている（Take your marks は薄いグレーで置いておく）
- *   stance   … 指を置いた直後。「離す合図」の案内を releaseGuide のあいだ出す（ここで離したら静かに ready へ戻す）
+ *   stance   … 指を置いた直後。「離す合図」の案内を releaseGuide のあいだ出し、消してから afterGuide の余白を置く
+ *              （ここで離したら静かに ready へ戻す）
  *   holding  … 構えた。Take your marks を1語ずつグレー → 白に変え、marks のあとランダムな間を待つ（ここで離すとフライング）
  *   starting … START を出すと決めた〜その絵が描かれるフレームまで（ここで離してもフライング）
  *   started  … START が描かれた（ここで離した時刻がリアクションタイム）
@@ -30,7 +31,7 @@ const WORDS = ["Take", "your", "marks"] as const;
  * ★START までの残り時間を示すものを出さない★（進捗バーなど）。合図が読めてしまう。
  *   待つ時間は毎回ランダム（startDelayMin〜startDelayMax）。
  * ★判定★
- *   案内中（stance）に離した → フライングにせず、静かに「長押しで構える」に戻す
+ *   案内中・案内のあとの余白（stance）に離した → フライングにせず、静かに「長押しで構える」に戻す
  *   Take your marks 〜 START の前に離した → フライング（「長押しで構える」からやり直し）
  *   START から REACTION_MIN_MS 未満で離した → 合図を予測した反応とみなしてフライング（やり直し）
  *   START から noReaction のあいだ離さない → 反応なし（記録せずに先へ進む）
@@ -178,8 +179,13 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
       pointer = e.pointerId;
       setHint(false);
       setGuide(true);
+      // 案内を消す → 余白（afterGuide）→ Take your marks。余白のあいだも stance のまま
       stepTimer = t.after(OPENING_TIMING.releaseGuide, () => {
-        if (hold === "stance") marks();
+        if (hold !== "stance") return;
+        setGuide(false);
+        stepTimer = t.after(OPENING_TIMING.afterGuide, () => {
+          if (hold === "stance") marks();
+        });
       });
     }
 

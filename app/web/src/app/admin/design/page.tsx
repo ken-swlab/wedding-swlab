@@ -243,7 +243,11 @@ export default function AdminDesignPage() {
                   </div>
                 </div>
                 {samplePost && <PostCard post={samplePost} user={user} openAs="page" />}
-                <Composer user={user} tags={session.tags} onUploadOriginals={() => {}} />
+                {/* 投稿画面の見本（Issue #224）。本番は全画面のシートなので、ここでは高さを決めた枠に入れる。
+                    投稿・キャンセルは本番と同じ動き（キャンセルの確認、灰色の「投稿する」の知らせ）まで見られる */}
+                <div className="h-[640px] overflow-hidden rounded-2xl border border-stone-200/80 shadow-sm">
+                  <Composer user={user} tags={session.tags} onUploadOriginals={() => {}} />
+                </div>
                 <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
                   <p className="text-xs leading-relaxed text-stone-500">
                     アクセントが出るのは、いいねのハート・いいね済みのボタン・思い出エピソードの枠（上の投稿画面でチェックを入れると出ます）です。主なボタンはベースの色です。

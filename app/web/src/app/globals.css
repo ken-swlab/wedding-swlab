@@ -118,8 +118,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* ゴシック（Issue #227）。body と同じ並び。和文と欧文・数字が同じ家族で出る（Arial を混ぜない） */
+  --font-sans: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+  /* 等幅は Geist Mono（layout.tsx で読み込む）。黒い画面の MONO（config/opening.ts）と、コピーする番号・コード（font-mono）で使う */
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   /* 明朝（Issue #189。layout.tsx の Shippori Mincho）。読み込むまでは端末の明朝を予備に使う */
   --font-serif: var(--font-mincho), "Hiragino Mincho ProN", "Yu Mincho", ui-serif, Georgia, serif;
 
@@ -176,10 +178,18 @@
   }
 }
 
+/*
+ * ★ゴシックは和文と欧文・数字を同じ家族で出す★（Issue #227）
+ *   以前は Arial, Helvetica, sans-serif で、日本語は端末のゴシック、英字と数字だけ Arial になっていた（「11/1 15:48」など）。
+ *   iPhone はヒラギノ角ゴで、英数字まで和文と同じ書体で出る。
+ *   Android には「Noto Sans JP」という名前の書体が無いことが多く、その場合は sans-serif に落ちて英数字は Roboto、
+ *   和文は Noto Sans CJK になる（厳密には別の家族）。★読み込みを増やさないため、Noto Sans JP は読み込まない★
+ *   （オーナーの判断。Issue #227）。--font-sans と同じ並び。
+ */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 @theme {
@@ -367,6 +377,39 @@ body {
   .start-hand { animation: none; transform: translate(-6px, -8px) rotate(-18deg); opacity: 1; }
   .start-hand-press { animation: none; transform: scale(0.7); }
   .start-hand-ripple { display: none; }
+}
+
+/* 承認後の最初の写真で、何もせずに待っている人へのダブルタップの見本（Issue #213。WelcomeMoment）。
+   写真の中央に白い線のハートが一度だけふわっと出て消える（いいねの赤いハートと見分けるため、線だけ・白） */
+.welcome-like-hint {
+  /* 明るい写真の上でも白い線が見えるよう、暗い影を付ける */
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+  animation: welcome-like-hint 1.4s ease-out both;
+}
+@keyframes welcome-like-hint {
+  0%   { transform: scale(0.6); opacity: 0; }
+  35%  { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.15); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 大きさは変えず、出て消えるだけ */
+  .welcome-like-hint { animation-name: welcome-fade-out-hint; }
+  @keyframes welcome-fade-out-hint {
+    0%, 100% { opacity: 0; }
+    35% { opacity: 0.9; }
+  }
+}
+
+/* 投稿画面（ComposerSheet）と公開範囲のシートを、下からせり上げる（Issue #224）。transform だけを動かす */
+.composer-sheet-in {
+  animation: composer-sheet-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes composer-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-sheet-in { animation: none; }
 }
 
 /* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */

@@ -11,6 +11,7 @@ import {
   MAX_HASHTAG_SUGGESTIONS,
   SEARCH_DEBOUNCE_MS,
 } from "@/config/guestbook";
+import { SearchIcon } from "@/components/icons";
 
 /**
  * ヘッダーの検索欄。検索語は /guestbook?q= に置く（戻る操作や再読み込みでも残る）。
@@ -99,7 +100,7 @@ export function SearchBar() {
   return (
     <form role="search" className="relative min-w-0 flex-1" onSubmit={onSubmit}>
       <label className="flex h-10 items-center gap-2 rounded-full border border-stone-200 bg-stone-100 px-3 text-stone-400 focus-within:border-stone-300 focus-within:bg-white">
-        <span aria-hidden className="text-sm">⌕</span>
+        <SearchIcon className="h-4 w-4" />
         {/* iOS は 16px 未満の入力欄でフォーカス時に拡大するので text-base にする */}
         <input
           type="text"

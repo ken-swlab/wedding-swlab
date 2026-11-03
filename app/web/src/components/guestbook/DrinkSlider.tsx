@@ -2,6 +2,7 @@
 
 import { useId, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { DRINK_LEVELS, DRINK_LEVEL_MAX, type DrinkLevel } from "@/config/drink";
+import { MugIcon } from "@/components/icons";
 
 /** グラスの中身の量（0〜1。1 を超えるとあふれる）。値ごと: 空 → 少し → 半分 → 多め → あふれる */
 const FILL = [0, 0.2, 0.5, 0.78, 1] as const;
@@ -84,7 +85,10 @@ export function DrinkSlider({ value, onChange }: { value: DrinkLevel | null; onC
         <div className="min-h-14 flex-1">
           <p id={labelId} className="text-[13px] text-stone-500">
             {selected ? (
-              <span className="text-base font-medium text-stone-800">{selected.formLabel || "🍺".repeat(value ?? 0)}</span>
+              <span className="inline-flex items-center gap-0.5 text-base font-medium text-stone-800">
+                {/* 名前の無い段階はジョッキの数で見せる（絵文字は使わない。Issue #227） */}
+                {selected.formLabel || Array.from({ length: value ?? 0 }, (_, i) => <MugIcon key={i} className="h-5 w-5" />)}
+              </span>
             ) : (
               "バーを動かして選んでください"
             )}

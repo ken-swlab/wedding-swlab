@@ -7,6 +7,17 @@
  */
 export type GuestbookView = "timeline" | "gallery";
 
+/**
+ * 招待後（/guestbook 以下・/guide 以下）のページのタイトル（Issue #226）。LINE のアプリ内ブラウザの黒いバーに出る。
+ * 招待状まわり（/invitation・パスコード〜回答・承認待ち）は、ルートの layout.tsx の「WEDDING INVITATION」のまま。
+ * ★ダッシュは em ダッシュ（U+2014）、前後に半角スペース★ ページごとの見出しは足さない（LINE のバーが短い）。
+ * ★呼び名だけ。日付・本名は入れない★（公開リポジトリ。CLAUDE.md のルール 4a。オーナーが呼び名なら可と判断した）
+ */
+export const GUESTBOOK_TITLE = "UTAGE \u2014 Haru & Ken";
+
+/** 左上のロゴ（SpaceSwitch）。GUESTBOOK_TITLE と同じ呼び名の頭文字。「&」は金で、ロゴの中で少し小さく出す */
+export const GUESTBOOK_LOGO = { left: "H", amp: "&", right: "K" } as const;
+
 /** ?view= の値。無ければタイムライン */
 export const GUESTBOOK_VIEW_PARAM = "view";
 
@@ -55,8 +66,15 @@ export function isGuestbookPath(pathname: string): boolean {
   );
 }
 
-/** ヘッダーの「＋」が飛ぶ先。タイムライン最上部の投稿欄 */
+/**
+ * /guestbook#composer で来たら、投稿画面（ComposerSheet）を開く（Issue #224）。
+ * ヘッダーの「＋」はもうこの URL へのリンクではない（ボタンでシートを開く）が、通知などの古いリンクを壊さないため残す。
+ */
 export const COMPOSER_ANCHOR_ID = "composer";
+/** 灰色の「投稿する」を押したときに出す、足りないものの知らせを出しておく時間 (ms) */
+export const COMPOSER_HINT_MS = 3000;
+/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。高画質版の案内は長いので、読める長さにする */
+export const COMPOSER_TOAST_MS = 8000;
 /** 投稿の詳細画面の下に固定したコメント入力欄。詳細の「💬」を押すとここにフォーカスする */
 export const COMMENT_INPUT_ID = "comment-input";
 

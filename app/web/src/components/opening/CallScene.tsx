@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { CALL_LINE_Y, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
+import { CALL_LINE_Y, MONO, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import { createTimeline, prefersReducedMotion } from "./timeline";
 
-const MONO = 'ui-monospace, "SF Mono", Menlo, monospace';
 const SERIF = '"Hiragino Mincho ProN", "Noto Serif JP", "Yu Mincho", serif';
 
 /** 区切り線の幅 (px)。パスコードの4つの枠が縮んだ線（PasscodeStep）と同じ */

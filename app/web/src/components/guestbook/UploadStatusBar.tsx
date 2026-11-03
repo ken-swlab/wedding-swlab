@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { markOriginalUnavailable } from "@/lib/media";
 import type { UploadApi } from "@/hooks/useUpload";
+import { CheckIcon } from "@/components/icons";
 
 /** サーバー側で原本を待っているメディア1件 */
 export type PendingOriginal = { postId: string; thumbPath: string };
@@ -153,8 +154,9 @@ export function UploadStatusBar({
       {/* ---- 完了（引っ張って更新で閉じる。GuestbookDataProvider の refresh 参照。Issue #128）---- */}
       {!running && remaining === 0 && showDone && (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
-          <p className="text-sm font-medium text-emerald-800">
-            ✓ {sentCount} 枚の高画質版を送信しました
+          <p className="flex items-center justify-center gap-1 text-sm font-medium text-emerald-800">
+            <CheckIcon className="h-4 w-4" />
+            <span className="tabular-nums">{sentCount}</span> 枚の高画質版を送信しました
           </p>
           <p className="mt-0.5 text-[11px] text-emerald-700">
             ありがとうございます。ふたりの宝物になります 🌿
