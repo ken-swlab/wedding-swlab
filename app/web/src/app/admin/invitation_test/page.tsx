@@ -208,6 +208,26 @@ export default function InvitationTestPage() {
     } else setStep({ kind, approval: null });
   }, [displayName, currentOpening, currentInvitation]);
 
+  /**
+   * ?step= で場面を指定して開く（画面の見本と撮影。Issue #230。/dev/preview・scripts/screens-capture.mjs）。
+   * entrance・passcode・opening・dive・open・finish・pending・welcome。開いたときに1回だけ見る（あとは URL に関係なく動く）。
+   */
+  const stepFromUrl = useRef(false);
+  useEffect(() => {
+    if (stepFromUrl.current || loading || !isAdmin) return;
+    stepFromUrl.current = true;
+    const want = new URLSearchParams(window.location.search).get("step");
+    if (!want) return;
+    // 描画の外で切り替える（effect の中で直接 setState しない）
+    const t = setTimeout(() => {
+      if (want === "entrance") restart();
+      else if (want === "opening") onPasscodeCleared();
+      else if (want === "open") setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
+      else if (want === "passcode" || want === "dive" || want === "finish" || want === "pending" || want === "welcome") jump(want);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [loading, isAdmin, restart, onPasscodeCleared, jump, currentInvitation, currentOpening]);
+
   if (loading) {
     return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
   }
