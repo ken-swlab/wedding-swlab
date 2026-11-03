@@ -181,7 +181,10 @@
 /*
  * ★ゴシックは和文と欧文・数字を同じ家族で出す★（Issue #227）
  *   以前は Arial, Helvetica, sans-serif で、日本語は端末のゴシック、英字と数字だけ Arial になっていた（「11/1 15:48」など）。
- *   iPhone はヒラギノ角ゴ、Android は Noto Sans（CJK）で、どちらも英数字まで同じ書体で出る。--font-sans と同じ並び。
+ *   iPhone はヒラギノ角ゴで、英数字まで和文と同じ書体で出る。
+ *   Android には「Noto Sans JP」という名前の書体が無いことが多く、その場合は sans-serif に落ちて英数字は Roboto、
+ *   和文は Noto Sans CJK になる（厳密には別の家族）。★読み込みを増やさないため、Noto Sans JP は読み込まない★
+ *   （オーナーの判断。Issue #227）。--font-sans と同じ並び。
  */
 body {
   background: var(--background);

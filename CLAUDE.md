@@ -117,6 +117,6 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
   - **押せるか**：押せるものは必ずゴシック。操作のバー・ダイアログ・入力のラベルもゴシックにし、強弱は太さ（`font-semibold`、15〜16px）で付ける（ページの大見出しは明朝）
 
   数字は同じ行の日本語と同じ書体にそろえる（時刻は隣の予定名に合わせて明朝）。縦にそろえたい数字（時刻・件数・金額）には `tabular-nums`。
-  ゴシックは端末の書体（`globals.css` の `--font-sans`。ヒラギノ角ゴ・Noto Sans）で、英数字も和文と同じ書体で出す（Arial を混ぜない）。MONO は `config/opening.ts` の `MONO`（Geist Mono）だけを使い、コピーする番号・コードの `font-mono` も同じ書体。
+  ゴシックは端末の書体（`globals.css` の `--font-sans`。ヒラギノ角ゴ・Noto Sans）で、Arial を混ぜない。iPhone は英数字も和文と同じ書体で出る。Android は英数字が Roboto になることがあるが、読み込みを増やさないため Web フォントは足さない。MONO は `config/opening.ts` の `MONO`（Geist Mono）だけを使い、コピーする番号・コードの `font-mono` も同じ書体。
   アイコンは線のアイコン（`components/icons.tsx`）を使い、絵文字や記号（☰ ⌕ など）をアイコン代わりにしない（文章の中の絵文字はよい）。新しく作る画面はこれに従う。
 - 詳しいルールは `.claude/rules/`（該当ファイルを読むと自動で読み込まれる）: `api.md` / `data.md` / `media.md` / `frontend.md` / `platform.md` / `infra.md`。
