@@ -7,6 +7,17 @@
  */
 export type GuestbookView = "timeline" | "gallery";
 
+/**
+ * 招待後（/guestbook 以下・/guide 以下）のページのタイトル（Issue #226）。LINE のアプリ内ブラウザの黒いバーに出る。
+ * 招待状まわり（/invitation・パスコード〜回答・承認待ち）は、ルートの layout.tsx の「WEDDING INVITATION」のまま。
+ * ★ダッシュは em ダッシュ（U+2014）、前後に半角スペース★ ページごとの見出しは足さない（LINE のバーが短い）。
+ * ★呼び名だけ。日付・本名は入れない★（公開リポジトリ。CLAUDE.md のルール 4a。オーナーが呼び名なら可と判断した）
+ */
+export const GUESTBOOK_TITLE = "UTAGE \u2014 Haru & Ken";
+
+/** 左上のロゴ（SpaceSwitch）。GUESTBOOK_TITLE と同じ呼び名の頭文字。「&」は金で、ロゴの中で少し小さく出す */
+export const GUESTBOOK_LOGO = { left: "H", amp: "&", right: "K" } as const;
+
 /** ?view= の値。無ければタイムライン */
 export const GUESTBOOK_VIEW_PARAM = "view";
 
