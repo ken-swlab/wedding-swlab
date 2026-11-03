@@ -5,6 +5,7 @@ import { usePosts } from "@/hooks/usePosts";
 import { useUpload, type UploadApi } from "@/hooks/useUpload";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { MyReactionsProvider } from "./MyReactionsContext";
+import { ComposerSheetProvider } from "./ComposerSheet";
 
 type GuestbookData = ReturnType<typeof usePosts> & {
   /** ギャラリーの人物の絞り込み。詳細画面から戻っても残す */
@@ -30,6 +31,9 @@ const GuestbookUploadContext = createContext<UploadApi | null>(null);
  *
  * ★自分のいいねの一覧（MyReactionsProvider）もここで1回だけ読む★（Issue #212）
  *   タイムライン・ギャラリー・詳細画面を行き来しても読み直さない。
+ *
+ * ★投稿画面（ComposerSheetProvider）もここに1つだけ★（Issue #224）どのページの「＋」からでも開き、
+ *   高画質版は同じ送信キュー（useUpload）に入れる。
  */
 export function GuestbookDataProvider({ children }: { children: ReactNode }) {
   const { user, tags, isAdmin } = useGuestSessionContext();
@@ -54,7 +58,9 @@ export function GuestbookDataProvider({ children }: { children: ReactNode }) {
   return (
     <GuestbookDataContext.Provider value={value}>
       <GuestbookUploadContext.Provider value={upload}>
-        <MyReactionsProvider uid={user?.uid}>{children}</MyReactionsProvider>
+        <MyReactionsProvider uid={user?.uid}>
+          <ComposerSheetProvider enqueue={upload.enqueue}>{children}</ComposerSheetProvider>
+        </MyReactionsProvider>
       </GuestbookUploadContext.Provider>
     </GuestbookDataContext.Provider>
   );

@@ -7,7 +7,7 @@ import { useScrollRestore } from "@/hooks/useScrollRestore";
 import { usePathname, useRouter } from "next/navigation";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
 import { filterPosts, parseQuery } from "@/lib/search";
-import { Composer } from "@/components/guestbook/Composer";
+import { ComposerStrip } from "@/components/guestbook/ComposerSheet";
 import { Timeline } from "@/components/guestbook/Timeline";
 import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
 import { PersonFilter } from "@/components/guestbook/PersonFilter";
@@ -23,7 +23,6 @@ import {
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
 import { GuestbookShell, selectModeHref, useGuestbookView } from "@/components/guestbook/GuestbookShell";
 import {
-  COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
   GUESTBOOK_QUERY_PARAM,
   GUESTBOOK_SELECT_PARAM,
@@ -189,12 +188,8 @@ export default function GuestbookPage() {
 
             {view === "timeline" ? (
               <>
-                {/* ヘッダーの「＋」はここへ飛ぶ。scroll-mt はヘッダーに隠れない分 */}
-                {!searching && (
-                  <div id={COMPOSER_ANCHOR_ID} className="scroll-mt-[calc(4.5rem+env(safe-area-inset-top))]">
-                    <Composer user={user} tags={tags} onUploadOriginals={upload.enqueue} />
-                  </div>
-                )}
+                {/* 押すと投稿画面を開く細い帯（Issue #224。ヘッダーの「＋」と同じ）。検索中は出さない */}
+                {!searching && <ComposerStrip />}
                 {pin && !searching && <WelcomePinned content={pin.content} hidden={pin.hidden} />}
                 {searching && !loading && !error && posts.length === 0 ? null : (
                   <Timeline

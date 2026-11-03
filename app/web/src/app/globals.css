@@ -390,6 +390,18 @@ body {
   }
 }
 
+/* 投稿画面（ComposerSheet）と公開範囲のシートを、下からせり上げる（Issue #224）。transform だけを動かす */
+.composer-sheet-in {
+  animation: composer-sheet-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes composer-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-sheet-in { animation: none; }
+}
+
 /* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */
 @keyframes screen-fade {
   from { opacity: 1; }
