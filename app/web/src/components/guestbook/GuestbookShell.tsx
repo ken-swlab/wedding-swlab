@@ -129,7 +129,8 @@ function Header({ compact }: { compact: boolean }) {
         aria-hidden
         className={`absolute inset-0 -z-10 border-b border-stone-200/80 bg-white/95 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
       />
-      <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
+      {/* 部品の間は 6px（gap-1.5）。ロゴ「H&K」（Issue #226）が「GB」より広いので、幅 320px でも検索欄を 160px 以上残す */}
+      <div className="mx-auto flex h-14 max-w-xl items-center gap-1.5 px-4">
         {/* 背景が消えても読めるよう、全画面のときだけロゴの下に白い丸地を出す */}
         <div className="pointer-events-auto relative isolate shrink-0">
           <span

@@ -5,7 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
-import { GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
+import { GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
+import { INVITATION_COLORS } from "@/config/invitation";
 import { GUIDE_PATHS, type AppSpace } from "@/config/guide";
 
 const SPACES: { key: AppSpace; icon: string; label: string; sub: string; href: string }[] = [
@@ -40,10 +41,16 @@ export function SpaceSwitch({ current, notice }: { current: AppSpace | "admin"; 
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        aria-label="画面を切り替える"
-        className="flex h-11 shrink-0 touch-manipulation items-center gap-0.5 rounded-full px-1.5 font-serif text-lg tracking-wide text-stone-900 transition hover:bg-stone-100"
+        aria-label={`${GUESTBOOK_LOGO.left}${GUESTBOOK_LOGO.amp}${GUESTBOOK_LOGO.right}。画面を切り替える`}
+        // 左右の余白は 4px（px-1）。「GB」より幅が広いので、iPhone SE（幅 320px）でも検索欄を 160px 以上残すため詰めた（Issue #226）
+        className="flex h-11 shrink-0 touch-manipulation items-center gap-0.5 rounded-full px-1 text-stone-900 transition hover:bg-stone-100"
       >
-        GB
+        {/* ロゴ「H&K」（Issue #226）。明朝 500・21px。「&」だけ金で 0.85em、左右に 1px。縦の位置は H・K の並びのまま */}
+        <span aria-hidden className="font-serif text-[21px] font-medium leading-none tracking-[0.06em] text-stone-900">
+          {GUESTBOOK_LOGO.left}
+          <span style={{ color: INVITATION_COLORS.gold, fontSize: "0.85em", margin: "0 1px" }}>{GUESTBOOK_LOGO.amp}</span>
+          {GUESTBOOK_LOGO.right}
+        </span>
         <span aria-hidden className="text-[10px] text-stone-400">▾</span>
       </button>
       {open && <SpaceSheet current={current} notice={notice} onClose={() => setOpen(false)} />}
