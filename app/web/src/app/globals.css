@@ -412,6 +412,25 @@ body {
   .composer-sheet-in { animation: none; }
 }
 
+/* お酒の絵（Issue #234。DrinkSlider の BeerMug）。動かすのは transform と opacity だけ */
+.beer-liquid, .beer-head { transition: transform .45s cubic-bezier(.3,1.4,.5,1); }
+.beer-bub { animation: beer-rise 2.4s linear infinite; opacity: 0; }
+@keyframes beer-rise { 0% { transform: translateY(0); opacity: 0 } 10% { opacity: .9 } 85% { opacity: .9 } 100% { transform: translateY(-58px); opacity: 0 } }
+.beer-over { transform-origin: 40px 22px; transform: scale(.2) translateY(14px); opacity: 0; transition: transform .45s cubic-bezier(.3,1.6,.5,1), opacity .2s; }
+.beer-over.on { transform: scale(1); opacity: 1; }
+.beer-drip { transform-origin: top; transform-box: fill-box; transform: scaleY(0); transition: transform .9s .35s ease-in; }
+.beer-over.on .beer-drip { transform: scaleY(1); }
+.beer-wob { animation: beer-wob 2.8s ease-in-out infinite; transform-origin: 40px 24px; }
+@keyframes beer-wob { 0%,100% { transform: translateY(0) scale(1) } 50% { transform: translateY(-1.2px) scale(1.03,1.05) } }
+.beer-pop { animation: beer-pop 1.6s ease-out infinite; opacity: 0; }
+@keyframes beer-pop { 0% { transform: translate(0,0); opacity: 0 } 15% { opacity: 1 } 100% { transform: translate(var(--dx),-14px); opacity: 0 } }
+@media (prefers-reduced-motion: reduce) {
+  /* 動かさない（4 では溢れた状態の静止した絵になる） */
+  .beer-liquid, .beer-head, .beer-over, .beer-drip { transition: none; }
+  .beer-bub, .beer-wob, .beer-pop { animation: none; }
+  .beer-bub { opacity: .7; }
+}
+
 /* 黒い画面から明るい画面へのつなぎ（Issue #157 B-5。components/ScreenFade.tsx） */
 @keyframes screen-fade {
   from { opacity: 1; }
