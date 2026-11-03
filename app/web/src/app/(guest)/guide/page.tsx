@@ -4,6 +4,7 @@ import Link from "next/link";
 import { GuideShell } from "@/components/guide/GuideShell";
 import { PlaceholderPanel } from "@/components/guestbook/GuestbookShell";
 import { GUIDE_PATHS } from "@/config/guide";
+import { FormIcon } from "@/components/icons";
 
 /** 案内モードのトップ（会場・集合時間・お料理などの総合案内。中身は今後の Issue で作る） */
 export default function GuidePage() {
@@ -16,7 +17,7 @@ export default function GuidePage() {
         href={GUIDE_PATHS.questionnaire}
         className="mt-4 flex min-h-16 touch-manipulation items-center gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition hover:bg-stone-50"
       >
-        <span aria-hidden className="text-2xl leading-none">📝</span>
+        <FormIcon className="h-7 w-7 text-stone-700" />
         <span className="min-w-0 flex-1">
           <span className="block text-[15px] font-semibold text-stone-900">出欠・アンケート</span>
           <span className="block text-xs text-stone-500">出欠やアレルギーのご回答の確認・変更</span>

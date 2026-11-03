@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ENTRY_AUTO_ADVANCE_MS, OPENING_COLORS } from "@/config/opening";
+import { ENTRY_AUTO_ADVANCE_MS, MONO, OPENING_COLORS } from "@/config/opening";
 import { createTimeline, prefersReducedMotion } from "./timeline";
-
-const MONO = "ui-monospace, Menlo, monospace";
 
 /** 1行ずつ出す間隔と、FINISH を点灯させるまでの間 (ms)。合計 2〜3 秒以内に収める（Issue #149） */
 const ENTRY_TIMING = {

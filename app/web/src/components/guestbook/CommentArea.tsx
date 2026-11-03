@@ -15,6 +15,7 @@ import { postJson } from "@/lib/api-client";
 import { useMentionInput } from "@/hooks/useMentionInput";
 import { MENTION_NOTIFY_API, commentAnchorId } from "@/config/mentions";
 import type { Comment, Post } from "@/types";
+import { CommentIcon } from "@/components/icons";
 
 function shortTime(c: Comment): string {
   if (!c.createdAt) return "送信中…";
@@ -38,7 +39,7 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
           <span className="truncate text-[13px] font-semibold text-stone-800">
             {author.name}
           </span>
-          <time className="shrink-0 text-[11px] text-stone-400">{shortTime(comment)}</time>
+          <time className="shrink-0 text-[11px] tabular-nums text-stone-400">{shortTime(comment)}</time>
           {mine && (
             <button
               type="button"
@@ -195,9 +196,10 @@ export function CommentArea({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="rounded-full px-3 py-1.5 text-sm text-stone-500 transition hover:bg-stone-50"
+        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-stone-500 transition hover:bg-stone-50"
       >
-        💬 {post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}
+        <CommentIcon className="h-[18px] w-[18px]" />
+        <span className="tabular-nums">{post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}</span>
       </button>
 
       {open && (

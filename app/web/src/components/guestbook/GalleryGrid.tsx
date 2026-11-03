@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import type { Post } from "@/types";
 import { thumbSrc } from "@/lib/media-url";
 import { HeartIcon } from "./HeartIcon";
+import { PlayIcon } from "@/components/icons";
 
 export type GalleryEntry = {
   post: Post;
@@ -76,7 +77,7 @@ export function GalleryGrid({
             {(count > 1 || isVideo) && (
               <span className="absolute right-1.5 top-1.5 text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]">
                 {isVideo ? (
-                  <span className="text-sm">▶</span>
+                  <PlayIcon className="h-3.5 w-3.5" />
                 ) : (
                   <span className="block h-3.5 w-3.5 rounded-[3px] border-[1.5px] border-white shadow-[2px_-2px_0_-0.5px_rgba(0,0,0,0.3),2px_-2px_0_0_white]" />
                 )}

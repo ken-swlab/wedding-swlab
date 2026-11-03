@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { APPROVED_MESSAGE_TOP, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
+import { APPROVED_MESSAGE_TOP, MONO, OPENING_COLORS, OPENING_TIMING } from "@/config/opening";
 import { GUIDE_PATHS } from "@/config/guide";
 import { formatReaction } from "@/lib/opening-names";
 import { markDarkExit } from "@/lib/screen-transition";
-
-const MONO = "ui-monospace, Menlo, monospace";
 
 /**
  * 承認待ち（Issue #149 で文言と見た目を改めた）。

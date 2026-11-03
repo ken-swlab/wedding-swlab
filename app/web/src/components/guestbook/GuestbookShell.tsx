@@ -20,21 +20,23 @@ import {
   GUESTBOOK_VIEW_PARAM,
   type GuestbookView,
 } from "@/config/guestbook";
+import { CommunityIcon, DownloadIcon, GalleryIcon, NotificationIcon, TimelineIcon, UserIcon } from "@/components/icons";
 
 type NavKey = GuestbookView | "community" | "notifications" | "settings";
 
-const NAV: { key: NavKey; label: string; icon: string; href: string }[] = [
-  { key: "timeline", label: "タイムライン", icon: "☰", href: GUESTBOOK_PATHS.home },
+// アイコンは線のアイコン（components/icons.tsx。Issue #227）。記号（☰ など）は端末で見え方がばらばらだった
+const NAV: { key: NavKey; label: string; icon: ReactNode; href: string }[] = [
+  { key: "timeline", label: "タイムライン", icon: <TimelineIcon />, href: GUESTBOOK_PATHS.home },
   {
     key: "gallery",
     label: "ギャラリー",
-    icon: "▦",
+    icon: <GalleryIcon />,
     href: `${GUESTBOOK_PATHS.home}?${GUESTBOOK_VIEW_PARAM}=gallery`,
   },
   // コミュニティ（Issue #174）。★5つのタブを横に並べる★ 文字は短く（横スクロールを出さない）
-  { key: "community", label: "コミュニティ", icon: "◎", href: GUESTBOOK_PATHS.community },
-  { key: "notifications", label: "通知", icon: "♡", href: GUESTBOOK_PATHS.notifications },
-  { key: "settings", label: "マイページ", icon: "☺", href: GUESTBOOK_PATHS.settings },
+  { key: "community", label: "コミュニティ", icon: <CommunityIcon />, href: GUESTBOOK_PATHS.community },
+  { key: "notifications", label: "通知", icon: <NotificationIcon />, href: GUESTBOOK_PATHS.notifications },
+  { key: "settings", label: "マイページ", icon: <UserIcon />, href: GUESTBOOK_PATHS.settings },
 ];
 
 /** /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー） */
@@ -169,7 +171,7 @@ function Header({ compact }: { compact: boolean }) {
                 : "border-stone-200 bg-white text-stone-700 hover:bg-stone-100"
             }`}
           >
-            <span aria-hidden>⤓</span>
+            <DownloadIcon />
           </Link>
         )}
         {/* ★リンクではなくボタン★（Issue #224）押すと全画面の投稿画面（ComposerSheet）を開く。
@@ -286,7 +288,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                     on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}
                 >
-                  <span aria-hidden className="relative text-lg leading-none">
+                  <span aria-hidden className="relative flex h-5 items-center leading-none">
                     {item.icon}
                     {item.key === "notifications" && <UnreadBadge count={unread} className="-right-3 -top-1.5" />}
                   </span>
@@ -307,7 +309,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         aria-label={`メニューを開く（いまは${current.label}${unread > 0 ? `。通知の未読 ${unreadLabel}` : ""}）`}
         className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-stone-900/90 text-xl leading-none text-white shadow-lg backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
       >
-        <span aria-hidden>{current.icon}</span>
+        <span aria-hidden className="flex">{current.icon}</span>
         <UnreadBadge count={unread} className="right-0 top-0" />
       </button>
     </>

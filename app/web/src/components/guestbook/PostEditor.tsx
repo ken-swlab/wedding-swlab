@@ -18,6 +18,7 @@ import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { TagBadge } from "./TagBadge";
 import { displayVisibleTags } from "@/config/tags";
 import type { MediaItem, Post } from "@/types";
+import { CameraIcon } from "@/components/icons";
 
 /** 編集で足した写真・動画（まだ送っていない） */
 type Picked = {
@@ -313,9 +314,10 @@ export function PostEditor({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy || !storageReady || total >= MAX_MEDIA_PER_POST}
-            className="mt-3 min-h-11 touch-manipulation rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
+            className="mt-3 inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
           >
-            📷 写真・動画を追加
+            <CameraIcon className="h-[18px] w-[18px]" />
+            写真・動画を追加
             <span className="ml-1 tabular-nums text-xs text-stone-400">
               {total}/{MAX_MEDIA_PER_POST}
             </span>

@@ -7,6 +7,7 @@ import { getJson } from "@/lib/api-client";
 import { ATTENDANCE_OPTIONS, type Attendance } from "@/types/admin";
 import type { PaymentStatusResponse } from "@/types/payment";
 import { PaymentBreakdown } from "./PaymentBreakdown";
+import { CheckCircleIcon, HourglassIcon } from "@/components/icons";
 
 type Method = "paypay" | "cotra" | "bank";
 
@@ -61,12 +62,12 @@ export function PaymentMock() {
       {error && <p role="alert" className="mb-4 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p>}
       {status === "unpaid" && (data ? <UnpaidView data={data} onPaid={() => setStatus("pending")} /> : !error && <div className="h-40 animate-pulse rounded-2xl bg-stone-200/60" />)}
       {status === "pending" && (
-        <StatusMessage icon="⏳" tone="amber">
+        <StatusMessage icon={<HourglassIcon className="h-12 w-12" />} tone="amber">
           送金完了、新郎新婦確認待ち
         </StatusMessage>
       )}
       {status === "completed" && (
-        <StatusMessage icon="✅" tone="emerald">
+        <StatusMessage icon={<CheckCircleIcon className="h-12 w-12" />} tone="emerald">
           送金完了、受領完了。
           <br />
           ありがとうございます
@@ -319,11 +320,11 @@ function ConfirmPaypay({ amountYen, onCancel }: { amountYen: number; onCancel: (
   );
 }
 
-function StatusMessage({ icon, tone, children }: { icon: string; tone: "amber" | "emerald"; children: ReactNode }) {
+function StatusMessage({ icon, tone, children }: { icon: ReactNode; tone: "amber" | "emerald"; children: ReactNode }) {
   const color = tone === "amber" ? "text-amber-800" : "text-emerald-800";
   return (
     <section className={`${card} flex min-h-[50dvh] flex-col items-center justify-center gap-4 p-8 text-center`}>
-      <span aria-hidden className="text-5xl leading-none">
+      <span aria-hidden className={`flex ${color}`}>
         {icon}
       </span>
       <p role="status" className={`text-base font-medium leading-relaxed ${color}`}>
