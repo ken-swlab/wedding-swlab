@@ -33,6 +33,8 @@ function arg(name) {
   return i >= 0 ? (process.argv[i + 1] ?? "").split(",").filter(Boolean) : null;
 }
 const only = arg("only");
+// --debug: ページの移り変わりを表示する（意図しない転送を調べるとき）
+const debug = process.argv.includes("--debug");
 const onlyViewports = arg("viewports");
 
 const { screens: ALL } = JSON.parse(readFileSync(resolve(WEB, "src/config/preview-screens.json"), "utf8"));
@@ -48,7 +50,16 @@ try {
 }
 
 // ---- next dev ----
-const next = spawn("npx", ["next", "dev", "-p", String(PORT)], { cwd: WEB, stdio: ["ignore", "pipe", "pipe"], env: process.env });
+// ★プロセスのまとまり（detached）で起動し、終わるときはまとまりごと止める★ next dev は子プロセスを作るので、
+//   親だけ止めると残ってポートをふさぎ、次の撮影や dev:emulator が動かなくなる
+const next = spawn(resolve(WEB, "node_modules/.bin/next"), ["dev", "-p", String(PORT)], { cwd: WEB, stdio: ["ignore", "pipe", "pipe"], env: process.env, detached: true });
+function stopNext() {
+  try {
+    process.kill(-next.pid, "SIGTERM");
+  } catch {
+    /* もう止まっている */
+  }
+}
 next.stdout.on("data", () => {});
 next.stderr.on("data", (d) => process.stderr.write(d));
 async function waitUp() {
@@ -65,6 +76,11 @@ async function waitUp() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** ゲストの画面に無いもの（Next の開発用の表示・試し見のページの「テスト」）を隠す。CSP は style-src 'unsafe-inline' で許可済み */
+async function hideDevChrome(page) {
+  await page.addStyleTag({ content: "nextjs-portal{display:none!important}[data-preview-hide]{display:none!important}" });
+}
 
 /** 承認後の初回の演出が出ていたら閉じる（タイムラインなどを撮るとき） */
 async function dismissWelcome(page) {
@@ -103,9 +119,15 @@ async function act(page, action) {
         const card = [...document.querySelectorAll("[data-post-card]")].find((a) => a.querySelector("img"));
         return card?.getAttribute("data-post-card") ?? null;
       });
-      if (id) await page.goto(`${BASE}/guestbook/posts/${id}`);
+      if (id) {
+        await page.goto(`${BASE}/guestbook/posts/${id}`);
+        await hideDevChrome(page);
+      }
       return null;
     }
+    case "keepWelcome":
+      // 写真が届く演出そのものを撮る（閉じない）
+      return null;
     default:
       await dismissWelcome(page);
       return null;
@@ -143,12 +165,18 @@ async function main() {
       // 場面ごとに新しいコンテキスト（ログインの状態・演出の状態を持ち越さない）
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "ja-JP" });
       const page = await ctx.newPage();
+      if (debug) page.on("framenavigated", (f) => f === page.mainFrame() && console.log(`  → ${new URL(f.url()).pathname}${new URL(f.url()).search}`));
       // ★1つの場面に 90 秒まで★ 止まった場面があっても、ほかの場面は撮り続ける
       const guard = setTimeout(() => void ctx.close().catch(() => {}), 90_000);
       try {
+        // 見本ページでテスト用アカウントに入る（入ったら見本ページから移る）
         await page.goto(`${BASE}/dev/preview?screen=${s.key}`);
-        const target = s.path.split("?")[0];
-        await page.waitForURL((u) => u.pathname === target, { timeout: 60_000 });
+        await page.waitForURL((u) => u.pathname !== "/dev/preview", { timeout: 60_000 });
+        await sleep(1500);
+        // ★入ったあと、目的の画面を開き直す★ ログインした直後のページ内の移動では、ゲストの画面の枠が
+        //   まだ未ログインと判断して /invitation → /guestbook へ送ってしまう（保存済みのログインで開き直せば起きない）
+        await page.goto(`${BASE}${s.path}`);
+        await hideDevChrome(page);
         await sleep(1500);
         const release = await act(page, s.action);
         await sleep(s.settleMs ?? 1500);
@@ -175,4 +203,8 @@ main()
     console.error(e);
     process.exitCode = 1;
   })
-  .finally(() => next.kill("SIGTERM"));
+  .finally(() => {
+    stopNext();
+    // エミュレーター（emulators:exec）はこのプロセスが終わるのを待っているので、確実に抜ける
+    setTimeout(() => process.exit(), 1000);
+  });

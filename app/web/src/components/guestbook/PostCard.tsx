@@ -239,7 +239,8 @@ export function PostCard({
             disabled={busy || !mine.loaded}
             aria-pressed={reacted}
             aria-label={`いいね ${post.reactionCount}件`}
-            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition disabled:opacity-50 ${
+            // 押せる高さは 44px（Issue #230。隣の「コメント」と同じ min-h-11。行の高さは変わらない）
+            className={`inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm transition disabled:opacity-50 ${
               reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-50"
             }`}
           >

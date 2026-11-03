@@ -11,7 +11,7 @@
     { "key": "rsvp", "group": "招待状", "label": "回答フォーム", "account": "admin", "path": "/admin/invitation_test?step=open", "action": "openRsvp", "settleMs": 1500 },
     { "key": "finish", "group": "招待状", "label": "送信完了", "account": "admin", "path": "/admin/invitation_test?step=finish", "settleMs": 2500 },
     { "key": "pending", "group": "招待状", "label": "承認待ち", "account": "admin", "path": "/admin/invitation_test?step=pending", "settleMs": 2000 },
-    { "key": "welcome", "group": "承認後", "label": "写真が届く演出", "account": "admin", "path": "/admin/invitation_test?step=welcome", "settleMs": 2500 },
+    { "key": "welcome", "group": "承認後", "label": "写真が届く演出", "account": "admin", "path": "/admin/invitation_test?step=welcome", "action": "keepWelcome", "settleMs": 2500 },
     { "key": "timeline", "group": "承認後", "label": "タイムライン", "account": "guest", "path": "/guestbook", "settleMs": 4000 },
     { "key": "composer", "group": "承認後", "label": "投稿画面", "account": "guest", "path": "/guestbook", "action": "openComposer", "settleMs": 800 },
     { "key": "post", "group": "承認後", "label": "投稿の詳細", "account": "guest", "path": "/guestbook", "action": "openFirstPhotoPost", "settleMs": 3000 },

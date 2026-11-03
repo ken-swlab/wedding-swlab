@@ -99,7 +99,8 @@ export function SearchBar() {
 
   return (
     <form role="search" className="relative min-w-0 flex-1" onSubmit={onSubmit}>
-      <label className="flex h-10 items-center gap-2 rounded-full border border-stone-200 bg-stone-100 px-3 text-stone-400 focus-within:border-stone-300 focus-within:bg-white">
+      {/* 高さ 44px（Issue #230。押せる部品は 44px 以上） */}
+      <label className="flex h-11 items-center gap-2 rounded-full border border-stone-200 bg-stone-100 px-3 text-stone-400 focus-within:border-stone-300 focus-within:bg-white">
         <SearchIcon className="h-4 w-4" />
         {/* iOS は 16px 未満の入力欄でフォーカス時に拡大するので text-base にする */}
         <input
