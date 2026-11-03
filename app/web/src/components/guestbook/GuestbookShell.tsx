@@ -288,7 +288,9 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                     e.preventDefault();
                     scrollToTop();
                   }}
-                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition ${
+                  // ★ラベルは1行★（Issue #230）幅 320px では 1 タブ 64px で、11px だと「タイムライン」「コミュニティ」が折り返した。
+                  //   幅 360px 未満だけ 10px にし、折り返さない
+                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[11px] font-medium transition max-[359px]:text-[10px] ${
                     on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}
                 >

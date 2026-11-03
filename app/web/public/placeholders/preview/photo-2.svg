@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+<!-- 画面の見本（Issue #230）の写真の代わり。架空の図形だけ -->
+<rect width="1200" height="1600" fill="#e6edf3"/>
+<circle cx="384" cy="672" r="264" fill="#9db4c8" opacity="0.85"/>
+<rect x="576" y="800" width="432" height="480" rx="48" fill="#e8c99a" opacity="0.85"/>
+<path d="M0 1376 Q 600 1184 1200 1376 V 1600 H 0 Z" fill="#9db4c8" opacity="0.35"/>
+</svg>

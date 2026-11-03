@@ -141,6 +141,45 @@ if (anyPost.empty) {
       createdAt: FieldValue.serverTimestamp(),
     });
   }
+
+  // 写真つきの投稿（画面の見本と撮影。Issue #230）。★写真は public/placeholders/preview の架空の図形だけ★
+  //   storagePath を空にして、保存した url（同じオリジンの /placeholders/…）をそのまま使わせる（lib/media-url.ts の thumbSrc）。
+  //   R2 にも外部にもつながない。CSP の img-src 'self' で読める
+  const photo = (n, w, h) => ({ type: "image", url: `/placeholders/preview/photo-${n}.svg`, storagePath: "", width: w, height: h, alt: "（見本）図形の写真" });
+  const guest = accounts.find((a) => !a.admin) ?? accounts[0];
+  const photoPosts = [
+    { by: author, text: "（見本の投稿）式場に着きました。いいお天気です。#見本", media: [photo(1, 1600, 1200), photo(2, 1200, 1600), photo(3, 1600, 1200)], tags: ["all"] },
+    { by: guest, text: "（見本の投稿）写真を1枚だけ。", media: [photo(4, 1200, 1200)], tags: ["all"] },
+  ];
+  let firstPhotoPostId = null;
+  for (const p of photoPosts) {
+    const ref = await db.collection("posts").add({
+      authorUid: p.by.uid,
+      authorName: p.by.nickname,
+      text: p.text,
+      media: p.media,
+      visibleToTags: p.tags,
+      hashtags: p.text.includes("#見本") ? ["見本"] : [],
+      mentions: [],
+      status: "visible",
+      reactionCount: 0,
+      commentCount: 0,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    firstPhotoPostId ??= ref.id;
+  }
+
+  // 通知の見本（メンション1件）。通知の画面を空にしないため
+  if (firstPhotoPostId && guest.uid !== author.uid) {
+    await db.collection("notifications").doc(guest.uid).collection("items").add({
+      type: "mention",
+      fromUid: author.uid,
+      fromName: author.nickname,
+      postId: firstPhotoPostId,
+      createdAt: FieldValue.serverTimestamp(),
+      read: false,
+    });
+  }
 }
 
 console.log(`[emulator-seed] ${projectId}: テスト用アカウント ${accounts.map((a) => a.uid).join(", ")} を用意しました`);

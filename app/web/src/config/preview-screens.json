@@ -1,0 +1,25 @@
+{
+  "_comment": "見本ページ（/dev/preview。Issue #230）と撮影スクリプト（scripts/screens-capture.mjs）で共通の場面の一覧。account は none（ログインしない）/ guest / admin。action は撮影スクリプトが撮る前に行う操作。",
+  "screens": [
+    { "key": "entrance", "group": "招待状", "label": "入口（LINE でログイン）", "account": "admin", "path": "/admin/invitation_test?step=entrance", "settleMs": 1500 },
+    { "key": "passcode", "group": "招待状", "label": "パスコード", "account": "admin", "path": "/admin/invitation_test?step=passcode", "settleMs": 1500 },
+    { "key": "opening-call", "group": "招待状", "label": "オープニング：招集", "account": "admin", "path": "/admin/invitation_test?step=opening", "settleMs": 2500 },
+    { "key": "opening-lane", "group": "招待状", "label": "オープニング：レーン発表", "account": "admin", "path": "/admin/invitation_test?step=opening", "settleMs": 9000 },
+    { "key": "opening-start", "group": "招待状", "label": "オープニング：長押しで構える", "account": "admin", "path": "/admin/invitation_test?step=opening", "action": "toStart", "settleMs": 1500 },
+    { "key": "opening-guide", "group": "招待状", "label": "オープニング：離す合図の案内", "account": "admin", "path": "/admin/invitation_test?step=opening", "action": "toStartGuide", "settleMs": 800 },
+    { "key": "invitation", "group": "招待状", "label": "招待状の本文", "account": "admin", "path": "/admin/invitation_test?step=open", "settleMs": 3000 },
+    { "key": "rsvp", "group": "招待状", "label": "回答フォーム", "account": "admin", "path": "/admin/invitation_test?step=open", "action": "openRsvp", "settleMs": 1500 },
+    { "key": "finish", "group": "招待状", "label": "送信完了", "account": "admin", "path": "/admin/invitation_test?step=finish", "settleMs": 2500 },
+    { "key": "pending", "group": "招待状", "label": "承認待ち", "account": "admin", "path": "/admin/invitation_test?step=pending", "settleMs": 2000 },
+    { "key": "welcome", "group": "承認後", "label": "写真が届く演出", "account": "admin", "path": "/admin/invitation_test?step=welcome", "action": "keepWelcome", "settleMs": 2500 },
+    { "key": "timeline", "group": "承認後", "label": "タイムライン", "account": "guest", "path": "/guestbook", "settleMs": 4000 },
+    { "key": "composer", "group": "承認後", "label": "投稿画面", "account": "guest", "path": "/guestbook", "action": "openComposer", "settleMs": 800 },
+    { "key": "post", "group": "承認後", "label": "投稿の詳細", "account": "guest", "path": "/guestbook", "action": "openFirstPhotoPost", "settleMs": 3000 },
+    { "key": "gallery", "group": "承認後", "label": "ギャラリー", "account": "guest", "path": "/guestbook?view=gallery", "settleMs": 4000 },
+    { "key": "community", "group": "承認後", "label": "コミュニティ", "account": "guest", "path": "/guestbook/community", "settleMs": 4000 },
+    { "key": "notifications", "group": "承認後", "label": "通知", "account": "guest", "path": "/guestbook/notifications", "settleMs": 3000 },
+    { "key": "settings", "group": "承認後", "label": "マイページ", "account": "guest", "path": "/guestbook/settings", "settleMs": 3500 },
+    { "key": "payment", "group": "ご案内", "label": "会費", "account": "guest", "path": "/guide/payment", "settleMs": 3500 },
+    { "key": "questionnaire", "group": "ご案内", "label": "出欠・アンケート", "account": "guest", "path": "/guide/questionnaire", "settleMs": 3500 }
+  ]
+}
