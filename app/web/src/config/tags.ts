@@ -114,6 +114,14 @@ export function tagDef(id: string): TagDef {
   );
 }
 
+/**
+ * 名前がまだ分からないカスタムタグか（Issue #231）。辞書（tags の購読）が届く前と、購読に失敗したとき・消されたタグで true。
+ * ★true のあいだは ID（c_xxxxxxxx）を画面に出さない★ TagBadge などは、文字のない灰色の枠を代わりに出す。
+ */
+export function isTagPending(id: string): boolean {
+  return isCustomTagId(id) && !TAG_MAP[id] && !CUSTOM_MAP[id];
+}
+
 export const TAG_QUERY_LIMIT = 30;
 
 /** 仕組み用のタグ（表示しない。Issue #204）か */
