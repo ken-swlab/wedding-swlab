@@ -509,15 +509,13 @@ function WelcomeTestStage({ curtain }: { curtain: boolean }) {
       </header>
       <main className="mx-auto max-w-xl space-y-4 px-4 pb-24 pt-4">
         {/*
-          本番の一番上にある投稿欄（Composer）の代わり。★中身のない白い箱にしない★（Issue #167）
-          空のカードは「タイムラインの一番上に空白のカードが出る」不具合に見えた。投稿欄だと分かる見た目にする。
+          本番の一番上にある投稿の帯（ComposerStrip。Issue #224）の代わり。★中身のない白い箱にしない★（Issue #167）
+          空のカードは「タイムラインの一番上に空白のカードが出る」不具合に見えた。投稿の入口だと分かる見た目にする。
         */}
-        <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm" aria-hidden>
-          <div className="h-20 rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-[15px] text-stone-400">おふたりへのメッセージや、当日の写真をどうぞ</div>
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-sm text-stone-500">写真・動画</span>
-            <span className="rounded-full bg-stone-900/40 px-5 py-2 text-sm text-white">投稿する</span>
-          </div>
+        <div className="flex h-[52px] items-center gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 text-sm text-stone-500 shadow-sm" aria-hidden>
+          <span className="text-lg leading-none">📷</span>
+          <span className="flex-1">写真や一言を投稿する</span>
+          <span className="text-stone-400">＋</span>
         </div>
         {pin && <WelcomePinned content={TEST_WELCOME} hidden={pin.hidden} />}
         {[0, 1].map((i) => (

@@ -55,8 +55,15 @@ export function isGuestbookPath(pathname: string): boolean {
   );
 }
 
-/** ヘッダーの「＋」が飛ぶ先。タイムライン最上部の投稿欄 */
+/**
+ * /guestbook#composer で来たら、投稿画面（ComposerSheet）を開く（Issue #224）。
+ * ヘッダーの「＋」はもうこの URL へのリンクではない（ボタンでシートを開く）が、通知などの古いリンクを壊さないため残す。
+ */
 export const COMPOSER_ANCHOR_ID = "composer";
+/** 灰色の「投稿する」を押したときに出す、足りないものの知らせを出しておく時間 (ms) */
+export const COMPOSER_HINT_MS = 3000;
+/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。高画質版の案内は長いので、読める長さにする */
+export const COMPOSER_TOAST_MS = 8000;
 /** 投稿の詳細画面の下に固定したコメント入力欄。詳細の「💬」を押すとここにフォーカスする */
 export const COMMENT_INPUT_ID = "comment-input";
 

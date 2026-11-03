@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
+import { useComposerSheet } from "./ComposerSheet";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
@@ -14,7 +15,6 @@ import { UNREAD_BADGE_LIMIT } from "@/config/mentions";
 import {
   CHROME_MORPH_EASING,
   CHROME_MORPH_MS,
-  COMPOSER_ANCHOR_ID,
   GUESTBOOK_PATHS,
   GUESTBOOK_SELECT_PARAM,
   GUESTBOOK_VIEW_PARAM,
@@ -119,6 +119,7 @@ function Header({ compact }: { compact: boolean }) {
   const gallery = pathname === GUESTBOOK_PATHS.home && view === "gallery";
   const selecting = gallery && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   const { running } = useGuestbookUpload();
+  const composer = useComposerSheet();
   // 通知・マイページ・コミュニティには検索欄を出さない（探す対象の一覧が無い）。空いた分でロゴを左、＋を右に寄せる
   const searchable =
     pathname !== GUESTBOOK_PATHS.notifications && pathname !== GUESTBOOK_PATHS.settings && pathname !== GUESTBOOK_PATHS.community;
@@ -170,15 +171,18 @@ function Header({ compact }: { compact: boolean }) {
             <span aria-hidden>⤓</span>
           </Link>
         )}
-        <Link
-          href={`${GUESTBOOK_PATHS.home}#${COMPOSER_ANCHOR_ID}`}
+        {/* ★リンクではなくボタン★（Issue #224）押すと全画面の投稿画面（ComposerSheet）を開く。
+            以前は /guestbook#composer へのリンクで、タイムラインの投稿欄までスクロールするだけだった */}
+        <button
+          type="button"
+          onClick={composer.open}
           aria-label="新しく投稿する"
           // 承認後の初回の演出（Issue #150）の2つ目の案内で照らす
           data-welcome-plus=""
           className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
         >
           <span aria-hidden>＋</span>
-        </Link>
+        </button>
       </div>
     </header>
   );
