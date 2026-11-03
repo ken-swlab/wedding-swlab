@@ -9,6 +9,7 @@ import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
 import { SpaceSwitch } from "./SpaceSwitch";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
+import { useTags } from "@/lib/tags-client";
 import { useCompactChrome } from "@/hooks/useCompactChrome";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
 import { UNREAD_BADGE_LIMIT } from "@/config/mentions";
@@ -87,6 +88,9 @@ export const CHROME_MOTION =
  *   押し戻されて「上へ戻した」と判定され、縮む → 戻る を繰り返してガタつく。
  */
 export function GuestbookShell({ children }: { children: ReactNode }) {
+  // ★タグの辞書の購読をここで必ず始める★（Issue #231）投稿画面（＋のシート）を開くまで始まらないと、
+  //   カスタムタグの名前が届かない。購読はアプリ全体で1本（tags-client の started）なので、画面を移っても増えない
+  useTags();
   const { pathname } = useBackdropLocation();
   const view = useGuestbookView();
   const { compact, expand } = useCompactChrome(`${pathname}:${view}`);

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { postJson } from "@/lib/api-client";
 import {
+  isTagPending,
   MAX_TAGS_PER_GUEST,
   MAX_TAG_LABEL,
   PALETTE_KEYS,
@@ -339,17 +340,20 @@ export function TagPicker({
           隠したタグはそのまま保存される（Issue #204） */}
       {withoutSystemTags(value).map((t) => {
         const d = tagDef(t);
+        // ★名前がまだ分からないカスタムタグは ID を出さない★（Issue #231）文字のない灰色の枠にする。
+        //   useTags で辞書が届いたら描き直される。外す「×」は残す
+        const pending = isTagPending(t);
         return (
           <span
             key={t}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${d.className}`}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ring-inset ${pending ? "bg-stone-100 ring-stone-200" : d.className}`}
           >
-            {d.label}
+            {pending ? <span aria-hidden className="inline-block w-9">&nbsp;</span> : d.label}
             {!disabled && (
               <button
                 type="button"
                 onClick={() => onChange(value.filter((x) => x !== t))}
-                aria-label={`${d.label} を外す`}
+                aria-label={pending ? "タグを外す" : `${d.label} を外す`}
                 // タッチ端末では、見た目を変えずに当たり判定だけ広げる（チップが並ぶので 44px の箱は置けない）
                 className="relative opacity-50 hover:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-x-2 pointer-coarse:after:-inset-y-3"
               >

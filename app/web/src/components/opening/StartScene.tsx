@@ -44,7 +44,8 @@ const WORDS = ["Take", "your", "marks"] as const;
  * ★Take your marks は押す前から薄いグレーで置いておく★（Issue #211）長押しの前に「このあとスタートが来る」と分かるように。
  *   ready に入るときに 400ms でフェードインし、holding で今と同じ間のまま1語ずつ白くする。フライングで ready に戻ると3語ともグレーに戻す。
  *   グレーでも白でも START までの残り時間は示さない（白くなる間は毎回同じで、START までの間は marks のあとにランダムで数える）。
- *   案内（stance）の間は、案内の文字と重ならないよう text-white/10 まで薄くする（iPhone SE など背の低い画面で重なる）。
+ *   グレーは text-white/15（主張しすぎないよう、25 から下げた）。案内（stance）の間は、案内の文字と重ならないよう
+ *   text-white/10 まで薄くする（iPhone SE など背の低い画面で重なる）。
  *
  * ★止まったままにしない★（Issue #157 A-2）「長押しで構える」を出してから一度も指を置かないまま idleEmphasis（5 秒）で
  *   丸と案内を大きくし、idleSkip（10 秒）で「スキップして招待状へ」を下に大きめに出す（右上のスキップと同じ）。
@@ -236,7 +237,7 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
           style={{ visibility: markHidden ? "hidden" : "visible", opacity: marksShown ? 1 : 0 }}
         >
           {WORDS.map((w, i) => (
-            <span key={w} className={`transition-colors duration-100 ${words > i ? "" : guide ? "text-white/10" : "text-white/25"}`}>
+            <span key={w} className={`transition-colors duration-100 ${words > i ? "" : guide ? "text-white/10" : "text-white/15"}`}>
               {w}
               {i < WORDS.length - 1 ? " " : ""}
             </span>

@@ -3,7 +3,7 @@
 import { collection, limit, onSnapshot, query } from "firebase/firestore";
 import { useSyncExternalStore } from "react";
 import { db } from "@/lib/firebase";
-import { allTagDefs, customTagDefs, paletteClass, registerCustomTags, type TagDef } from "@/config/tags";
+import { allTagDefs, customTagDefs, isTagPending, paletteClass, registerCustomTags, tagDef, type TagDef } from "@/config/tags";
 
 export type CustomTagDoc = {
   label?: string;
@@ -75,6 +75,18 @@ export function useTags(): { allTags: TagDef[] } {
     () => SERVER_SNAPSHOT,
   );
   return { allTags };
+}
+
+/**
+ * 1つのタグの表示（Issue #231）。★tagDef() を直接読まず、これを通す★
+ *   tagDef() は辞書の今の中身を返すだけなので、辞書があとから届いても描き直されない（ID のまま残る）。
+ *   ここで useTags と同じ1本の購読に乗り、辞書が届いたら・名前が変わったら描き直す。
+ * pending: 名前がまだ分からないカスタムタグ（ID を出さず、枠だけ出す）。
+ */
+export function useTagDef(id: string): { def: TagDef; pending: boolean } {
+  // cachedAll が入れ替わるたびに描き直す（中身はこの下で tagDef から引く）
+  useSyncExternalStore(subscribe, () => cachedAll, () => SERVER_SNAPSHOT);
+  return { def: tagDef(id), pending: isTagPending(id) };
 }
 
 /**

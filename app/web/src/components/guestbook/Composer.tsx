@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
-import { COUPLE_TAG, displayVisibleTags, tagDef, withoutSystemTags } from "@/config/tags";
+import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
 import { compressForTimeline } from "@/lib/image";
@@ -246,7 +246,7 @@ export function Composer({
   const scopeLabel = coupleOnly
     ? "新郎新婦だけ"
     : selected.length > 0
-      ? displayVisibleTags(selected).map((t) => tagDef(t).label).join("・")
+      ? scopeNames(selected)
       : "未選択";
 
   async function onSubmit() {
@@ -679,7 +679,7 @@ function ScopeSheet({
           {coupleOnly
             ? "あなたと新郎新婦だけに表示されます"
             : selected.length > 0
-              ? `${displayVisibleTags(selected).map((t) => tagDef(t).label).join("・")} に表示されます`
+              ? `${scopeNames(selected)} に表示されます`
               : "1つ以上選んでください"}
         </p>
         {/* チップの見た目と操作は、ランキングのグループの切り替えと共通（TagChips の★参照） */}
@@ -688,4 +688,12 @@ function ScopeSheet({
     </div>,
     document.body,
   );
+}
+
+/**
+ * 公開範囲の名前（「全員・新郎友人」）。★名前がまだ分からないカスタムタグは ID を出さず「…」にする★（Issue #231）
+ *   Composer は useTags を呼んでいるので、辞書が届いたら描き直されて名前になる。
+ */
+function scopeNames(selected: readonly string[]): string {
+  return displayVisibleTags(selected).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
 }

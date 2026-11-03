@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
+import { useTags } from "@/lib/tags-client";
 import { EnvelopeIcon, SeatIcon, SparkleIcon, YenIcon } from "@/components/icons";
 
 /**
@@ -27,6 +28,8 @@ const NAV: { key: string; label: string; icon: ReactNode; href: string | null; a
  * ★本文の下余白はボトムナビの高さ＋safe-area 分を必ず空ける★（GuestbookShell と同じ理由）
  */
 export function GuideShell({ children }: { children: ReactNode }) {
+  // ★タグの辞書の購読をここでも始める★（Issue #231。GuestbookShell と同じ。購読は1本のまま）
+  useTags();
   return (
     <div className="min-h-dvh bg-stone-50">
       <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
