@@ -49,10 +49,12 @@ cd app/web && npm test           # 単体テスト（tests/*.test.mjs。Node 22.
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
 python3 scripts/media-referer-check.py <写真の URL>   # 公開バケットの Referer の制限を外から確認（読み取りのみ。Issue #123）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
+cd app/web && npm run test:screens   # 小さい画面のスクショを一通り撮る（Issue #230。app/web/screenshots/ に出る）
 ```
 
 - 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。
 
+- 小さい画面の確認は `npm run test:screens`（Issue #230）。新しいエミュレーターと next dev（3100 番）を立ち上げ、iPhone 13 mini・SE・小さい Android・幅 320px の大きさ（ブラウザのバーで縮んだ高さを含む）で、主な画面の1画面目とページ全体を撮る。場面の一覧は `src/config/preview-screens.json`、開発用の見本ページは `/dev/preview?screen=<key>`（本番では 404）。横スクロールと 44px に満たない押せる部品は `screenshots/report.json` に出る。`dev:emulator` と同時には動かせない。Playwright は npm の依存に足していない（手元に入っているものを使う）。LINE・Safari・Chrome の実際のバーとの重なりは、実機で確かめる。
 - テストがあるのは Firestore の Rules（`infra/firestore/test`。Issue #101）と、アプリのごく一部の純粋な関数（`app/web/tests`。Issue #131。依存は足さず Node 標準の `node --test`。テストする関数は `@/` で値を import しない）だけ。初回は `cd infra/firestore/test && npm ci`。Java 21 が要る。つなぐ先はエミュレーター（プロジェクト `demo-wedding-rules`）だけで、本番には届かない。`dev:emulator` と同じポート（8080）を使うので、同時には動かせない。アプリ本体（`app/web/src`）の画面・API のテストは無く、型チェックとビルドの通過が最低ライン。
 - **Rules（`infra/firestore/firestore.rules`）を変える PR では、対応するテスト（許可と拒否の両方）を `infra/firestore/test/rules.test.mjs` に足し、`npm test` を通す。** CI は `rules-test`。
 - CI（`.github/workflows/`）: `security`（gitleaks・npm audit・OSV-Scanner・Semgrep・Checkov）、`rules-test`、`unit-test`、`deps-runtime`。Vercel は CI を待たずにデプロイするので、PR 上で赤が無いことを見てからマージする。`npm audit fix --force` は使わない。脆弱性の例外は `.github/audit-ignore.json`（理由と 90 日以内の期限が必須）、秘密の誤検知は `.gitleaks.toml`（理由つき）。

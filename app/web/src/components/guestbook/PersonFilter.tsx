@@ -20,7 +20,7 @@ export function PersonFilter({ viewer, people, value, onChange }: { viewer: Pers
     <div className="mb-3">
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-stone-500">人物でしぼり込む</span>
-        <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-stone-400">
+        <select value={value} onChange={(e) => onChange(e.target.value)} className="min-h-11 w-full touch-manipulation rounded-xl border border-stone-200 bg-white px-3 py-2.5 text-sm text-stone-800 outline-none focus:border-stone-400">
           <option value="">すべての写真</option>
           {groups.self.length > 0 && <optgroup label="自分">{groups.self.map((p) => <option key={p.uid} value={p.uid}>{p.name}（自分）</option>)}</optgroup>}
           {groups.couple.length > 0 && <optgroup label="新郎新婦">{groups.couple.map((p) => <option key={p.uid} value={p.uid}>{p.name}</option>)}</optgroup>}

@@ -258,7 +258,8 @@ export default function SettingsPage() {
           />
           {!editing && (
             <div className="flex min-h-20 min-w-0 flex-1 items-center gap-2">
-              <h1 className="min-w-0 flex-1 break-words text-xl font-semibold leading-snug text-stone-900">
+              {/* 幅 360px 未満は 18px（Issue #230。320px で「テストゲスト」程度の名前が途中で折り返した）。長い名前は折り返す */}
+              <h1 className="min-w-0 flex-1 break-words text-lg font-semibold leading-snug text-stone-900 min-[360px]:text-xl">
                 {profile ? publicName(profile) : ""}
               </h1>
               <button

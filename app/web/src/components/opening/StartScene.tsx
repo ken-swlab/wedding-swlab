@@ -232,7 +232,9 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
       <div className="absolute inset-0 transition-transform duration-[1200ms] ease-out motion-reduce:transition-none" style={{ transform: tense ? "scale(1.04)" : "scale(1)" }}>
         {/* 押す前から薄いグレーで置き、構えたら1語ずつ白くする（Issue #211）。案内の間はさらに薄く */}
         <p
-          className="absolute inset-x-0 top-[36%] text-center text-[30px] font-extrabold tracking-[0.06em] transition-opacity duration-[400ms]"
+          // ★背の低い画面では案内の上に収める★（Issue #230）36% のままだと、高さ 550〜570px で中央の案内（約 105px）と重なった。
+          //   50% − 110px（案内の上半分 53px ＋ この行の高さ 45px ＋ すき間 12px）より下にしない
+          className="absolute inset-x-0 top-[min(36%,calc(50%-110px))] text-center text-[30px] font-extrabold tracking-[0.06em] transition-opacity duration-[400ms]"
           style={{ visibility: markHidden ? "hidden" : "visible", opacity: marksShown ? 1 : 0 }}
         >
           {WORDS.map((w, i) => (
