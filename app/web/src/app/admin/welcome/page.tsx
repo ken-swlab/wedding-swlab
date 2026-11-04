@@ -3,9 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getJson, putJson } from "@/lib/api-client";
+import { getJson, postJson, putJson } from "@/lib/api-client";
 import { useGuestSession } from "@/hooks/useGuestSession";
-import { useTags } from "@/lib/tags-client";
+import { useOrderedTags, useTagOrderState, useTags } from "@/lib/tags-client";
 import { thumbSrc } from "@/lib/media-url";
 import { MAX_MESSAGE, pickWelcome, type WelcomeConfig } from "@/lib/welcome-config";
 import { DEFAULT_GUEST_TAGS, tagDef, type TagDef } from "@/config/tags";
@@ -34,7 +34,10 @@ function visibleTo(post: WelcomePostOption, tags: readonly string[]): boolean {
   return post.status === "visible" && post.visibleToTags.some((t) => tags.includes(t));
 }
 
-/** 管理画面で並べるタグ。★コミュニティに使う組み込みタグ＋カスタムタグ（アーカイブを除く）★（Issue #215） */
+/**
+ * 管理画面で並べるタグ。★コミュニティに使う組み込みタグ＋カスタムタグ（隠した・アーカイブを除く）★（Issue #215）
+ * ★並びはタグの管理の並び順＝優先順★（Issue #248。useTags の allTags は並び順）。ここでは並べ替えない。
+ */
 function welcomeTags(all: TagDef[]): TagDef[] {
   return all.filter((t) => !t.archived && (t.community === true || t.custom === true));
 }
@@ -42,6 +45,19 @@ function welcomeTags(all: TagDef[]): TagDef[] {
 export default function AdminWelcomePage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
   const { allTags } = useTags();
+  const orderedTags = useOrderedTags();
+  const orderState = useTagOrderState();
+  // 「確かめる」に使う優先順（タグの管理の並び順。隠したタグも含む。サーバーの welcomeTagOrder と同じ）
+  const tagOrder = useMemo(() => orderedTags.map((t) => t.id), [orderedTags]);
+
+  /**
+   * ★並び順がまだ一度も保存されていなければ、以前の優先順（config/welcome の priority）を写す★（Issue #248。一度だけ）
+   *   写したあとは辞書の購読で並び順が届き、"saved" になる。失敗しても画面は使える（次に開いたときにまた試す）。
+   */
+  useEffect(() => {
+    if (!isAdmin || orderState !== "unsaved") return;
+    postJson("/api/admin/tags/migrate-order", {}).catch((e: unknown) => console.error("[admin/welcome] 並び順の移行に失敗", e));
+  }, [isAdmin, orderState]);
 
   const [draft, setDraft] = useState<WelcomeConfig | null>(null);
   const [posts, setPosts] = useState<WelcomePostOption[]>([]);
@@ -88,34 +104,16 @@ export default function AdminWelcomePage() {
   }, [apply]);
 
   const tags = useMemo(() => welcomeTags(allTags), [allTags]);
-  const tagSet = useMemo(() => new Set(tags.map((t) => t.id)), [tags]);
   const postById = useMemo(() => new Map(posts.map((p) => [p.id, p])), [posts]);
 
-  /** 優先順に並べたタグの行。priority にあるもの → まだ無いもの（タグの並び順） */
-  const rows = useMemo(() => {
-    if (!draft) return [];
-    const ranked = draft.priority.filter((t) => tagSet.has(t));
-    const rankedSet = new Set(ranked);
-    return [...ranked, ...tags.map((t) => t.id).filter((t) => !rankedSet.has(t))];
-  }, [draft, tags, tagSet]);
+  /** タグの行（タグの管理の並び順＝優先順。Issue #248） */
+  const rows = useMemo(() => (draft ? tags.map((t) => t.id) : []), [draft, tags]);
 
   const update = useCallback((fn: (c: WelcomeConfig) => WelcomeConfig) => {
     setDraft((c) => (c ? fn(c) : c));
     setDirty(true);
     setSaved(false);
   }, []);
-
-  /**
-   * 行を入れ替える。★画面に出ないタグ（アーカイブ済みなど）の priority は、後ろにそのまま残す★
-   * 並べ替えたら、画面の行の順をそのまま priority にする（まだ priority に無い行も、見えている順で入る）。
-   */
-  const move = useCallback((index: number, delta: -1 | 1) => {
-    const j = index + delta;
-    if (j < 0 || j >= rows.length) return;
-    const next = [...rows];
-    [next[index], next[j]] = [next[j], next[index]];
-    update((c) => ({ ...c, priority: [...next, ...c.priority.filter((t) => !tagSet.has(t))] }));
-  }, [rows, tagSet, update]);
 
   const setPost = useCallback((target: Target, postId: string) => {
     update((c) => {
@@ -142,9 +140,8 @@ export default function AdminWelcomePage() {
     setSaving(true);
     setSaveError(null);
     try {
-      // ★保存するときの priority は、画面の行の順＋画面に出ないタグの順★（並べ替えていなくても、見えている順を保存する）
-      const priority = [...rows, ...draft.priority.filter((t) => !tagSet.has(t))];
-      const body: WelcomeConfig = { ...draft, priority };
+      // ★優先順（priority）は送らない★ 優先順はタグの管理の並び順（Issue #248）
+      const body: WelcomeConfig = { defaultPostId: draft.defaultPostId, byTag: draft.byTag, message: draft.message, messages: draft.messages };
       await putJson("/api/admin/welcome", body);
       setDraft(body);
       setDirty(false);
@@ -155,17 +152,17 @@ export default function AdminWelcomePage() {
     } finally {
       setSaving(false);
     }
-  }, [draft, rows, tagSet]);
+  }, [draft]);
 
   // 「確かめる」: 選んだタグ＋全員に付くタグで、ゲストと同じ関数（pickWelcome）を呼ぶ
   const preview = useMemo(() => {
     if (!draft) return null;
     const guestTags = [...checkTags, ...DEFAULT_GUEST_TAGS];
-    const pick = pickWelcome({ ...draft, priority: [...rows, ...draft.priority.filter((t) => !tagSet.has(t))] }, guestTags);
+    const pick = pickWelcome(draft, guestTags, tagOrder);
     const post = pick.postId ? postById.get(pick.postId) ?? null : null;
     const shown = post && visibleTo(post, guestTags) ? post : null;
     return { pick, post, shown, message: pick.message || WELCOME_DEFAULT_MESSAGE };
-  }, [draft, checkTags, rows, tagSet, postById]);
+  }, [draft, checkTags, tagOrder, postById]);
 
   if (authLoading) return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
   if (!user || !isAdmin) return <main className="flex min-h-screen items-center justify-center bg-stone-50 p-8"><div className="max-w-sm rounded-2xl border border-stone-200 bg-white p-8 text-center"><p className="font-medium text-stone-800">管理者専用ページです</p></div></main>;
@@ -221,7 +218,10 @@ export default function AdminWelcomePage() {
             {/* 2. タグごと */}
             <section className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
               <h2 className="font-serif text-base text-stone-900">タグごと</h2>
-              <p className="mt-0.5 text-xs text-stone-500">上ほど優先します。↑↓で並べ替えられます。</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-stone-500">上ほど優先します。優先順は、タグの管理の並び順です（ここでは並べ替えません）。</p>
+              <Link href="/admin/tags" className="inline-flex min-h-11 touch-manipulation items-center text-xs font-medium text-stone-700 underline underline-offset-2">
+                タグの管理で並べ替える →
+              </Link>
               <ol className="mt-3 divide-y divide-stone-100">
                 {rows.map((id, i) => {
                   const def = tagDef(id);
@@ -231,10 +231,6 @@ export default function AdminWelcomePage() {
                       <div className="mb-2 flex items-center gap-2">
                         <span className="w-5 text-center font-serif text-sm tabular-nums text-stone-400">{i + 1}</span>
                         <span className={`rounded-full px-2 py-0.5 font-serif text-sm ring-1 ${def.className}`}>{def.label}</span>
-                        <span className="ml-auto flex gap-1">
-                          <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label={`${def.label}を上へ`} className="min-h-11 min-w-11 touch-manipulation rounded-full border border-stone-200 text-stone-600 hover:bg-stone-100 disabled:opacity-30">↑</button>
-                          <button type="button" onClick={() => move(i, 1)} disabled={i === rows.length - 1} aria-label={`${def.label}を下へ`} className="min-h-11 min-w-11 touch-manipulation rounded-full border border-stone-200 text-stone-600 hover:bg-stone-100 disabled:opacity-30">↓</button>
-                        </span>
                       </div>
                       <TargetRow
                         label={def.label}

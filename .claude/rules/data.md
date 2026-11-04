@@ -66,5 +66,7 @@ paths:
 
 ## タグ
 - 組み込みタグは `src/config/tags.ts`（`all` / `guest` / `couple` / `family` / `friends_groom` / `friends_bride` / `colleagues` / `ceremony` / `after_party` など）。承認時に `all` と `guest` が付く。
-- カスタムタグは `tags` コレクション（ID は `c_` + 8 桁の16進数、物理削除せず `archived`）。作るのは `TagPicker` の「＋ 新しいタグを作成…」、名前・色・コミュニティ・並び順・アーカイブを直すのはタグの管理（`/admin/tags`。Issue #221。書き込みは `/api/admin/tags` の PATCH だけ）。Composer・EpisodeModal・`visibility.ts` はまだ組み込みタグ前提。
+- カスタムタグは `tags` コレクション（ID は `c_` + 8 桁の16進数、物理削除せず `archived`）。作るのはタグの管理（`/admin/tags`）の「＋ 新しいタグ」か `TagPicker` の「＋ 新しいタグを作成…」（どちらも `/api/admin/tags` の POST。並び順の最後に入る）、名前・色・コミュニティ・並び順・アーカイブを直すのはタグの管理（Issue #221。書き込みは `/api/admin/tags` の PATCH だけ）。
+- **組み込みのタグも `tags/{組み込みの ID}` に上書き用のドキュメントを置ける**（Issue #248）: `label`・`palette`・`community`・`archived`（隠す）・`order`。無ければ `TAG_DEFS` のまま。辞書（`config/tags.ts` の `applyTagDocs`。クライアントは `lib/tags-client.ts` の購読、サーバーは `lib/tags-server.ts` の `loadTagDictionary`）で重ねる。**隠せないタグは `all`・`guest`・`couple`・`family`**（`LOCKED_TAG_IDS`。API も `archived: true` を断る）、`guest` は名前・色も変えない。ID は変えない・物理削除しない。隠したタグはアーカイブと同じ扱い（選択肢・コミュニティ・承認後の写真の一覧に出さず、付いている人の表示と権限は残る。名簿の一括追加でも付けない）。
+- **タグの並び順は1つ**（Issue #248）: 組み込みと作ったタグを1つの並び（`order`）にし、この順が承認後の写真の優先順も兼ねる（`pickWelcome(config, tags, tagOrder)`。上ほど優先、`all`・`guest` は最後）。`config/welcome` の `priority`（Issue #215）は読み込みで無視し、保存では書かない。移行は `migrateTagOrder`（並び順が未保存なら、priority の順を先にして全タグに order を振る。/admin/tags・/admin/welcome を開いたときと、承認後の写真の保存の前に呼ぶ。移す前は、ゲストの写真は priority を先に使う）。Composer はまだ組み込みタグ前提。`visibility.ts`・EpisodeModal は組み込みのタグの上書きを見る（作ったタグはまだ見ない）。
 - Tailwind のクラス文字列は Firestore に保存しない（パレットのキーだけを保存し、クラスは `TAG_PALETTES` から引く）。

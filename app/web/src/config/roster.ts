@@ -1,4 +1,4 @@
-import { TAG_DEFS } from "@/config/tags";
+import { TAG_DEFS, builtinTagDefs } from "@/config/tags";
 
 export const INVITATION_STATUSES = [
   { id: "unsent", label: "未送付", className: "bg-stone-100 text-stone-600", aliases: ["未送付", "未送信", "未", "unsent"] },
@@ -31,7 +31,14 @@ for (const s of INVITATION_STATUSES) {
 }
 
 export function invitationDef(id: string) { return INVITATION_STATUSES.find((s) => s.id === id) ?? INVITATION_STATUSES[0]; }
-export function toTag(raw: string): string | null { return TAG_MAP.get(raw.trim()) ?? null; }
+/**
+ * 名簿の言葉からタグの ID を決める。組み込みのタグの今の名前（タグの管理で変えた名前。Issue #248）でも引ける。
+ * ★隠したタグも ID を返す★ 付けるかどうかは呼び出し側（lib/roster.ts の parseRoster）が決める（隠したタグは付けない）。
+ */
+export function toTag(raw: string): string | null {
+  const key = raw.trim();
+  return TAG_MAP.get(key) ?? builtinTagDefs().find((t) => t.label === key)?.id ?? null;
+}
 export function toInvitationStatus(raw: string): InvitationStatus | null { return STATUS_MAP.get(raw.trim()) ?? null; }
 export const isPreRegisteredUid = (uid: string) => uid.startsWith("pre_");
 

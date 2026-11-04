@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
-import { registerCustomTags } from "@/config/tags";
-import { readCustomTags } from "@/lib/tags-server";
+import { loadTagDictionary } from "@/lib/tags-server";
 import { tagDef } from "@/config/tags";
 import { themeDef } from "@/config/episodes";
 import { givenName, type Politeness, type Speaker } from "@/config/persona";
@@ -154,7 +153,7 @@ async function handle(req: Request) {
   }
 
   // カスタムタグのラベルを解決する（未解決だと AI に "c_xxxxxxxx" が渡る）
-  registerCustomTags(await readCustomTags(db));
+  await loadTagDictionary(db);
   const tagLabels = guestTags.map((t) => tagDef(t).label).join("・") || "（なし）";
   const episodeBlock = episodes.length === 0 ? "（まだエピソードがありません）" : episodes.map((e, i) => {
         const head = [`--- ${i + 1}. ${e.title || "（タイトルなし）"}`, e.period ? `（${e.period}）` : "", e.isPersonal ? ` ★${callName}さん本人についての話★` : ""].join("");

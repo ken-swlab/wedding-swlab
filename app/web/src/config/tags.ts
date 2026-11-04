@@ -82,33 +82,154 @@ export const MAX_TAGS_PER_GUEST = 20;
 export const MAX_TAG_LABEL = 16;
 
 const TAG_MAP: Record<string, TagDef> = Object.fromEntries(TAG_DEFS.map((t) => [t.id, t]));
+/** TAG_DEFS の中での位置（並び順が保存されていない組み込みのタグの並びに使う） */
+const BUILTIN_INDEX: Record<string, number> = Object.fromEntries(TAG_DEFS.map((t, i) => [t.id, i]));
+
+export function isBuiltinTagId(id: string): boolean {
+  return id in TAG_MAP;
+}
+
+/**
+ * ★隠せない組み込みのタグ★（Issue #248）アプリの動きに使っている。
+ *   all（全員）・guest（承認済み。承認の判定）・couple（新郎新婦あての投稿）・family（親族用の招待状・承認のとき自動で付く）。
+ *   タグの管理は隠すボタンを出さず、API（/api/admin/tags の PATCH）も archived: true を断る。
+ */
+export const LOCKED_TAG_IDS: ReadonlySet<string> = new Set(["all", "guest", "couple", "family"]);
+
+/** 隠せる（アーカイブできる）タグか。作ったタグと、隠せない組み込み以外の組み込みのタグ */
+export function canHideTag(id: string): boolean {
+  return isCustomTagId(id) || (isBuiltinTagId(id) && !LOCKED_TAG_IDS.has(id));
+}
+
+/** 名前・色・コミュニティを変えられるか。仕組み用の guest だけは変えない（表示しないタグ） */
+export function canEditTag(id: string): boolean {
+  return isCustomTagId(id) || (isBuiltinTagId(id) && id !== "guest");
+}
+
+/**
+ * Firestore の tags/{id} の中身（Issue #221・#248）。
+ *   作ったタグ（c_xxxxxxxx）: タグそのもの。
+ *   組み込みのタグ（TAG_DEFS の ID）: 上書き用。書いてある項目だけ TAG_DEFS の値に重ねる。無ければ TAG_DEFS のまま。
+ */
+export type TagDocData = {
+  label?: string;
+  palette?: string;
+  selectable?: boolean;
+  community?: boolean;
+  archived?: boolean;
+  order?: number;
+};
 
 /** 実行時に Firestore から読み込んだカスタムタグ */
 let CUSTOM_MAP: Record<string, TagDef> = {};
+/** 実行時に Firestore の上書きを重ねた組み込みのタグ（上書きの無いタグは入れない） */
+let BUILTIN_OVERRIDE_MAP: Record<string, TagDef> = {};
 
 export function registerCustomTags(defs: TagDef[]) {
-  CUSTOM_MAP = Object.fromEntries(defs.map((t) => [t.id, { ...t, custom: true }]));
+  CUSTOM_MAP = Object.fromEntries(defs.filter((t) => !isBuiltinTagId(t.id)).map((t) => [t.id, { ...t, custom: true }]));
 }
 
-/** 作成直後、購読が届く前でもラベルを出すための楽観更新 */
+/** 組み込みのタグに上書きを重ねる。★隠せないタグの archived と、guest の名前・色は無視する★ */
+function mergeBuiltin(base: TagDef, d: TagDocData): TagDef {
+  const editable = canEditTag(base.id);
+  return {
+    ...base,
+    label: editable && typeof d.label === "string" && d.label ? d.label : base.label,
+    className: editable && typeof d.palette === "string" ? paletteClass(d.palette) : base.className,
+    community: editable && typeof d.community === "boolean" ? d.community : base.community,
+    archived: canHideTag(base.id) && d.archived === true,
+    order: typeof d.order === "number" ? d.order : undefined,
+  };
+}
+
+/** 作ったタグのドキュメントを TagDef にする */
+export function customTagFromDoc(id: string, d: TagDocData): TagDef {
+  return {
+    id,
+    label: d.label || id,
+    className: paletteClass(d.palette ?? "stone"),
+    selectable: d.selectable !== false,
+    community: d.community === true,
+    archived: d.archived === true,
+    order: typeof d.order === "number" ? d.order : 0,
+    custom: true,
+  };
+}
+
+/**
+ * tags コレクションの中身をまとめて辞書に入れる（クライアントの購読・サーバーの読み込みの両方。Issue #248）。
+ * 組み込みの ID は上書きとして重ね、それ以外は作ったタグとして入れる。
+ */
+export function applyTagDocs(docs: readonly { id: string; data: TagDocData }[]) {
+  const custom: TagDef[] = [];
+  const overrides: Record<string, TagDef> = {};
+  for (const { id, data } of docs) {
+    if (isBuiltinTagId(id)) overrides[id] = mergeBuiltin(TAG_MAP[id], data);
+    else custom.push(customTagFromDoc(id, data));
+  }
+  BUILTIN_OVERRIDE_MAP = overrides;
+  registerCustomTags(custom);
+}
+
+/** 作成・編集の直後、購読が届く前でもラベルを出すための楽観更新（組み込みの ID なら上書きを更新する） */
 export function upsertCustomTag(def: TagDef) {
+  if (isBuiltinTagId(def.id)) {
+    BUILTIN_OVERRIDE_MAP = { ...BUILTIN_OVERRIDE_MAP, [def.id]: { ...def, custom: undefined } };
+    return;
+  }
   CUSTOM_MAP = { ...CUSTOM_MAP, [def.id]: { ...def, custom: true } };
 }
 
 export function customTagDefs(): TagDef[] {
-  return Object.values(CUSTOM_MAP).sort(
-    (a, b) => (a.order ?? 0) - (b.order ?? 0) || a.label.localeCompare(b.label, "ja"),
+  return Object.values(CUSTOM_MAP).sort(compareTagOrder);
+}
+
+/** 上書きを重ねた組み込みのタグ（TAG_DEFS の順。隠したタグも含む） */
+export function builtinTagDefs(): TagDef[] {
+  return TAG_DEFS.map((t) => BUILTIN_OVERRIDE_MAP[t.id] ?? t);
+}
+
+/**
+ * タグの並び順（Issue #248）。★この順が、承認後の写真の優先順も兼ねる★（上ほど優先）
+ *   並び順（order）を保存したタグはその順。保存していない組み込みのタグは作ったタグより上（TAG_DEFS の順）で、
+ *   一度並べ替えると、すべてのタグに order が入る（タグの管理が 0 から振り直す）。
+ */
+function orderKey(t: TagDef): number {
+  if (isBuiltinTagId(t.id)) return t.order ?? BUILTIN_INDEX[t.id] - 1000;
+  return t.order ?? 0;
+}
+export function compareTagOrder(a: TagDef, b: TagDef): number {
+  return (
+    orderKey(a) - orderKey(b) ||
+    (BUILTIN_INDEX[a.id] ?? 1e6) - (BUILTIN_INDEX[b.id] ?? 1e6) ||
+    a.label.localeCompare(b.label, "ja")
   );
 }
 
-/** 組み込み ∪ カスタム（archived は除く）＝ピッカーに出す一覧 */
+/** 組み込み ∪ カスタムを並び順に。includeArchived が false なら隠した・アーカイブしたタグを除く */
+export function orderedTagDefs(includeArchived = false): TagDef[] {
+  return [...builtinTagDefs(), ...Object.values(CUSTOM_MAP)].filter((t) => includeArchived || !t.archived).sort(compareTagOrder);
+}
+
+/** 組み込み ∪ カスタム（隠した・アーカイブしたものは除く。並び順）＝ピッカーに出す一覧 */
 export function allTagDefs(): TagDef[] {
-  return [...TAG_DEFS, ...customTagDefs().filter((t) => !t.archived)];
+  return orderedTagDefs(false);
+}
+
+/** タグ ID の並び順（隠したタグも含む）。承認後の写真の優先順（lib/welcome-config.ts の pickWelcome）に渡す */
+export function tagOrderIds(): string[] {
+  return orderedTagDefs(true).map((t) => t.id);
+}
+
+/** 組み込みのタグも含めて、並び順が一度でも保存されたか（承認後の写真の優先順を写したかの目安。Issue #248） */
+export function isTagOrderSaved(): boolean {
+  return Object.values(BUILTIN_OVERRIDE_MAP).some((t) => typeof t.order === "number");
 }
 
 /** 未知の ID でも必ず何かを返す。辞書の取得に失敗しても表示は壊れない */
 export function tagDef(id: string): TagDef {
   return (
+    BUILTIN_OVERRIDE_MAP[id] ??
     TAG_MAP[id] ??
     CUSTOM_MAP[id] ?? { id, label: id, className: TAG_PALETTES.stone, selectable: false }
   );

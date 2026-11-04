@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import type { Firestore } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
-import { readCustomTags } from "@/lib/tags-server";
-import { MAX_TAG_LABEL, PALETTE_KEYS, TAG_DEFS, isCustomTagId } from "@/config/tags";
+import { readCustomTags, readOrderedTags } from "@/lib/tags-server";
+import { MAX_TAG_LABEL, PALETTE_KEYS, canEditTag, canHideTag, isBuiltinTagId, isCustomTagId } from "@/config/tags";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 
@@ -12,7 +12,6 @@ export const dynamic = "force-dynamic";
 
 const MAX_CUSTOM_TAGS = 60;
 const PALETTES = new Set<string>(PALETTE_KEYS);
-const BUILTIN_LABELS = new Set(TAG_DEFS.map((t) => t.label));
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -70,13 +69,17 @@ async function _POST(req: Request) {
     // ★既定は false★ 勝手にギャラリーの人物検索スコープを広げない
     const community = body.community === true;
 
-    const existing = await readCustomTags(g.db);
+    // 組み込みのタグ（上書きを重ねた名前）と作ったタグを並び順に
+    const all = await readOrderedTags(g.db);
+    const existing = all.filter((t) => t.custom === true);
     if (existing.length >= MAX_CUSTOM_TAGS) {
       return fail(`カスタムタグは${MAX_CUSTOM_TAGS}個までです`, 400);
     }
-    if (BUILTIN_LABELS.has(label) || existing.some((t) => !t.archived && t.label === label)) {
+    if (all.some((t) => !t.archived && t.label === label)) {
       return fail(`「${label}」は既に存在します`, 400);
     }
+    // ★作ったタグは並び順の最後に入れる★（Issue #248。組み込みのタグも含めた並び順の、一番大きい値の次）
+    const order = all.reduce((m, t) => (typeof t.order === "number" ? Math.max(m, t.order + 1) : m), existing.length);
 
     const doc = {
       label,
@@ -84,7 +87,7 @@ async function _POST(req: Request) {
       selectable,
       community,
       archived: false,
-      order: existing.length,
+      order,
       createdAt: Date.now(),
       createdBy: g.uid,
     };
@@ -126,10 +129,19 @@ async function _PATCH(req: Request) {
       return fail("リクエストが不正です", 400);
     }
 
+    /**
+     * ★組み込みのタグも受け付ける★（Issue #248）tags/{組み込みの ID} に上書き用のドキュメントを置く（無ければ作る）。
+     *   隠せない組み込みのタグ（all・guest・couple・family）の archived: true は断る。guest は名前・色・コミュニティも変えない
+     *   （並び順だけ）。ID は変えられない。
+     */
     const id = typeof body.id === "string" ? body.id : "";
-    if (!isCustomTagId(id)) return fail("組み込みタグは変更・削除できません", 400);
+    const builtin = isBuiltinTagId(id);
+    if (!builtin && !isCustomTagId(id)) return fail("そのタグは存在しません", 404);
 
     const patch: Record<string, unknown> = { updatedAt: Date.now() };
+    const editsLook = typeof body.label === "string" || typeof body.palette === "string" || typeof body.community === "boolean" || typeof body.selectable === "boolean";
+    if (editsLook && !canEditTag(id)) return fail("このタグの名前・色は変えられません", 400);
+    if (body.archived === true && !canHideTag(id)) return fail("このタグはアプリの動きに使っているため、隠せません", 400);
     if (typeof body.label === "string") {
       const label = body.label.trim();
       if (!label || label.length > MAX_TAG_LABEL) {
@@ -138,17 +150,28 @@ async function _PATCH(req: Request) {
       patch.label = label;
     }
     if (typeof body.palette === "string" && PALETTES.has(body.palette)) patch.palette = body.palette;
-    if (typeof body.selectable === "boolean") patch.selectable = body.selectable;
+    // 選べるかどうか（selectable）は作ったタグだけ（組み込みのタグは TAG_DEFS のまま）
+    if (!builtin && typeof body.selectable === "boolean") patch.selectable = body.selectable;
     if (typeof body.community === "boolean") patch.community = body.community;
     // ★物理削除はしない★
     //   Custom Claims と episodes.visibleToTags に残った ID を壊さないため、
-    //   削除は archived による論理削除だけを提供する。
+    //   削除は archived による論理削除（組み込みのタグは「隠す」）だけを提供する。
     if (typeof body.archived === "boolean") patch.archived = body.archived;
-    if (typeof body.order === "number") patch.order = body.order;
+    if (typeof body.order === "number" && Number.isInteger(body.order) && body.order >= 0 && body.order < 1000) patch.order = body.order;
 
     const ref = g.db.collection("tags").doc(id);
-    const snap = await ref.get();
-    if (!snap.exists) return fail("そのタグは存在しません", 404);
+    if (!builtin) {
+      const snap = await ref.get();
+      if (!snap.exists) return fail("そのタグは存在しません", 404);
+    }
+    // 名前を変える・戻すときは、ほかのタグ（隠していないもの）と同じ名前にしない
+    const nextLabel = typeof patch.label === "string" ? patch.label : null;
+    if (nextLabel !== null || body.archived === false) {
+      const all = await readOrderedTags(g.db);
+      const self = all.find((t) => t.id === id);
+      const label = nextLabel ?? self?.label ?? "";
+      if (all.some((t) => t.id !== id && !t.archived && t.label === label)) return fail(`「${label}」は既に存在します`, 400);
+    }
     await ref.set(patch, { merge: true });
 
     return NextResponse.json({ ok: true, id });

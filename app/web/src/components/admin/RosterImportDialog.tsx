@@ -1,7 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { invitationDef } from "@/config/roster";
-import { withoutSystemTags } from "@/config/tags";
+import { tagDef, withoutSystemTags } from "@/config/tags";
 import { TagBadge } from "@/components/guestbook/TagBadge";
 import { normalizeName, parseRoster } from "@/lib/roster";
 import type { GuestRow } from "@/types/admin";
@@ -49,6 +49,12 @@ export function RosterImportDialog({ existing, onClose, onImport }: { existing: 
                     <li key={r.line} className={`flex items-start gap-2 px-2 py-1.5 ${r.duplicate && skipDuplicates ? "opacity-35" : ""}`}>
                       <div className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-stone-800">{r.displayName}</span>{r.kana && <span className="block truncate text-[10px] text-stone-400">{r.kana}</span>}
                         <div className="mt-0.5 flex flex-wrap gap-1">{withoutSystemTags(r.tags).map((t) => <TagBadge key={t} id={t} size="sm" colored />)}</div>
+                        {/* 隠したタグに当たった言葉は付けない（Issue #248） */}
+                        {r.hiddenTags.length > 0 && (
+                          <p className="mt-0.5 text-[10px] text-amber-700">
+                            {r.hiddenTags.map((t) => `「${tagDef(t).label}」`).join("")}は隠されているため付けません（タグの管理で戻せます）
+                          </p>
+                        )}
                       </div>
                       <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] ${invitationDef(r.invitationStatus).className}`}>{invitationDef(r.invitationStatus).label}</span>
                       {r.duplicate && <span className="shrink-0 text-[10px] text-amber-600">既存</span>}
