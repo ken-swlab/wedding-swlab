@@ -32,7 +32,7 @@ export function GuideShell({ children }: { children: ReactNode }) {
   useTags();
   return (
     <div className="min-h-dvh bg-stone-50">
-      <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-stone-200 bg-stone-50/94 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
           <SpaceSwitch current="guide" />
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-stone-600">ご案内・各種手続き</p>
@@ -49,11 +49,12 @@ function GuideNav() {
   return (
     <nav
       aria-label="ご案内のメニュー"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      // 地は紙の色の半透明・境目は罫線 1px（Issue #236。ゲストブックの下のタブと同じ）
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <ul className="mx-auto flex h-16 max-w-xl">
         {NAV.map((item) => {
-          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px] font-medium";
+          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px]";
           if (!item.href) {
             return (
               <li key={item.key} className="flex-1">
@@ -75,7 +76,8 @@ function GuideNav() {
               <Link
                 href={item.href}
                 aria-current={here ? "page" : undefined}
-                className={`${tab} transition ${on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
+                // 選んでいるタブは墨の太字（Issue #236）
+                className={`${tab} transition ${on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"}`}
               >
                 <span aria-hidden className="flex h-5 items-center">{item.icon}</span>
                 {item.label}

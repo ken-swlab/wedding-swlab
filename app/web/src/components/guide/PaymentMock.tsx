@@ -17,7 +17,8 @@ const METHODS: { key: Method; label: string }[] = [
   { key: "bank", label: "銀行振込" },
 ];
 
-const card = "rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm";
+/** 区切り（Issue #236。白いカードにせず、上下の罫線と余白で区切る） */
+const card = "border-y border-stone-200 py-4";
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
 /** 表示確認で選べる出欠（管理者の自分の回答のまま＝null） */

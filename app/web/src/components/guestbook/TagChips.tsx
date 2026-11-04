@@ -34,7 +34,8 @@ export function TagChips({
             aria-pressed={on}
             // 見た目は高さ 24px のまま、押せる範囲だけ上下に 10px ずつ広げる（Issue #230。押せる部品は 44px 以上）
             className={`relative touch-manipulation rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition after:absolute after:-inset-y-2.5 after:inset-x-0 after:content-[''] ${
-              on ? t.className : "bg-white text-stone-400 ring-stone-200 hover:bg-stone-50"
+              // ★無彩色★（Issue #236。タグの色分けは管理画面だけ）。選んでいるものは墨の枠と文字
+              on ? "font-semibold text-stone-900 ring-stone-900" : "text-stone-400 ring-tagline hover:bg-stone-100"
             }`}
           >
             {t.label}

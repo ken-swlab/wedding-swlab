@@ -173,12 +173,12 @@ export function PostCard({
       // シートはここから広がり（PostDetailSheet）、閉じるときはここへ縮む
       data-post-card={detail ? undefined : post.id}
       data-post-detail={detail ? "" : undefined}
+      // ★カードにしない★（Issue #236。枠なし・無彩色・写真が主役）投稿の間は下に 1px の罫線、上下 18px・左右 16px。
+      //   一覧は親の余白（px-4）の外まで罫線を伸ばす（-mx-4）。低画質版だけの自分の投稿（warn）は、淡い黄色の地で知らせる
       className={
         detail
-          ? "bg-white p-4"
-          : `cursor-pointer touch-manipulation rounded-2xl border bg-white p-4 shadow-sm ${
-              warn ? "border-amber-300 ring-1 ring-amber-300" : "border-stone-200/80"
-            }`
+          ? "px-4 py-4"
+          : `-mx-4 cursor-pointer touch-manipulation border-b border-stone-200 px-4 py-[18px] ${warn ? "bg-amber-50/70" : ""}`
       }
     >
       {/* 非表示の投稿は投稿者本人にだけ届く（usePost / Rules）。何が起きたかを伝える */}
@@ -228,7 +228,7 @@ export function PostCard({
         <MediaGrid post={post} onLike={onLike} />
       </div>
 
-      <footer className="mt-3 border-t border-stone-100 pt-2">
+      <footer className="mt-2">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -241,7 +241,8 @@ export function PostCard({
             aria-label={`いいね ${post.reactionCount}件`}
             // 押せる高さは 44px（Issue #230。隣の「コメント」と同じ min-h-11。行の高さは変わらない）
             className={`inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm transition disabled:opacity-50 ${
-              reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-50"
+              // 行は無彩色。いいね済みはハートだけ赤（Issue #236）
+              "text-stone-500 hover:bg-stone-100"
             }`}
           >
             <HeartIcon filled={reacted} />
@@ -253,7 +254,7 @@ export function PostCard({
               type="button"
               onClick={() => document.getElementById(COMMENT_INPUT_ID)?.focus()}
               aria-label={`コメント ${post.commentCount}件。コメントを書く`}
-              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
+              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
             >
               <CommentIcon />
               <span aria-hidden className="tabular-nums">{post.commentCount}</span>
@@ -262,7 +263,7 @@ export function PostCard({
             <Link
               href={href}
               onClick={onLinkClick}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-50"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
             >
               <CommentIcon className="h-[18px] w-[18px]" />
               <span className="tabular-nums">{post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}</span>

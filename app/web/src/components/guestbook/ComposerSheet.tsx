@@ -164,6 +164,7 @@ function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number
 /**
  * タイムラインの一番上の細い帯「📷 写真や一言を投稿する」。押すと投稿画面を開く（「＋」と同じ）。
  * 以前はここに投稿欄（Composer）をそのまま置いていた。高さは 52px ほどにして、タイムラインの邪魔をしない。
+ * ★白い箱にしない★（Issue #236）紙の地の上に、押す場所の色（テラコッタ・sub）の文字と線のカメラを置き、下に罫線。
  */
 export function ComposerStrip() {
   const { open } = useComposerSheet();
@@ -171,11 +172,11 @@ export function ComposerStrip() {
     <button
       type="button"
       onClick={open}
-      className="flex h-[52px] w-full touch-manipulation items-center gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 text-left text-sm text-stone-500 shadow-sm transition hover:bg-stone-50"
+      className="-mx-4 flex h-[52px] w-[calc(100%+2rem)] touch-manipulation items-center gap-3 border-b border-stone-200 px-4 text-left text-sm font-semibold text-sub-600 transition hover:bg-stone-100/60"
     >
-      <CameraIcon className="h-5 w-5 text-stone-600" />
+      <CameraIcon className="h-5 w-5" />
       <span className="min-w-0 flex-1 truncate">写真や一言を投稿する</span>
-      <span aria-hidden className="text-stone-400">＋</span>
+      <span aria-hidden className="text-sub-600/70">＋</span>
     </button>
   );
 }

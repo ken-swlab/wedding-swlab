@@ -96,7 +96,7 @@ export function PostDetail({
             <>
               <PostCard post={post} user={user} variant="detail" actions={own.actionsFor(post)} />
               {/* コメントは投稿のすぐ下に続けて並べる（開閉しない） */}
-              <section aria-label="コメント" className="border-t border-stone-100 bg-white px-4 pb-2">
+              <section aria-label="コメント" className="border-t border-stone-200 px-4 pb-2">
                 {!thread.loading && !thread.error && thread.comments.length === 0 ? (
                   <p className="py-6 text-center text-sm text-stone-400">まだコメントはありません。</p>
                 ) : (

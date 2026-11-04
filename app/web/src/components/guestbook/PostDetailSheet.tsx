@@ -80,7 +80,7 @@ function timelineCard(id: string): DOMRect | null {
  *   切り抜きの外にタイムラインが透けると、画面が崩れたように見える。幕はシートの外（clip-path の
  *   影響を受けない兄弟）に置き、展開の始めにすばやく不透明にして、終わったら外す（opacity 0）。
  *   展開後も敷いたままにすると、右スワイプで戻るときに裏のタイムラインが見えず白い画面になる。
- *   展開し終えたシートは bg-white の全画面なので、幕を外しても見た目は変わらない。
+ *   展開し終えたシートは紙の地（bg-stone-50。Issue #236）の全画面なので、幕を外しても見た目は変わらない。
  *   カードへ縮んで閉じるときは逆に幕を消していき、カードがタイムラインへ戻って見えるようにする。
  * ★閉じるのは「右スワイプ」「Esc」「端末の戻る操作」（と読み上げ用の見えない「閉じる」）★
  *   どれも履歴を1つ戻すだけで、シートは URL が /guestbook に戻ったときにページ側が外す。
@@ -202,7 +202,7 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
       <div
         ref={backdrop}
         aria-hidden
-        className="pointer-events-none fixed inset-0 z-50 bg-white opacity-0"
+        className="pointer-events-none fixed inset-0 z-50 bg-stone-50 opacity-0"
       />
       <div
         ref={sheet}
@@ -210,7 +210,7 @@ export function PostDetailSheet({ id, user }: { id: string; user: User }) {
         aria-modal="true"
         aria-label="投稿の詳細"
         tabIndex={-1}
-        className="fixed inset-x-0 top-0 z-50 flex h-dvh flex-col bg-white outline-none"
+        className="fixed inset-x-0 top-0 z-50 flex h-dvh flex-col bg-stone-50 outline-none"
         style={{ touchAction: "pan-y" }}
       >
         <PostDetail id={id} user={user} onClose={close} scroller={scroller} content={content} />

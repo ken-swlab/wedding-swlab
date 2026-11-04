@@ -239,7 +239,8 @@ export function PostLightbox({
                 disabled={busy || !loaded}
                 aria-pressed={reacted}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm transition disabled:opacity-50 ${
-                  reacted ? "bg-accent-50 text-accent-600" : "text-stone-500 hover:bg-stone-100"
+                  // 行は無彩色。いいね済みはハートだけ赤（Issue #236）
+                  "text-stone-500 hover:bg-stone-100"
                 }`}
               >
                 <HeartIcon filled={reacted} className="h-5 w-5" />
