@@ -86,7 +86,7 @@ export function GalleryGrid({
 
             {/* いいね数。エンドロールの並び順の materia になるので見せる */}
             {post.reactionCount > 0 && (
-              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[11px] font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[length:calc(11px*var(--inv-scale))] font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                 <HeartIcon filled className="h-3 w-3" /> <span className="tabular-nums">{post.reactionCount}</span>
               </span>
             )}

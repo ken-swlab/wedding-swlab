@@ -294,7 +294,7 @@ function LoadMore({ loading, onClick }: { loading: boolean; onClick: () => void 
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
+      className="min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
     >
       {loading ? "読み込み中…" : "もっと見る"}
     </button>

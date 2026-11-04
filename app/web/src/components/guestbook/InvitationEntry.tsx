@@ -13,6 +13,7 @@ import { rememberOpeningRun } from "@/lib/opening-run";
 import type { InvitationContent, InvitationStatus, OpeningContent, ReactionStatus } from "@/types/invitation";
 import type { InvitationKind } from "@/types/admin";
 import { rememberInvitationKind } from "@/lib/invitation-kind-local";
+import { useTextScale } from "@/hooks/useTextScale";
 
 type View =
   | { kind: "checking" }
@@ -56,6 +57,8 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
   useEffect(() => {
     rememberInvitationKind(kind);
   }, [kind]);
+  // ★親族用の招待状は、回答の前から文字を大きくする★（Issue #243。URL で親族用と分かる。ゲストの画面に移っても続く）
+  useTextScale(kind === "family" ? "large" : "normal");
 
   useEffect(() => {
     if (!user) return;

@@ -214,7 +214,7 @@ export function PostCard({
         <RichText
           text={post.text}
           mentionNames={post.mentions}
-          className="selectable mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
+          className="selectable mt-3 block whitespace-pre-wrap break-words text-[length:calc(15px*var(--inv-scale))] leading-relaxed text-stone-800"
         />
       )}
 
@@ -239,8 +239,8 @@ export function PostCard({
             disabled={busy || !mine.loaded}
             aria-pressed={reacted}
             aria-label={`いいね ${post.reactionCount}件`}
-            // 押せる高さは 44px（Issue #230。隣の「コメント」と同じ min-h-11。行の高さは変わらない）
-            className={`inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm transition disabled:opacity-50 ${
+            // 押せる高さは 44px（Issue #230。隣の「コメント」と同じ min-h-[var(--inv-tap)]。行の高さは変わらない）
+            className={`inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm transition disabled:opacity-50 ${
               // 行は無彩色。いいね済みはハートだけ赤（Issue #236）
               "text-stone-500 hover:bg-stone-100"
             }`}
@@ -254,7 +254,7 @@ export function PostCard({
               type="button"
               onClick={() => document.getElementById(COMMENT_INPUT_ID)?.focus()}
               aria-label={`コメント ${post.commentCount}件。コメントを書く`}
-              className="inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
+              className="inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
             >
               <CommentIcon />
               <span aria-hidden className="tabular-nums">{post.commentCount}</span>
@@ -263,7 +263,7 @@ export function PostCard({
             <Link
               href={href}
               onClick={onLinkClick}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
+              className="inline-flex min-h-[var(--inv-tap)] items-center gap-1.5 rounded-full px-3 text-sm text-stone-500 transition hover:bg-stone-100"
             >
               <CommentIcon className="h-[18px] w-[18px]" />
               <span className="tabular-nums">{post.commentCount > 0 ? `コメント ${post.commentCount}件` : "コメントする"}</span>
@@ -276,7 +276,7 @@ export function PostCard({
               type="button"
               onClick={() => void onHide()}
               disabled={hiding}
-              className="min-h-11 touch-manipulation rounded-full px-3 text-xs text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
+              className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-3 text-xs text-rose-600 transition hover:bg-rose-50 disabled:opacity-40"
             >
               {hiding ? "非表示にしています…" : "非表示にする（管理者）"}
             </button>

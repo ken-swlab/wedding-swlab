@@ -15,7 +15,7 @@ paths:
 
 ## ログインとセッション
 - `useLiffAuth`: LIFF → `liff.getIDToken()` → `POST /api/auth/line` → `signInWithCustomToken`。`@line/liff` は動的 import（SSR で読まない）。`/invitation` はページを開いただけではログインを始めない。
-- `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
+- `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）・`textScale`（Issue #243）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
 - 管理者かどうかは `claims.admin === true` だけで決める。
 
 ## データと API
@@ -27,7 +27,7 @@ paths:
 - 文言は日本語の丁寧語。日時は `ja-JP`（管理画面は `Asia/Tokyo`）。
 - 基調は `stone`（テーマは「紙と墨」。Issue #236）: 背景は紙 `bg-stone-50`（#f9f8f6）、罫線 `border-stone-200`（#ebe6df）、主ボタン `rounded-full bg-stone-900 text-white hover:bg-stone-700 disabled:opacity-40`。ゲストブック・ご案内は**カードにしない**（白地・枠・角丸・影で区切らず、罫線と余白で区切る。一覧は親の `px-4` の外まで罫線を伸ばす `-mx-4 border-b border-stone-200 px-4`）。白い面のままにするのは、入力欄・ボトムシート・メニューなど「別の面」であること自体に意味がある所だけ。エラー rose、警告 amber、成功 emerald、情報 sky。`/screen` だけダーク。
 - 色はテーマに従う（`src/config/theme.ts`。Issue #129）: `stone-*` はテーマの base に結び付いている。ブランドの差し色は `rose-*` ではなく `accent-*`（2色目 `sub-*`、3色目 `pop-*`）で書く。状態の色（エラー・危険 rose、警告 amber、成功 emerald、情報 sky）とタグの色（`tagstone-*` を含む）はテーマに従わせない。色の値を直接（`bg-[#…]`）書かない。**テラコッタ（`sub-*`）は押す場所（＋・投稿の帯・投稿画面の「投稿する」）だけ**、`accent-*`（赤）はいいねだけ。ゲスト側のタグは無彩色（`TagBadge` の既定。枠は `ring-tagline`）で、色分けは管理画面だけ（`colored`）。
-- 親族用の招待状（Issue #240）は文字とボタンを約 1.12 倍にする。倍率は `globals.css` の `.inv-family`（`--inv-scale`・`--inv-tap`）の1か所で、招待状・回答フォーム・送信完了・承認待ちに `.inv-scaled` を付ける。これらの画面の部品で文字の大きさを直接書くときは `text-[length:calc(13px*var(--inv-scale))]`、押せる部品の高さは `min-h-[var(--inv-tap)]` と書く（友人用は 1 倍・44px で変わらない）。zoom は使わない。
+- 文字の大きさ（Issue #240・#243）: `<html data-text-scale="large">` でゲストの画面ぜんぶの文字が約 1.12 倍になる（`globals.css` の `--inv-scale`・`--inv-tap` の1か所）。付け外しは `hooks/useTextScale.ts` で、`(guest)/layout.tsx`（本人の設定 `guestPrivate.textScale`、無ければ親族用から入った人は大きく）と親族用の招待状（`InvitationEntry`）だけが使う。管理画面・`/screen` では外れる。文字は `text-xs`〜`text-3xl` か `text-[length:calc(13px*var(--inv-scale))]`、押せる部品の高さは `min-h-[var(--inv-tap)]` で書く（px を直接書くと倍率が効かない）。正方形のアイコンボタン（`h-11 w-11`）はそのまま。html の font-size は変えない・zoom は使わない。`.inv-family`／`.inv-scaled` は、その中だけを大きくしたいとき（招待状テストの親族用・Portal のオープニング）に使う。
 - スマホ前提: タップ領域 44px 以上（`touch-manipulation`）、高さは `dvh`、LINE アプリ内ブラウザ向けに `env(safe-area-inset-*)`。
 - アクセシビリティ: アイコンボタンに `aria-label`、トグルに `aria-pressed`、タブは `role="tablist"` / `"tab"`、エラーは `role="alert"`。
 - アニメーションは framer-motion（`components/screen/*` だけ。transform のみ）。

@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { GUIDE_PATHS } from "@/config/guide";
 import { GuideShell } from "@/components/guide/GuideShell";
 import { PaymentMock } from "@/components/guide/PaymentMock";
 import { PlaceholderPanel } from "@/components/guestbook/GuestbookShell";
@@ -12,7 +15,14 @@ import { useGuestSessionContext } from "@/components/guestbook/GuestSessionConte
  *   送金先を本物にしたら、ゲストにも見せる。
  */
 export default function GuidePaymentPage() {
-  const { isAdmin } = useGuestSessionContext();
+  const { isAdmin, invitationKind } = useGuestSessionContext();
+  const router = useRouter();
+  // ★親族用から入った人は、ご案内のトップへ移す★（Issue #243。会費は手渡しなので、このタブは出していない）
+  const family = invitationKind === "family" && !isAdmin;
+  useEffect(() => {
+    if (family) router.replace(GUIDE_PATHS.home);
+  }, [family, router]);
+  if (family) return <GuideShell>{null}</GuideShell>;
   return (
     <GuideShell>
       {isAdmin ? (

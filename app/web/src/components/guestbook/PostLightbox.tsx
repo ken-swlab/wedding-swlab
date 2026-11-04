@@ -215,7 +215,7 @@ export function PostLightbox({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{author.name}</p>
-            <p className="text-[11px] tabular-nums text-white/40">{fullDate(post)}</p>
+            <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/40">{fullDate(post)}</p>
           </div>
           <button
             type="button"
@@ -255,7 +255,7 @@ export function PostLightbox({
             {post.text && (
               <RichText
                 text={post.text}
-                className="selectable mt-3 block whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800"
+                className="selectable mt-3 block whitespace-pre-wrap break-words text-[length:calc(15px*var(--inv-scale))] leading-relaxed text-stone-800"
               />
             )}
 

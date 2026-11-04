@@ -80,7 +80,7 @@ export default function NotificationsPage() {
                 type="button"
                 onClick={() => void loadMore()}
                 disabled={loadingMore}
-                className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
+                className="min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
               >
                 {loadingMore ? "読み込み中…" : "もっと見る"}
               </button>
@@ -114,7 +114,7 @@ function NotificationRow({
         </p>
         <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{shortTime(n)}</time>
         {unread && (
-          <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+          <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[length:calc(10px*var(--inv-scale))] font-semibold leading-none text-white">
             新着
           </span>
         )}
@@ -159,8 +159,8 @@ function CommentPreview({ postId, comment }: { postId: string; comment: Comment 
       href={`${postPath(postId)}#${commentAnchorId(comment.id)}`}
       className="-mx-4 block touch-manipulation border-b border-stone-200 px-4 py-[18px] transition hover:bg-stone-100/60"
     >
-      <p className="text-[11px] font-medium text-stone-400">コメント</p>
-      <p className="mt-1 truncate text-[13px] font-semibold text-stone-800">{author.name}</p>
+      <p className="text-[length:calc(11px*var(--inv-scale))] font-medium text-stone-400">コメント</p>
+      <p className="mt-1 truncate text-[length:calc(13px*var(--inv-scale))] font-semibold text-stone-800">{author.name}</p>
       <RichText
         text={comment.text}
         mentionNames={comment.mentions}

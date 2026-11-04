@@ -1,5 +1,6 @@
 "use client";
 
+import { TEXT_SCALES, type TextScale } from "@/config/text-scale";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -38,6 +39,13 @@ export type GuestSession = {
    * 承認待ち・回答の修正の画面を親族用の文字の大きさ・フォームにするために使う（守りではない）。
    */
   invitationKind: "friend" | "family";
+  /**
+   * 本人が選んだ文字の大きさ（guestPrivate.textScale。Issue #243）。未設定・読めない場合は null
+   * （実際の大きさは config/text-scale.ts の effectiveTextScale で決める）。
+   */
+  textScale: TextScale | null;
+  /** guestPrivate を読み終えたか（invitationKind・textScale が確かか） */
+  privateReady: boolean;
   tags: string[];
   isAdmin: boolean;
   loading: boolean;
@@ -58,7 +66,7 @@ export function useGuestSession(): GuestSession {
    *   切り替わりの一瞬に前のユーザーのプロフィールが見えてしまう。
    */
   const [profileState, setProfileState] = useState<{ uid: string; profile: GuestProfile | null } | null>(null);
-  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean; invitationKind: "friend" | "family" } | null>(null);
+  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean; invitationKind: "friend" | "family"; textScale: TextScale | null } | null>(null);
   const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
@@ -144,9 +152,10 @@ export function useGuestSession(): GuestSession {
           uid: user.uid,
           isActive: snap.data()?.isActive !== false,
           invitationKind: snap.data()?.invitationKind === "family" ? "family" : "friend",
+          textScale: (TEXT_SCALES as readonly unknown[]).includes(snap.data()?.textScale) ? (snap.data()?.textScale as TextScale) : null,
         }),
       // 読めないときは停止と決めつけない（Rules の一時的な失敗で閉め出さない）
-      () => setActiveState({ uid: user.uid, isActive: true, invitationKind: "friend" }),
+      () => setActiveState({ uid: user.uid, isActive: true, invitationKind: "friend", textScale: null }),
     );
   }, [user]);
 
@@ -157,6 +166,9 @@ export function useGuestSession(): GuestSession {
   // 未ログイン・読み込み前は有効扱い（以前と同じ）
   const isActive = user && activeState?.uid === user.uid ? activeState.isActive : true;
   const invitationKind = user && activeState?.uid === user.uid ? activeState.invitationKind : "friend";
+  const textScale = user && activeState?.uid === user.uid ? activeState.textScale : null;
+  // guestPrivate を読み終えたか（文字の大きさを決められるか）
+  const privateReady = !!user && activeState?.uid === user.uid;
 
-  return { user, isActive, invitationKind, tags, isAdmin, loading, profile, profileLoading, refreshTags };
+  return { user, isActive, invitationKind, textScale, privateReady, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

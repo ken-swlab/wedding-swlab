@@ -104,14 +104,14 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
             rows={expanded ? 3 : 1}
             aria-label="コメント"
             placeholder="コメントを追加…"
-            className="min-h-11 flex-1 touch-manipulation resize-none rounded-[1.375rem] border border-stone-200 bg-white px-4 py-2.5 text-base leading-snug text-stone-800 outline-none placeholder:text-stone-500 focus:border-stone-300 focus:bg-white"
+            className="min-h-[var(--inv-tap)] flex-1 touch-manipulation resize-none rounded-[1.375rem] border border-stone-200 bg-white px-4 py-2.5 text-base leading-snug text-stone-800 outline-none placeholder:text-stone-500 focus:border-stone-300 focus:bg-white"
           />
           <button
             type="submit"
             disabled={!canSend}
             // textarea のフォーカスを外さずに送る（外れるとキーボードが閉じてから送ることになる）
             onPointerDown={(e) => e.preventDefault()}
-            className="min-h-11 shrink-0 touch-manipulation rounded-full bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+            className="min-h-[var(--inv-tap)] shrink-0 touch-manipulation rounded-full bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
           >
             {busy ? "送信中…" : "送信"}
           </button>

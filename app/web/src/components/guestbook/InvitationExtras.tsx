@@ -75,11 +75,11 @@ export function InvitationHeroPhoto({ photo }: { photo: HeroPhoto }) {
         {(photo.overlayDate || photo.overlayText) && (
           <p className="absolute inset-x-0 top-[13%] text-center" style={OVERLAY_STYLE[photo.overlayColor]}>
             {photo.overlayDate && (
-              <span className="block font-serif text-[40px] font-medium tracking-[0.12em] tabular-nums">
+              <span className="block font-serif text-[length:calc(40px*var(--inv-scale))] font-medium tracking-[0.12em] tabular-nums">
                 {photo.overlayDate}
               </span>
             )}
-            {photo.overlayText && <span className="mt-1 block font-serif text-[15px] tracking-[0.35em]">{photo.overlayText}</span>}
+            {photo.overlayText && <span className="mt-1 block font-serif text-[length:calc(15px*var(--inv-scale))] tracking-[0.35em]">{photo.overlayText}</span>}
           </p>
         )}
       </div>
@@ -112,10 +112,10 @@ export function InvitationFromUsCards({ cards }: { cards: readonly InvitationFro
           </span>
           <div className="min-w-0 flex-1">
             <p>
-              <span className="font-serif text-[17px] font-semibold tracking-[0.12em] text-stone-800">{c.name}</span>
-              <span className="ml-1 text-[12px] text-stone-500">より</span>
+              <span className="font-serif text-[length:calc(17px*var(--inv-scale))] font-semibold tracking-[0.12em] text-stone-800">{c.name}</span>
+              <span className="ml-1 text-[length:calc(12px*var(--inv-scale))] text-stone-500">より</span>
             </p>
-            <p className="mt-2 whitespace-pre-line text-justify text-[13.5px] leading-[1.95] text-stone-600">{c.message}</p>
+            <p className="mt-2 whitespace-pre-line text-justify text-[length:calc(13.5px*var(--inv-scale))] leading-[1.95] text-stone-600">{c.message}</p>
           </div>
         </li>
       ))}
@@ -133,8 +133,8 @@ export function InvitationHighlights({ items }: { items: readonly InvitationHigh
             <HighlightIcon kind={h.key} />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-serif text-[15px] font-semibold tracking-[0.1em] text-stone-800">{h.title}</p>
-            <p className="mt-1 whitespace-pre-line text-[13px] leading-[1.9] text-stone-600">{h.body}</p>
+            <p className="font-serif text-[length:calc(15px*var(--inv-scale))] font-semibold tracking-[0.1em] text-stone-800">{h.title}</p>
+            <p className="mt-1 whitespace-pre-line text-[length:calc(13px*var(--inv-scale))] leading-[1.9] text-stone-600">{h.body}</p>
           </div>
         </li>
       ))}

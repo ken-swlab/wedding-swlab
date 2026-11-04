@@ -228,7 +228,7 @@ export function PostEditor({
           type="button"
           onClick={onClose}
           disabled={busy}
-          className="min-h-11 touch-manipulation rounded-full px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
+          className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
         >
           キャンセル
         </button>
@@ -237,7 +237,7 @@ export function PostEditor({
           type="button"
           onClick={() => void onSave()}
           disabled={!canSave}
-          className="my-1.5 min-h-11 touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+          className="my-1.5 min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
         >
           {busy ? "保存中…" : preparing ? "準備中…" : "保存"}
         </button>
@@ -287,7 +287,7 @@ export function PostEditor({
                   </div>
                 )}
                 {p.error && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[10px] leading-tight text-rose-700">
+                  <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                     {p.error}
                   </div>
                 )}
@@ -314,7 +314,7 @@ export function PostEditor({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy || !storageReady || total >= MAX_MEDIA_PER_POST}
-            className="mt-3 inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
+            className="mt-3 inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center gap-1.5 rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
           >
             <CameraIcon className="h-[18px] w-[18px]" />
             写真・動画を追加

@@ -237,7 +237,7 @@ function UnreadBadge({ count, className }: { count: number; className: string })
   return (
     <span
       aria-hidden
-      className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none tabular-nums text-white ${className}`}
+      className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[length:calc(10px*var(--inv-scale))] font-semibold leading-none tabular-nums text-white ${className}`}
     >
       {count >= UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT - 1}+` : count}
     </span>
@@ -292,7 +292,8 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                   }}
                   // ★ラベルは1行★（Issue #230）幅 320px では 1 タブ 64px で、11px だと「タイムライン」「コミュニティ」が折り返した。
                   //   幅 360px 未満だけ 10px にし、折り返さない
-                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[11px] transition max-[359px]:text-[10px] ${
+                  //   ★幅 360px 未満の 10px は、文字を大きくしていても倍率を掛けない★（Issue #243。掛けると隣のラベルとくっつく）
+                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[length:calc(11px*var(--inv-scale))] transition max-[359px]:text-[10px] ${
                     // 選んでいるタブは墨の太字（Issue #236。下線や色は付けない）
                     on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}

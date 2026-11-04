@@ -405,17 +405,17 @@ export function Composer({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="min-h-11 justify-self-start touch-manipulation rounded-full px-3 text-sm text-stone-600 disabled:opacity-40"
+            className="min-h-[var(--inv-tap)] justify-self-start touch-manipulation rounded-full px-3 text-sm text-stone-600 disabled:opacity-40"
           >
             キャンセル
           </button>
           {/* 操作のバーの見出しはゴシック（Issue #227。押す部品と並ぶため）。強弱は太さで付ける */}
-          <h2 className="text-[16px] font-semibold text-stone-900">新しい投稿</h2>
+          <h2 className="text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-900">新しい投稿</h2>
           <button
             type="button"
             onClick={onSubmitTap}
             aria-disabled={!ready}
-            className={`min-h-11 justify-self-end touch-manipulation rounded-full px-4 text-sm font-medium transition ${
+            className={`min-h-[var(--inv-tap)] justify-self-end touch-manipulation rounded-full px-4 text-sm font-medium transition ${
               // ★押せるときは押す場所の色（テラコッタ・sub）★（Issue #236）
               ready ? "bg-sub-600 text-white hover:bg-sub-700" : "bg-stone-100 text-stone-400"
             }`}
@@ -452,7 +452,7 @@ export function Composer({
           >
             <CameraIcon className="h-8 w-8" />
             <span className="text-sm font-medium">写真・動画を選ぶ</span>
-            <span className="text-[11px] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
+            <span className="text-[length:calc(11px*var(--inv-scale))] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
           </button>
         ) : (
           <div>
@@ -473,7 +473,7 @@ export function Composer({
                     </div>
                   )}
                   {p.error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[10px] leading-tight text-rose-700">
+                    <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                       {p.error}
                     </div>
                   )}
@@ -505,7 +505,7 @@ export function Composer({
                 </button>
               )}
             </div>
-            <p className="mt-1.5 text-right text-[11px] tabular-nums text-stone-400">
+            <p className="mt-1.5 text-right text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">
               {picked.length}/{MAX_MEDIA_PER_POST}
             </p>
           </div>
@@ -541,7 +541,7 @@ export function Composer({
           type="button"
           onClick={() => setScopeOpen(true)}
           disabled={busy}
-          className="mt-4 flex min-h-12 w-full touch-manipulation items-center gap-3 rounded-xl border border-stone-200 px-3 text-left hover:bg-stone-50 disabled:opacity-40"
+          className="mt-4 flex min-h-[max(3rem,var(--inv-tap))] w-full touch-manipulation items-center gap-3 rounded-xl border border-stone-200 px-3 text-left hover:bg-stone-50 disabled:opacity-40"
         >
           <span className="shrink-0 text-sm text-stone-500">公開範囲</span>
           <span className={`min-w-0 flex-1 truncate text-right text-sm font-medium ${selected.length > 0 ? "text-stone-900" : "text-amber-700"}`}>
@@ -569,7 +569,7 @@ export function Composer({
               <span className="block text-sm font-medium text-stone-800">
                 思い出エピソードも投稿する
               </span>
-              <span className="block text-[11px] leading-relaxed text-stone-500">
+              <span className="block text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
                 おふたりが確認したうえで、当日のムービーや
                 おもてなしAIの会話に使わせていただきます。
               </span>
@@ -602,7 +602,7 @@ export function Composer({
               </div>
 
               {theme && (
-                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
+                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
                   {themeDef(theme).prompt}
                   {theme !== "other" && (
                     <span className="mt-0.5 block text-stone-400">
@@ -613,11 +613,11 @@ export function Composer({
               )}
 
               {needsThemeText && (
-                <p className="mt-2 text-[11px] text-amber-700">
+                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] text-amber-700">
                   エピソードには本文が必要です。写真だけでは登録できません。
                 </p>
               )}
-              <p className="mt-2 text-[11px] leading-relaxed text-stone-400">
+              <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
                 エピソードも公開範囲（{scopeLabel}）の方にだけ使われます。
               </p>
             </div>
@@ -673,8 +673,8 @@ function ScopeSheet({
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between">
-          <p id="composer-scope-title" className="text-[16px] font-semibold text-stone-900">公開範囲</p>
-          <button type="button" onClick={onClose} className="min-h-11 touch-manipulation px-2 text-sm font-medium text-stone-900">
+          <p id="composer-scope-title" className="text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-900">公開範囲</p>
+          <button type="button" onClick={onClose} className="min-h-[var(--inv-tap)] touch-manipulation px-2 text-sm font-medium text-stone-900">
             完了
           </button>
         </div>

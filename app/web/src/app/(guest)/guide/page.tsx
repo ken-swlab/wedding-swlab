@@ -25,7 +25,7 @@ function GuideRow({ href, icon, title, note }: { href: string; icon: ReactNode; 
       <Link href={href} className="flex min-h-16 touch-manipulation items-center gap-3 px-4 py-4 transition hover:bg-stone-100/60">
         {icon}
         <span className="min-w-0 flex-1">
-          <span className="block text-[15px] font-semibold text-stone-900">{title}</span>
+          <span className="block text-[length:calc(15px*var(--inv-scale))] font-semibold text-stone-900">{title}</span>
           <span className="block text-xs text-stone-500">{note}</span>
         </span>
         <span aria-hidden className="text-stone-400">›</span>

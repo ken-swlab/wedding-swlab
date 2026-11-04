@@ -236,7 +236,7 @@ export function WelcomeMoment({
           >
             <p
               role="status"
-              className={`welcome-fade-in mb-5 text-center text-[15px] font-medium leading-relaxed text-white transition-opacity duration-300 ${phase === "fly" ? "opacity-0" : ""}`}
+              className={`welcome-fade-in mb-5 text-center text-[length:calc(15px*var(--inv-scale))] font-medium leading-relaxed text-white transition-opacity duration-300 ${phase === "fly" ? "opacity-0" : ""}`}
             >
               新郎新婦から、思い出の写真が届きました
             </p>
@@ -259,9 +259,9 @@ export function WelcomeMoment({
               />
             </div>
             {/* いいねの案内は文字だけ（Issue #213）。枠なし・ゴシック・14px・白。押すものに見せない */}
-            <div className={`mt-5 flex min-h-12 items-center justify-center transition-opacity duration-300 ${cardOn && phase === "arrive" ? "opacity-100" : "opacity-0"}`}>
+            <div className={`mt-5 flex min-h-[max(3rem,var(--inv-tap))] items-center justify-center transition-opacity duration-300 ${cardOn && phase === "arrive" ? "opacity-100" : "opacity-0"}`}>
               {!liked && (
-                <p className="flex items-center gap-1.5 text-[14px] tracking-[0.08em] text-white">
+                <p className="flex items-center gap-1.5 text-[length:calc(14px*var(--inv-scale))] tracking-[0.08em] text-white">
                   <HeartIcon filled={false} className="h-4 w-4" />
                   写真をダブルタップでいいね
                 </p>
@@ -275,7 +275,7 @@ export function WelcomeMoment({
               e.stopPropagation();
               finish(true);
             }}
-            className={`absolute right-3 min-h-11 touch-manipulation rounded-full bg-black/40 px-4 text-[13px] font-medium text-white ring-1 ring-white/60 transition-opacity duration-300 ${fading ? "opacity-0" : ""}`}
+            className={`absolute right-3 min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-black/40 px-4 text-[length:calc(13px*var(--inv-scale))] font-medium text-white ring-1 ring-white/60 transition-opacity duration-300 ${fading ? "opacity-0" : ""}`}
             style={{ top: "calc(0.75rem + env(safe-area-inset-top))" }}
           >
             スキップ
@@ -378,7 +378,7 @@ function GuideBubble({
             e.stopPropagation();
             action.onClick();
           }}
-          className="pointer-events-auto mt-3 min-h-11 touch-manipulation rounded-full bg-white px-5 text-sm font-medium text-stone-900 shadow"
+          className="pointer-events-auto mt-3 min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-white px-5 text-sm font-medium text-stone-900 shadow"
         >
           {action.label}
         </button>

@@ -8,8 +8,8 @@ import type { InvitationContent } from "@/types/invitation";
  * 招待状の本文の部品（Issue #241 で InvitationView から切り出した）。
  * ★招待状（InvitationView）と当日のご案内（/guide/details）の両方で使う★ 同じ見た目を二重に書かない。
  *   ここを変えると両方が変わる。招待状の見た目を変えたくないときは、使う側（props）で分ける。
- * ★文字の大きさは --inv-scale 倍、押せる部品の高さは --inv-tap★（Issue #240）親族用の招待状（.inv-family）では大きくなり、
- *   ご案内（招待状の外）では 1 倍・44px のまま（globals.css の .inv-family の★）。
+ * ★文字の大きさは --inv-scale 倍、押せる部品の高さは --inv-tap★（Issue #240・#243）文字を大きくしている人
+ *   （<html data-text-scale="large">。親族用から入った人は既定）と、招待状テストの親族用（.inv-family）では大きくなる。
  */
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;

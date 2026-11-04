@@ -465,7 +465,7 @@ export function MediaLightbox({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{author.name}</p>
-              <p className="text-[11px] tabular-nums text-white/55">{fullDate(post)}</p>
+              <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/55">{fullDate(post)}</p>
             </div>
             {media.length > 1 && (
               <p className="shrink-0 text-xs tabular-nums text-white/70">
@@ -481,7 +481,7 @@ export function MediaLightbox({
               />
             </div>
           )}
-          {note && <p className="mt-2 text-[11px] text-white/60">{note}</p>}
+          {note && <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] text-white/60">{note}</p>}
         </div>
       </div>
 
