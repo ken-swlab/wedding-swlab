@@ -27,6 +27,11 @@
  *                                                 親族用の招待状（config/invitation_family。Issue #240）を対象にする。
  *                                                 付けなければ友人用（config/invitation）。形は同じ。
  *                                                 ★パスコードは友人用と共通★ URL を書き換えれば友人も親族用を見られるので、秘密の値を入れない
+ *   node scripts/ops.mjs invitation from-friend --family [--overwrite]
+ *                                                 親族用を、いまの友人用（config/invitation）から作る（Issue #240。とりあえずの下書き）。
+ *                                                 名前・日付・会場・写真・パスコードのヒント・オープニングは友人用のまま、
+ *                                                 文言（ご挨拶・ふたりから・当日のおたのしみ・当日の流れ・確認までの目安）だけ
+ *                                                 親族向けの見本（invitation-sample-family.json）にする。値は画面に出さない
  *   node scripts/ops.mjs notify status            公式 LINE の通知のモード（config/runtime の lineNotify）と、アウトボックスの件数
  *   node scripts/ops.mjs notify mode <off|dryRun|adminsOnly|on>
  *                                                 通知のモードを変える（既定 off。約10秒で反映。監査ログに残す）
@@ -91,6 +96,7 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
   node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]
+  node scripts/ops.mjs invitation from-friend --family [--overwrite]
   node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
   node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry`);
   process.exit(0);
@@ -401,6 +407,65 @@ async function setInvitationPhoto(ref, action, target, file) {
   console.log("   反映まで最大60秒（各サーバーのキャッシュ）。前の写真は公開バケットに残っています\n");
 }
 
+/**
+ * 親族用（config/invitation_family）を、いまの友人用から作る（Issue #240）。
+ * ★文言だけを親族向けにする★ 名前・日付・会場・住所・写真・パスコードのヒント・オープニングは友人用の値をそのまま写す
+ *   （オーナーの指示: 完成品で確かめるため、とりあえず同じにする）。文言は src/config/invitation-sample-family.json から。
+ * ★当日の流れの時刻は、挙式の集合・挙式だけ友人用から写す★ 親族会食・親族写真・お開きの時刻は空にする
+ *   （見本の時刻は架空。本物のように見せない）。決まったら template / set --family で入れ直す。
+ * ★2次会（afterParty）は写さない★ 親族は出ない。会費は API が親族用には付けない。
+ * ★すでにあれば上書きしない★（--overwrite のときだけ）。手で直した親族用を消さないため。
+ * ★値を画面に出さない★ 出すのは項目の名前だけ。
+ */
+async function familyFromFriend(ref) {
+  if (!FAMILY) {
+    console.error("使い方: node scripts/ops.mjs invitation from-friend --family [--overwrite]");
+    process.exit(1);
+  }
+  const friendSnap = await db.collection("config").doc("invitation").get();
+  const friend = friendSnap.exists ? parseInvitationConfig(friendSnap.data()) : { ok: false, field: "(未設定)" };
+  if (!friend.ok) {
+    console.error(`config/invitation が未設定か、形が違います（項目: ${friend.field}）。先に友人用を入れてください`);
+    process.exit(1);
+  }
+  if ((await ref.get()).exists && !has("--overwrite")) {
+    console.error("config/invitation_family はもうあります。作り直すときは --overwrite を付けてください（手で直した内容は消えます）");
+    process.exit(1);
+  }
+  const sample = parseInvitationConfig(JSON.parse(readFileSync(resolve(HERE, "..", "src", "config", "invitation-sample-family.json"), "utf8")));
+  if (!sample.ok) {
+    console.error(`親族用の見本の形が違います（項目: ${sample.field}）`);
+    process.exit(1);
+  }
+  const f = friend.value;
+  const timeOf = (role) => f.program.find((r) => r.role === role)?.time ?? "";
+  const program = sample.value.program.map((r) => ({
+    ...r,
+    time: r.role === "gather" || r.role === "ceremony" ? timeOf(r.role) : "",
+  }));
+  const fromUs = f.fromUs.map((card, i) => ({ ...card, message: sample.value.fromUs[i]?.message ?? card.message }));
+  const value = {
+    ...f,
+    afterParty: undefined,
+    greeting: sample.value.greeting,
+    showGreeting: sample.value.showGreeting,
+    approvalNote: sample.value.approvalNote,
+    highlights: sample.value.highlights,
+    program,
+    fromUs,
+  };
+  const parsed = parseInvitationConfig(value);
+  if (!parsed.ok) {
+    console.error(`作った親族用の形が違います（項目: ${parsed.field}）。書き込みはしていません`);
+    process.exit(1);
+  }
+  await ref.set({ ...parsed.value, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
+  console.log("\n✅ config/invitation_family を作りました（友人用から写したもの: 名前・日付・会場・住所・写真・パスコードのヒント・オープニング）");
+  console.log("   親族向けにしたもの: ご挨拶・ふたりからの文・当日のおたのしみ・当日の流れ・確認までの目安");
+  console.log("   親族会食・親族写真・お開きの時刻は空です。決まったら template / set --family で入れ直してください");
+  console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
+}
+
 // ---- invitation -------------------------------------------------------------
 if (cmd === "invitation") {
   const ref = db.collection("config").doc(INVITATION_DOC);
@@ -422,6 +487,8 @@ if (cmd === "invitation") {
     if (Object.keys(legacy).length > 0) console.log(`\n（移行用に ${Object.keys(legacy).join("・")} も残しました。#166 が本番に出たら、JSON から消して set し直してください）`);
     console.log(`\n✅ config/${INVITATION_DOC} を更新しました`);
     console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
+  } else if (sub === "from-friend") {
+    await familyFromFriend(ref);
   } else if (sub === "photo") {
     await setInvitationPhoto(ref, inv[1], inv[2], inv[3]);
   } else if (sub !== "status") {
