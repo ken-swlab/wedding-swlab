@@ -9,6 +9,7 @@ import { SplashScreen } from "@/components/SplashScreen";
 import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext";
 import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
 import { GUIDE_PATHS, isGuidePath } from "@/config/guide";
+import { recallInvitationKind } from "@/lib/invitation-kind-local";
 
 /**
  * ★ゲスト画面の振り分けをここ1箇所に集める★
@@ -44,7 +45,8 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
 
   let dest: string | null = null;
   if (ready) {
-    if (!user) dest = "/invitation";
+    // 未ログインは招待状へ。この端末で親族用を開いていたら親族用へ（Issue #240。使い勝手のためだけ）
+    if (!user) dest = recallInvitationKind() === "family" ? "/invitation/family" : "/invitation";
     else if (!isActive) dest = "/invitation";
     // profile が読めないまま確定した場合（Rules の一時失敗など）は
     // 固まらせず登録フォームへ送る。そこで guests ドキュメントが作られる

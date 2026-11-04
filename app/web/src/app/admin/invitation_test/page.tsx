@@ -12,7 +12,8 @@ import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
 import { WelcomeCard, WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { WELCOME_DEFAULT_MESSAGE } from "@/config/welcome";
 import type { WelcomeContent } from "@/types/welcome";
-import { SAMPLE_INVITATION } from "@/config/wedding";
+import { SAMPLE_INVITATION, SAMPLE_INVITATION_FAMILY } from "@/config/wedding";
+import type { InvitationKind } from "@/types/admin";
 import { INVITATION_COLORS, OPENING_NOTE } from "@/config/invitation";
 import { GUESTBOOK_LOGO } from "@/config/guestbook";
 import { classifyDisplayName } from "@/lib/opening-names";
@@ -53,6 +54,8 @@ const DUMMY_ANSWER: AnswerDraft = {
   firstKana: "たろう",
   attendance: "both",
   ceremony: "ceremony",
+  familyAttendance: "both",
+  stayPrevNight: false,
   drinkLevel: 2,
   carFare: false,
   hasAllergy: false,
@@ -100,6 +103,8 @@ const STEP_LABEL: Record<TestStep["kind"], string> = {
  * ★LINE ログイン・保存をしない★ 呼ぶ API は中身を受け取る GET /api/guest/invitation だけ。
  *   InvitationFlow にダミーの処理を渡し、押すと console.log して次の段階へ進めるだけ。
  *   本番の登録状態に関係なく、何度でも最初から通せる。
+ * ★友人用／親族用を切り替えられる★（Issue #240）親族用は config/invitation_family（見本は invitation-sample-family.json）・
+ *   親族用の出欠フォーム・約 1.12 倍の文字。?kind=family で親族用から開く（小さい画面のスクショ用）。
  */
 export default function InvitationTestPage() {
   const { user, isAdmin, loading } = useGuestSession();
@@ -107,6 +112,7 @@ export default function InvitationTestPage() {
   const [note, setNote] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState(DUMMY_DISPLAY_NAME);
   const [source, setSource] = useState<Source>("live");
+  const [kind, setKind] = useState<InvitationKind>("friend");
   const [live, setLive] = useState<LiveState>({ kind: "loading" });
   const [liveAttempt, setLiveAttempt] = useState(0);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -121,11 +127,11 @@ export default function InvitationTestPage() {
   useEffect(() => {
     if (!user || !isAdmin) return;
     let cancelled = false;
-    getJson<InvitationStatus>("/api/guest/invitation")
+    getJson<InvitationStatus>(`/api/guest/invitation?kind=${kind}`)
       .then((s) => {
         if (cancelled) return;
         if (s.ready && s.invitation && s.opening) setLive({ kind: "ready", config: { ...s.invitation, opening: s.opening } });
-        else setLive({ kind: "unavailable", message: "本番の config/invitation が未設定か、形が違います" });
+        else setLive({ kind: "unavailable", message: `本番の config/${kind === "family" ? "invitation_family" : "invitation"} が未設定か、形が違います` });
       })
       .catch((e: unknown) => {
         if (!cancelled) setLive({ kind: "unavailable", message: e instanceof Error ? e.message : "読み込みに失敗しました" });
@@ -133,9 +139,9 @@ export default function InvitationTestPage() {
     return () => {
       cancelled = true;
     };
-  }, [user, isAdmin, liveAttempt]);
+  }, [user, isAdmin, liveAttempt, kind]);
 
-  const config = source === "live" && live.kind === "ready" ? live.config : SAMPLE_INVITATION;
+  const config = source === "live" && live.kind === "ready" ? live.config : kind === "family" ? SAMPLE_INVITATION_FAMILY : SAMPLE_INVITATION;
   const [currentOpening, currentInvitation] = useMemo(() => {
     const { opening, ...invitation } = config;
     return [opening, invitation] as const;
@@ -178,7 +184,7 @@ export default function InvitationTestPage() {
 
   // ★回答の中身（本名・アレルギー）をログに出さない★ ダミーでも本物を入れて試すことがあるため
   const onRsvpSubmit = useCallback(async (answer: OnboardingAnswer) => {
-    console.log("[invitation_test] 出欠の回答を送信（ダミー）", answer.attendance);
+    console.log("[invitation_test] 出欠の回答を送信（ダミー）", answer.invitationKind, "attendance" in answer ? answer.attendance : answer.familyAttendance);
     await new Promise((r) => setTimeout(r, 400));
     window.scrollTo({ top: 0 });
     setStep({ kind: "finish", guestName: classifyDisplayName(displayName).guest });
@@ -214,21 +220,32 @@ export default function InvitationTestPage() {
    * ?step= で場面を指定して開く（画面の見本と撮影。Issue #230。/dev/preview・scripts/screens-capture.mjs）。
    * entrance・passcode・opening・dive・open・finish・pending・welcome。開いたときに1回だけ見る（あとは URL に関係なく動く）。
    */
-  const stepFromUrl = useRef(false);
+  //   ?kind=family なら親族用に切り替えてから（中身が親族用になってから）場面を開く
+  const urlRequest = useRef<{ step: string | null; kind: InvitationKind } | null | undefined>(undefined);
   useEffect(() => {
-    if (stepFromUrl.current || loading || !isAdmin) return;
-    stepFromUrl.current = true;
-    const want = new URLSearchParams(window.location.search).get("step");
-    if (!want) return;
-    // 描画の外で切り替える（effect の中で直接 setState しない）
+    if (urlRequest.current !== undefined || loading || !isAdmin) return;
+    const params = new URLSearchParams(window.location.search);
+    const want = { step: params.get("step"), kind: params.get("kind") === "family" ? ("family" as const) : ("friend" as const) };
+    urlRequest.current = want.step || want.kind === "family" ? want : null;
+    if (want.kind === "family") {
+      // 描画の外で切り替える（effect の中で直接 setState しない）
+      const t = setTimeout(() => setKind("family"), 0);
+      return () => clearTimeout(t);
+    }
+  }, [loading, isAdmin]);
+  useEffect(() => {
+    const want = urlRequest.current;
+    if (!want || want.kind !== kind || (source === "live" && live.kind === "loading")) return;
     const t = setTimeout(() => {
-      if (want === "entrance") restart();
-      else if (want === "opening") onPasscodeCleared();
-      else if (want === "open") setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
-      else if (want === "passcode" || want === "dive" || want === "finish" || want === "pending" || want === "welcome") jump(want);
+      // ★開いたら消す★ 中身が読み終わって作り直されても、もう一度開かない（タイマーが取り消されたら次の回で開く）
+      urlRequest.current = null;
+      if (want.step === "entrance") restart();
+      else if (want.step === "opening") onPasscodeCleared();
+      else if (want.step === "open") setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
+      else if (want.step === "passcode" || want.step === "dive" || want.step === "finish" || want.step === "pending" || want.step === "welcome") jump(want.step);
     }, 0);
     return () => clearTimeout(t);
-  }, [loading, isAdmin, restart, onPasscodeCleared, jump, currentInvitation, currentOpening]);
+  }, [kind, source, live.kind, restart, onPasscodeCleared, jump, currentInvitation, currentOpening]);
 
   if (loading) {
     return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
@@ -356,6 +373,25 @@ export default function InvitationTestPage() {
           オープニングの名前の表記: {classifyDisplayName(displayName).style}
           {classifyDisplayName(displayName).matched ? "" : "（判定できないので既定）"}。パスコードを通るとオープニングが流れます（記録はしません）。
         </p>
+        <div role="tablist" aria-label="招待状の種類" className="mt-1.5 flex items-center gap-1.5">
+          <span className="shrink-0">種類:</span>
+          {(["friend", "family"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              role="tab"
+              aria-selected={kind === k}
+              onClick={() => {
+                setKind(k);
+                setLive({ kind: "loading" });
+                restart();
+              }}
+              className={`min-h-9 touch-manipulation rounded-full px-3 ${kind === k ? "bg-stone-900 text-white" : "border border-stone-200 text-stone-700 hover:bg-stone-100"}`}
+            >
+              {k === "family" ? "親族用（/invitation/family）" : "友人用"}
+            </button>
+          ))}
+        </div>
         <div role="tablist" aria-label="招待状の中身" className="mt-1.5 flex items-center gap-1.5">
           <span className="shrink-0">中身:</span>
           {(["live", "sample"] as const).map((s) => (
@@ -389,7 +425,7 @@ export default function InvitationTestPage() {
         </div>
         {source === "live" && live.kind === "loading" && <p className="mt-1 text-stone-500">本番の値を読み込んでいます…</p>}
         {source === "live" && live.kind === "ready" && (
-          <p className="mt-1 text-stone-500">本番の config/invitation を表示しています。set の直後は、反映まで最大1分かかります（「読み直す」）。</p>
+          <p className="mt-1 text-stone-500">本番の config/{kind === "family" ? "invitation_family" : "invitation"} を表示しています。set の直後は、反映まで最大1分かかります（「読み直す」）。</p>
         )}
         {source === "live" && live.kind === "unavailable" && (
           <p role="alert" className="mt-1 rounded-xl bg-amber-50 px-3 py-2 text-amber-800">{live.message}。見本を表示しています。</p>
@@ -410,6 +446,7 @@ export default function InvitationTestPage() {
         <WelcomeTestStage key={step.run} curtain={step.curtain} />
       ) : step.kind === "pending" ? (
         <TestPending
+          kind={kind}
           // 承認の押し方を変えたら作り直す（自動の流れを最初から見る）
           key={step.approval === null ? "waiting" : step.approval.stuck ? "stuck" : "approved"}
           approval={step.approval}
@@ -424,6 +461,7 @@ export default function InvitationTestPage() {
         />
       ) : (
         <InvitationFlow
+          kind={kind}
           step={step}
           onLogin={onLogin}
           onPasscodeSubmit={onPasscodeSubmit}
@@ -431,6 +469,9 @@ export default function InvitationTestPage() {
           onOpeningEnd={onOpeningEnd}
           rsvp={
             <OnboardingForm
+              // 種類を変えたら入力を作り直す（ダミーの回答から始める）
+              key={kind}
+              kind={kind}
               displayName={displayName}
               program={currentInvitation.program}
               initialDraft={DUMMY_ANSWER}
@@ -457,11 +498,13 @@ const DUMMY_REFRESH_MS = 800;
  *   stuck なら 1 回目は失敗させ、「画面が切り替わらない場合はこちら」を出す。押すと 2 回目で成功する。
  */
 function TestPending({
+  kind,
   approval,
   reactionMs,
   onApproved,
   onEdit,
 }: {
+  kind: InvitationKind;
   approval: TestApproval;
   /** 今回のテストのタイム（走っていなければダミー）。★管理者自身の本当の記録は出さない★（Issue #199） */
   reactionMs: number;
@@ -480,6 +523,8 @@ function TestPending({
   }, [onApproved]);
   const { stale, retry } = useApprovalAdvance({ approved: approval !== null, refresh, delayMs: APPROVED_REVEAL_MS });
   return (
+    // 親族用は本番の /pending と同じく約 1.12 倍（Issue #240）
+    <div className={kind === "family" ? "inv-family inv-scaled" : undefined}>
     <PendingApproval
       reactionMs={reactionMs}
       test
@@ -488,6 +533,7 @@ function TestPending({
       onRetry={retry}
       onEdit={onEdit}
     />
+    </div>
   );
 }
 

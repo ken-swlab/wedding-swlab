@@ -110,7 +110,7 @@ aws rekognition delete-faces --collection-id wedding-faces --region <REGION> --f
 4. Rekognition のコレクションを消す（`aws rekognition delete-collection --collection-id wedding-faces --region <REGION>`）。
 5. R2 の 2 つのバケットを空にする（原本 → マーカー → 公開）。Worker を止める（Cron を外す）。
 6. Firebase Storage の旧バケットの `reference_faces/` を、旧版ごと消す。
-7. Firestore のコレクションを消す（`guests`・`guestPrivate`・`guestAdmin`・`posts`（サブコレクションごと）・`faces`・`episodes`・`notifications`・`redeemAttempts`・`reactionTimes`・`lineOutbox`）。新郎新婦の名前・会場が入った `config/invitation` も消す。**`auditLogs` は消さない**（TTL で消える。GCS の写しは 400 日のロック）。
+7. Firestore のコレクションを消す（`guests`・`guestPrivate`・`guestAdmin`・`posts`（サブコレクションごと）・`faces`・`episodes`・`notifications`・`redeemAttempts`・`reactionTimes`・`lineOutbox`）。新郎新婦の名前・会場が入った `config/invitation` と `config/invitation_family`（親族用。Issue #240）も消す。**`auditLogs` は消さない**（TTL で消える。GCS の写しは 400 日のロック）。
 8. Firebase Authentication のユーザーを消す（管理者のアカウントは、最後に）。
 9. 定期バックアップのスケジュールを止める（`infra/terraform/backup.tf`。**止めないと、空のデータベースのバックアップが続くだけだが、止める前のバックアップは最長 14 週残る**）。
 10. 鍵とトークンを失効させる（[../security/rotation-runbook.md](../security/rotation-runbook.md) の各節の「失効」）。Sentry のプロジェクト、Vercel のプロジェクト、LINE のチャネルを閉じるかを決める。

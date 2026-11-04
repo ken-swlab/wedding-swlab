@@ -11,17 +11,32 @@ import { LineNotifyRetry } from "@/components/admin/LineNotifyRetry";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
 import { tagDef, withoutSystemTags } from "@/config/tags";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_LABEL, type Attendance, type GuestRow } from "@/types/admin";
+import {
+  ATTENDANCE_LABEL,
+  ATTENDANCE_OPTIONS,
+  CEREMONY_LABEL,
+  FAMILY_ATTENDANCE_LABEL,
+  FAMILY_ATTENDANCE_OPTIONS,
+  PAYMENT_LABEL,
+  type Attendance,
+  type GuestRow,
+  type InvitationKind,
+} from "@/types/admin";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { DRINK_LEVELS } from "@/config/drink";
 
 /** スマホではタップ領域を 44px にする */
+/** 親族・友人の絞り込み（Issue #240。guestPrivate.invitationKind） */
+type KindFilter = "all" | InvitationKind;
+const KIND_FILTER_LABEL: Record<KindFilter, string> = { all: "すべて", friend: "友人用", family: "親族用" };
+
 const NAV_LINK = "inline-flex min-h-11 touch-manipulation items-center rounded-full border border-stone-200 bg-white px-3 text-xs text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1";
 
 export default function AdminPage() {
   const { user, isAdmin, loading: authLoading } = useGuestSession();
   const { rows, linkedUids, truncated, loading, error } = useAdminGuests(isAdmin);
   const [q, setQ] = useState("");
+  const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,9 +73,10 @@ export default function AdminPage() {
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((r) => `${r.displayName} ${r.realName} ${r.nickname} ${r.kana} ${r.lineDisplayName}`.toLowerCase().includes(needle));
-  }, [rows, q]);
+    const byKind = kindFilter === "all" ? rows : rows.filter((r) => r.invitationKind === kindFilter);
+    if (!needle) return byKind;
+    return byKind.filter((r) => `${r.displayName} ${r.realName} ${r.nickname} ${r.kana} ${r.lineDisplayName}`.toLowerCase().includes(needle));
+  }, [rows, q, kindFilter]);
 
   const preGuests = useMemo(() => rows.filter((r) => r.isPreRegistered && !r.isRegistered), [rows]);
   // ★停止中のゲストは承認待ちにも承認済みにも出さない★
@@ -77,8 +93,23 @@ export default function AdminPage() {
 
   const stats = useMemo(() => {
     const by: Record<string, number> = {};
-    for (const r of rows) if (r.isRegistered && r.isApproved && r.isActive) by[r.attendance] = (by[r.attendance] ?? 0) + 1;
+    // ★親族用の人は友人用の出欠に数えない★（attendance は "unanswered" のまま。Issue #240。親族は familyStats）
+    for (const r of rows) if (r.isRegistered && r.isApproved && r.isActive && r.invitationKind !== "family") by[r.attendance] = (by[r.attendance] ?? 0) + 1;
     return by;
+  }, [rows]);
+
+  // 親族用の出欠と前泊（Issue #240）。承認済みの人を数える
+  const familyStats = useMemo(() => {
+    const by: Record<string, number> = {};
+    let stay = 0;
+    let total = 0;
+    for (const r of rows) {
+      if (!(r.isRegistered && r.isApproved && r.isActive && r.invitationKind === "family")) continue;
+      total += 1;
+      if (r.familyAttendance) by[r.familyAttendance] = (by[r.familyAttendance] ?? 0) + 1;
+      if (r.stayPrevNight === true) stay += 1;
+    }
+    return { by, stay, total };
   }, [rows]);
 
   // お酒の人数（Issue #147。乾杯の準備用）。承認待ちも含め、回答のある人を数える
@@ -89,8 +120,9 @@ export default function AdminPage() {
   }, [rows]);
 
   function exportCsv() {
-    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "出欠", "挙式", "お酒", "お車代", "アレルギー", "備考", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], withoutSystemTags(r.tags).map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    // invitationKind・familyAttendance・stayPrevNight（Issue #240）。親族用の人の「出欠」（友人用）は空にする
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "招待状", "出欠", "挙式", "親族の出欠", "前泊", "お酒", "お車代", "アレルギー", "備考", "送金", "タグ", "メモ"];
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", r.invitationKind === "family" ? "親族用" : "友人用", r.invitationKind === "family" ? "" : ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.familyAttendance ? FAMILY_ATTENDANCE_LABEL[r.familyAttendance] : "", r.stayPrevNight === null ? "" : r.stayPrevNight ? "あり" : "なし", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], withoutSystemTags(r.tags).map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
@@ -129,6 +161,15 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
+          {familyStats.total > 0 && (
+            <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-stone-500">
+              <span className="text-stone-400">親族用（承認済み {familyStats.total}人）:</span>
+              {FAMILY_ATTENDANCE_OPTIONS.map((o) => (
+                <span key={o.value}>{o.label} <span className="tabular-nums font-semibold text-stone-800">{familyStats.by[o.value] ?? 0}</span>人</span>
+              ))}
+              <span>前泊 <span className="tabular-nums font-semibold text-stone-800">{familyStats.stay}</span>人</span>
+            </p>
+          )}
           <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-stone-500">
             <span className="text-stone-400">お酒（回答済み・承認待ちを含む）:</span>
             {DRINK_LEVELS.map((l) => (
@@ -137,6 +178,21 @@ export default function AdminPage() {
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="名前・ニックネーム・LINE名で検索" className="min-h-11 min-w-0 flex-1 rounded-lg border border-stone-200 px-3 text-base outline-none focus:border-stone-400 md:min-h-0 md:min-w-[220px] md:py-1.5 md:text-sm" />
+            {/* スマホでは検索欄の下の段に置く（検索欄を狭めない） */}
+            <div role="tablist" aria-label="招待状の種類で絞り込む" className="order-last flex w-full gap-1 md:order-none md:w-auto">
+              {(["all", "friend", "family"] as const).map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  role="tab"
+                  aria-selected={kindFilter === k}
+                  onClick={() => setKindFilter(k)}
+                  className={`min-h-11 touch-manipulation rounded-full px-3 text-xs md:min-h-0 md:py-1.5 ${kindFilter === k ? "bg-stone-900 text-white" : "border border-stone-200 bg-white text-stone-600 hover:bg-stone-100"}`}
+                >
+                  {KIND_FILTER_LABEL[k]}
+                </button>
+              ))}
+            </div>
             <button type="button" onClick={exportCsv} className="min-h-11 touch-manipulation rounded-lg border border-stone-200 bg-white px-3 text-sm text-stone-600 hover:bg-stone-100 md:min-h-0 md:py-1.5">CSV</button>
           </div>
         </header>

@@ -103,12 +103,12 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
       style={{ background: "#000", color: OPENING_COLORS.ink, paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
     >
       <div className="w-full max-w-[22rem]" style={{ fontFamily: MONO }}>
-        <p className="text-[13px] tracking-[0.35em]" style={{ ...show(1), color: OPENING_COLORS.dim }}>
+        <p className="text-[length:calc(13px*var(--inv-scale))] tracking-[0.35em]" style={{ ...show(1), color: OPENING_COLORS.dim }}>
           EVENT 1　ENTRY
         </p>
         <p
           id="entry-finish-title"
-          className={`mt-4 text-[56px] font-extrabold leading-none tracking-[0.12em] ${blink ? "entry-finish-blink" : ""}`}
+          className={`mt-4 text-[length:calc(56px*var(--inv-scale))] font-extrabold leading-none tracking-[0.12em] ${blink ? "entry-finish-blink" : ""}`}
           style={{ ...show(2), color: OPENING_COLORS.led, textShadow: stage >= 2 ? `0 0 18px ${OPENING_COLORS.led}66` : "none" }}
         >
           FINISH
@@ -127,7 +127,7 @@ export function EntryFinish({ guestName, onNext }: { guestName: string; onNext: 
       {/* ★ここは盛り上げだけ。説明は書かない★（Issue #200）承認の説明は次の承認待ち（PendingApproval）だけで行う。
           同じ内容を2回読ませると、テンポが落ちる */}
       <div className="mt-10 w-full max-w-[22rem]" style={show(4)}>
-        <p className="text-[15px]">エントリー完了</p>
+        <p className="text-[length:calc(15px*var(--inv-scale))]">エントリー完了</p>
       </div>
 
       {/* 自動で進むまでの残り時間。文字は出さない（Issue #156）。動きを減らす設定では出さない */}

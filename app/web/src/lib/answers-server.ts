@@ -1,13 +1,29 @@
 import { FieldValue, type DocumentSnapshot } from "firebase-admin/firestore";
-import { ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
+import {
+  ATTENDANCE_OPTIONS,
+  CEREMONY_OPTIONS,
+  FAMILY_ATTENDANCE_OPTIONS,
+  type Attendance,
+  type Ceremony,
+  type FamilyAttendance,
+  type InvitationKind,
+} from "@/types/admin";
 import { ANSWER_ALLERGY_MAX, ANSWER_NAME_PART_MAX, ANSWER_NOTE_MAX } from "@/config/answers";
 import { isDrinkLevel, type DrinkLevel } from "@/config/drink";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
+const FAMILY_ATTENDANCE_VALUES = new Set<string>(FAMILY_ATTENDANCE_OPTIONS.map((o) => o.value));
+
+/** guestPrivate に記録した招待状の種類。未設定は友人用（Issue #240 より前の回答） */
+export function storedInvitationKind(privateSnap: DocumentSnapshot): InvitationKind {
+  return privateSnap.get("invitationKind") === "family" ? "family" : "friend";
+}
 
 /** ゲストが自分で直せる回答（招待状と /guide/questionnaire の共通部分） */
 export type Answers = {
+  /** どちらの招待状から答えたか（Issue #240）。登録のあとは変えない */
+  invitationKind: InvitationKind;
   lastName: string;
   firstName: string;
   lastKana: string;
@@ -16,8 +32,15 @@ export type Answers = {
   realName: string;
   /** 「せい めい」 */
   kana: string;
-  attendance: Exclude<Attendance, "unanswered">;
-  /** 欠席なら "" */
+  /**
+   * 友人用の出欠。★親族用では "unanswered" のまま★（会費の計算は attendance だけを見る。親族は会費なし）
+   */
+  attendance: Attendance;
+  /** 親族用の出欠（Issue #240）。友人用では null */
+  familyAttendance: FamilyAttendance | null;
+  /** 前泊するか（親族用だけ。欠席なら null）。友人用では null */
+  stayPrevNight: boolean | null;
+  /** 欠席なら ""。親族用はいつも ""（挙式からかパーティーからかを聞かない） */
   ceremony: Ceremony | "";
   /** お酒の量 0〜4（Issue #147）。欠席なら null */
   drinkLevel: DrinkLevel | null;
@@ -35,6 +58,8 @@ export type AnswersBody = {
   lastKana?: unknown;
   firstKana?: unknown;
   attendance?: unknown;
+  familyAttendance?: unknown;
+  stayPrevNight?: unknown;
   ceremony?: unknown;
   drinkLevel?: unknown;
   carFare?: unknown;
@@ -50,7 +75,7 @@ export type AnswersBody = {
  * ★欠席なら挙式・お酒・お車代、アレルギーが「特になし」なら詳細を、送られてきても捨てる★
  *   フォームで選び直したときに隠れた入力欄の値が残っていても、保存される値を選択と食い違わせない。
  */
-export function parseAnswers(body: AnswersBody): { answers: Answers } | { error: string } {
+export function parseAnswers(body: AnswersBody, kind: InvitationKind = "friend"): { answers: Answers } | { error: string } {
   const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
   const lastName = str(body.lastName);
   const firstName = str(body.firstName);
@@ -63,17 +88,28 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
   if (!lastKana || !firstKana || lastKana.length > n || firstKana.length > n) {
     return { error: `ふりがなは せい・めい それぞれ1〜${n}文字で入力してください` };
   }
-  if (
-    typeof body.attendance !== "string" ||
-    !ATTENDANCE_VALUES.has(body.attendance) ||
-    body.attendance === "unanswered"
-  ) {
-    return { error: "出欠の選択が不正です" };
+  // ★種類は呼び出し側が決める（保存済みの invitationKind）★ 本文の項目で種類を切り替えない
+  let attendance: Attendance = "unanswered";
+  let familyAttendance: FamilyAttendance | null = null;
+  if (kind === "family") {
+    if (typeof body.familyAttendance !== "string" || !FAMILY_ATTENDANCE_VALUES.has(body.familyAttendance)) {
+      return { error: "出欠の選択が不正です" };
+    }
+    familyAttendance = body.familyAttendance as FamilyAttendance;
+  } else {
+    if (
+      typeof body.attendance !== "string" ||
+      !ATTENDANCE_VALUES.has(body.attendance) ||
+      body.attendance === "unanswered"
+    ) {
+      return { error: "出欠の選択が不正です" };
+    }
+    attendance = body.attendance as Attendance;
   }
-  const attendance = body.attendance as Answers["attendance"];
+  const declined = kind === "family" ? familyAttendance === "declined" : attendance === "declined";
 
   let ceremony: Answers["ceremony"] = "";
-  if (attendance !== "declined") {
+  if (kind === "friend" && !declined) {
     if (typeof body.ceremony !== "string" || !CEREMONY_VALUES.has(body.ceremony)) {
       return { error: "挙式へのご参加を選んでください" };
     }
@@ -81,14 +117,20 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
   }
 
   // ★0〜4 の整数だけ★ 中間の値・文字列・小数は拒否する（Issue #147）
+  let stayPrevNight: Answers["stayPrevNight"] = null;
+  if (kind === "family" && !declined) {
+    if (typeof body.stayPrevNight !== "boolean") return { error: "前泊のご予定を選んでください" };
+    stayPrevNight = body.stayPrevNight;
+  }
+
   let drinkLevel: Answers["drinkLevel"] = null;
-  if (attendance !== "declined") {
+  if (!declined) {
     if (!isDrinkLevel(body.drinkLevel)) return { error: "お酒をどれくらい飲むか選んでください" };
     drinkLevel = body.drinkLevel;
   }
 
   let carFare: Answers["carFare"] = null;
-  if (attendance !== "declined") {
+  if (!declined) {
     if (typeof body.carFare !== "boolean") return { error: "お車代をお受け取りになるか選んでください" };
     carFare = body.carFare;
   }
@@ -104,6 +146,7 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
 
   return {
     answers: {
+      invitationKind: kind,
       lastName,
       firstName,
       lastKana,
@@ -111,6 +154,8 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
       realName: `${lastName} ${firstName}`,
       kana: `${lastKana} ${firstKana}`,
       attendance,
+      familyAttendance,
+      stayPrevNight,
       ceremony,
       drinkLevel,
       carFare,
@@ -123,7 +168,13 @@ export function parseAnswers(body: AnswersBody): { answers: Answers } | { error:
 
 /** guestPrivate に書く回答のフィールド（register と questionnaire で同じ形にする） */
 export function answersPrivatePatch(a: Answers): Record<string, unknown> {
+  // ★親族用の項目は親族用のときだけ書く★ 友人の guestPrivate の形は変えない
+  const family = a.invitationKind === "family"
+    ? { familyAttendance: a.familyAttendance, stayPrevNight: a.stayPrevNight }
+    : {};
   return {
+    invitationKind: a.invitationKind,
+    ...family,
     lastName: a.lastName,
     firstName: a.firstName,
     lastKana: a.lastKana,
@@ -152,17 +203,20 @@ export type AnswerChangeField = "attendance" | "allergy";
  *   消すのは /api/admin/update-guest の ackAnswerChange。
  * ★本名・ふりがなの変更は印を付けない★（オーナーの判断。出欠とアレルギーだけ）
  * 値そのもの（アレルギーの中身）は guestAdmin に複製しない。今の値は guestPrivate にある。
+ * ★親族用は familyAttendance を比べる★（Issue #240）attendanceBefore にも親族用の値（both など）が入る。
  */
 export function answerChangePatch(
   privateSnap: DocumentSnapshot,
   adminSnap: DocumentSnapshot,
-  next: Pick<Answers, "attendance" | "allergy">,
+  next: Pick<Answers, "invitationKind" | "attendance" | "familyAttendance" | "allergy">,
 ): Record<string, unknown> | null {
-  const prevAttendance = (privateSnap.get("attendance") as string | undefined) ?? "unanswered";
+  const family = next.invitationKind === "family";
+  const prevAttendance = (privateSnap.get(family ? "familyAttendance" : "attendance") as string | undefined) ?? "unanswered";
+  const nextAttendance = family ? (next.familyAttendance ?? "unanswered") : next.attendance;
   const prevAllergy = ((privateSnap.get("allergy") as string | undefined) ?? "").trim();
 
   const changed: AnswerChangeField[] = [];
-  if (prevAttendance !== next.attendance) changed.push("attendance");
+  if (prevAttendance !== nextAttendance) changed.push("attendance");
   if (prevAllergy !== next.allergy) changed.push("allergy");
   if (changed.length === 0) return null;
 

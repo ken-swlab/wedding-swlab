@@ -79,7 +79,7 @@ export function DrinkSlider({ value, onChange }: { value: DrinkLevel | null; onC
       <div className="flex items-end gap-4">
         <BeerMug level={value ?? 0} />
         <div className="min-h-14 flex-1">
-          <p id={labelId} className="text-[13px] text-stone-500">
+          <p id={labelId} className="text-[length:calc(13px*var(--inv-scale))] text-stone-500">
             {selected ? (
               <span className="inline-flex items-center gap-0.5 text-base font-medium text-stone-800">
                 {/* 名前の無い段階はジョッキの数で見せる（絵文字は使わない。Issue #227） */}
@@ -97,7 +97,7 @@ export function DrinkSlider({ value, onChange }: { value: DrinkLevel | null; onC
               >
                 酒豪認定
               </span>
-              <span className="text-[11px] text-stone-400">酒豪タグが付きます</span>
+              <span className="text-[length:calc(11px*var(--inv-scale))] text-stone-400">酒豪タグが付きます</span>
             </div>
           )}
         </div>
@@ -156,7 +156,7 @@ export function DrinkSlider({ value, onChange }: { value: DrinkLevel | null; onC
             type="button"
             tabIndex={-1}
             onClick={() => set(l.value)}
-            className={`absolute top-0 flex h-11 min-w-11 -translate-x-1/2 touch-manipulation items-start justify-center whitespace-nowrap px-1 text-[11px] ${
+            className={`absolute top-0 flex h-11 min-w-11 -translate-x-1/2 touch-manipulation items-start justify-center whitespace-nowrap px-1 text-[length:calc(11px*var(--inv-scale))] ${
               value === l.value ? "font-medium text-stone-800" : "text-stone-400"
             }`}
             style={{ left: `${(l.value / max) * 100}%` }}

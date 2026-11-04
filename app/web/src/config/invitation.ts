@@ -70,3 +70,6 @@ export const INVITATION_HERO = {
  * 印があれば、2回目以降は画面下の「エントリーする」を最初から出す。中身は "1" だけ（個人の情報は置かない）。
  */
 export const INVITATION_READ_STORAGE_KEY = "wedding:invitation-read";
+
+/** この端末で最後に開いた招待状の種類（"friend" / "family"。Issue #240。lib/invitation-kind-local.ts） */
+export const INVITATION_KIND_KEY = "wedding:invitation-kind";

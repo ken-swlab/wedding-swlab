@@ -23,6 +23,10 @@
  *   node scripts/ops.mjs invitation photo set <hero|groom|bride> <画像ファイル>
  *                                                 写真を縮めて EXIF を消し、公開バケットに置いて URL を書き換える（Issue #173）。
  *                                                 アップロードは wrangler（オーナーの Cloudflare ログイン）。監査ログに残す
+ *   node scripts/ops.mjs invitation <status|template|check|set|photo set> ... --family
+ *                                                 親族用の招待状（config/invitation_family。Issue #240）を対象にする。
+ *                                                 付けなければ友人用（config/invitation）。形は同じ。
+ *                                                 ★パスコードは友人用と共通★ URL を書き換えれば友人も親族用を見られるので、秘密の値を入れない
  *   node scripts/ops.mjs notify status            公式 LINE の通知のモード（config/runtime の lineNotify）と、アウトボックスの件数
  *   node scripts/ops.mjs notify mode <off|dryRun|adminsOnly|on>
  *                                                 通知のモードを変える（既定 off。約10秒で反映。監査ログに残す）
@@ -86,7 +90,7 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs maintenance status|on ["文言"]|off
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
-  node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル>
+  node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]
   node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
   node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry`);
   process.exit(0);
@@ -98,6 +102,14 @@ if (!cmd || cmd === "--help") {
 // ★読み込むのは invitation のときだけ★ 古い Node でも、メンテナンスの切り替え（インシデント対応）は動くようにしておく
 const parseInvitationConfig =
   cmd === "invitation" ? (await import("../src/lib/invitation-config.ts")).parseInvitationConfig : null;
+/**
+ * --family（Issue #240）: 親族用の招待状 config/invitation_family を対象にする。
+ *   inv は --family を除いた引数（invitation のサブコマンドとファイルの位置をそろえる）。
+ */
+const FAMILY = cmd === "invitation" && rest.includes("--family");
+const inv = cmd === "invitation" ? rest.filter((a) => a !== "--family") : rest;
+const INVITATION_DOC = FAMILY ? "invitation_family" : "invitation";
+const INVITATION_FLAG = FAMILY ? " --family" : "";
 const parsePaymentConfig =
   cmd === "payment" ? (await import("../src/lib/payment-config.ts")).parsePaymentConfig : null;
 /**
@@ -115,7 +127,7 @@ function outsideRepo(path, what) {
 }
 function readInvitationFile(path) {
   if (!path) {
-    console.error("JSON ファイルのパスを指定してください（例: node scripts/ops.mjs invitation set ~/invitation.json）");
+    console.error(`JSON ファイルのパスを指定してください（例: node scripts/ops.mjs invitation set ~/${INVITATION_DOC}.json${INVITATION_FLAG}）`);
     process.exit(1);
   }
   const abs = outsideRepo(path, "本物の値を入れた JSON");
@@ -128,7 +140,7 @@ function readInvitationFile(path) {
   }
   const parsed = parseInvitationConfig(data);
   if (!parsed.ok) {
-    console.error(`形が違います。項目: ${parsed.field}（見本: node scripts/ops.mjs invitation template）`);
+    console.error(`形が違います。項目: ${parsed.field}（見本: node scripts/ops.mjs invitation template${INVITATION_FLAG}）`);
     process.exit(1);
   }
   return parsed.value;
@@ -144,12 +156,13 @@ function readLegacyInvitationFields(path) {
   }
   return out;
 }
-if (cmd === "invitation" && rest[0] === "template") {
-  console.log(readFileSync(resolve(HERE, "..", "src", "config", "invitation-sample.json"), "utf8"));
+if (cmd === "invitation" && inv[0] === "template") {
+  // 親族用の見本は、当日の流れが 親族会食（role: meal）→ 挙式。afterParty（2次会）は無し
+  console.log(readFileSync(resolve(HERE, "..", "src", "config", FAMILY ? "invitation-sample-family.json" : "invitation-sample.json"), "utf8"));
   process.exit(0);
 }
-if (cmd === "invitation" && rest[0] === "check") {
-  const v = readInvitationFile(rest[1]);
+if (cmd === "invitation" && inv[0] === "check") {
+  const v = readInvitationFile(inv[1]);
   console.log(`✅ 形は正しいです（ご挨拶 ${v.greeting.length} 行、名前の表記 ${Object.keys(v.opening.names).length} 通り）。書き込みはしていません`);
   process.exit(0);
 }
@@ -293,7 +306,7 @@ function carryOverPhotoUrls(value, path, current) {
  */
 async function setInvitationPhoto(ref, action, target, file) {
   if (action !== "set" || !(target in PHOTO_TARGETS) || !file) {
-    console.error("使い方: node scripts/ops.mjs invitation photo set <hero|groom|bride> <画像ファイル>");
+    console.error("使い方: node scripts/ops.mjs invitation photo set <hero|groom|bride> <画像ファイル> [--family]");
     process.exit(1);
   }
   const abs = outsideRepo(file, "本物の写真");
@@ -308,7 +321,7 @@ async function setInvitationPhoto(ref, action, target, file) {
   const before = await ref.get();
   const parsedBefore = before.exists ? parseInvitationConfig(before.data()) : { ok: false, field: "(未設定)" };
   if (!parsedBefore.ok) {
-    console.error(`config/invitation が未設定か、形が違います（項目: ${parsedBefore.field}）。先に invitation set で入れてください`);
+    console.error(`config/${INVITATION_DOC} が未設定か、形が違います（項目: ${parsedBefore.field}）。先に invitation set${INVITATION_FLAG} で入れてください`);
     process.exit(1);
   }
   const index = PHOTO_TARGETS[target];
@@ -377,7 +390,7 @@ async function setInvitationPhoto(ref, action, target, file) {
   const field = index === null ? "photos.hero.url" : `fromUs.${index}.photoUrl`;
   await db.collection("auditLogs").doc(`${requestId}-b`).create({
     requestId, route, method: "CLI", action: "invitation.photo.set", actorUid: "ops-cli", actorRole: "admin",
-    targetId: "config/invitation", fields: [field], ipHash: null, userAgent: "scripts/ops.mjs",
+    targetId: `config/${INVITATION_DOC}`, fields: [field], ipHash: null, userAgent: "scripts/ops.mjs",
     phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
   });
   await db.collection("auditLogs").doc(`${requestId}-e`).create({
@@ -390,46 +403,48 @@ async function setInvitationPhoto(ref, action, target, file) {
 
 // ---- invitation -------------------------------------------------------------
 if (cmd === "invitation") {
-  const ref = db.collection("config").doc("invitation");
-  const sub = rest[0] ?? "status";
+  const ref = db.collection("config").doc(INVITATION_DOC);
+  const sub = inv[0] ?? "status";
   if (sub === "set") {
-    const value = readInvitationFile(rest[1]);
+    const value = readInvitationFile(inv[1]);
     /**
      * ★移行の間だけ、以前の receptionAt・ceremony も書く★（Issue #166）
      *   #166 より前の本番のコードは receptionAt を必須にしている。program を足した JSON を、マージより前に入れても
      *   招待状が「準備中」にならないよう、JSON にあればそのまま残す（新しいコードは読まずに捨てる）。
      *   #166 が本番に出たあとは、JSON から消して set し直す。消したら、この処理も消してよい。
      */
-    const legacy = readLegacyInvitationFields(rest[1]);
-    const kept = carryOverPhotoUrls(value, rest[1], (await ref.get()).data());
+    // 親族用は #166 より後にできたので、以前の項目を残さない
+    const legacy = FAMILY ? {} : readLegacyInvitationFields(inv[1]);
+    const kept = carryOverPhotoUrls(value, inv[1], (await ref.get()).data());
     // ★丸ごと置き換える★（merge しない）。古い項目を残さない
     await ref.set({ ...value, ...legacy, updatedAt: FieldValue.serverTimestamp(), updatedBy: "ops-cli" });
     if (kept.length > 0) console.log(`\n（写真の URL は JSON に無かったので、いまの値を引き継ぎました: ${kept.join("・")}）`);
     if (Object.keys(legacy).length > 0) console.log(`\n（移行用に ${Object.keys(legacy).join("・")} も残しました。#166 が本番に出たら、JSON から消して set し直してください）`);
-    console.log("\n✅ config/invitation を更新しました");
+    console.log(`\n✅ config/${INVITATION_DOC} を更新しました`);
     console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
   } else if (sub === "photo") {
-    await setInvitationPhoto(ref, rest[1], rest[2], rest[3]);
+    await setInvitationPhoto(ref, inv[1], inv[2], inv[3]);
   } else if (sub !== "status") {
-    console.error("使い方: node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル>");
+    console.error("使い方: node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]");
     process.exit(1);
   }
   const snap = await ref.get();
   if (!snap.exists) {
-    console.log("config/invitation : 未設定（招待状は「準備中」と表示されます）\n");
+    console.log(`config/${INVITATION_DOC} : 未設定（${FAMILY ? "親族用の" : ""}招待状は「準備中」と表示されます）\n`);
     process.exit(0);
   }
   const parsed = parseInvitationConfig(snap.data());
-  console.log(`config/invitation : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
+  console.log(`config/${INVITATION_DOC} : ${parsed.ok ? "設定済み（形は正しい）" : `形が違います（項目: ${parsed.field}）→ 招待状は「準備中」と表示されます`}`);
   // ★値は出さない★ 行数と、挙式の選択肢に使う役目（role）が揃っているかだけ（Issue #166・#167）
   if (parsed.ok) {
     const roles = new Set(parsed.value.program.map((r) => r.role).filter(Boolean));
-    const lacking = ["gather", "ceremony", "reception", "party"].filter((r) => !roles.has(r));
+    // 親族用は 親族会食（meal）と挙式（gather か ceremony）の時刻を、出欠の選択肢に添える（Issue #240）
+    const lacking = (FAMILY ? ["meal", "ceremony"] : ["gather", "ceremony", "reception", "party"]).filter((r) => !roles.has(r));
     const v = parsed.value;
     const set = (url) => (url ? "あり" : "なし");
     console.log(`写真              : シルエット ${set(v.photos?.hero?.url)}・ふたりから ${v.fromUs.map((c) => set(c.photoUrl)).join("／") || "（カードなし）"}`);
     console.log(`ふたりから        : ${v.fromUs.length} 枚 ／ 当日のおたのしみ: ${v.highlights.length} 枚 ／ ご挨拶: ${v.showGreeting ? "出す" : "出さない"}`);
-    console.log(`program           : ${parsed.value.program.length} 行（role ${lacking.length ? `なし: ${lacking.join(", ")}。挙式の選択肢にその時刻が出ません` : "すべてあり"}）`);
+    console.log(`program           : ${parsed.value.program.length} 行（role ${lacking.length ? `なし: ${lacking.join(", ")}。${FAMILY ? "出欠" : "挙式"}の選択肢にその時刻が出ません` : "すべてあり"}）`);
   }
   console.log(`updatedAt         : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);

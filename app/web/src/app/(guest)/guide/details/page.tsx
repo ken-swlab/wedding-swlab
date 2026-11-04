@@ -20,8 +20,11 @@ type Load = { state: "loading" } | { state: "error" } | { state: "pending" } | {
  *   見た目は招待状の部品（ProgramList・InvitationVenue・InvitationHighlights）。ops invitation set で変えると、
  *   招待状とこの画面の両方が変わる。
  * ★出さないもの★ 表紙の名前・ふたりの写真（hero）・FROM US・ご挨拶・エントリーのボタン・オープニング。
- * ★親族用★ 親族用の招待状（invitationKind: "family"）が入ったら、API が config/invitation_family の流れと会場を返す作りにする
- *   （この画面は返ってきたものを出すだけ）。親族用は 2次会と会費を返さないので、その行は出ない（InvitationVenue は無ければ出さない）。
+ * ★親族用は API が決める★（Issue #240）?kind= を付けずに呼ぶと、API は本人が答えたときの種類（guestPrivate.invitationKind）で
+ *   選ぶので、親族用の招待状から答えた人には config/invitation_family の流れと会場が返る。会費は返さず、親族用には
+ *   2次会も無いので、その行は出ない（InvitationVenue は無ければ出さない）。親族用が未設定なら ready: false で「準備中」
+ *   （友人用の時刻・会場で代わりに出さない）。
+ * ★文字の大きさは 1 倍のまま★ ご案内は招待状の外なので .inv-family を付けない（親族用でも今の大きさ）。
  */
 export default function GuideDetailsPage() {
   const [load, setLoad] = useState<Load>({ state: "loading" });

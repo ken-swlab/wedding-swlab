@@ -255,19 +255,21 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
             <span className="start-hand-ripple" />
             <PressHand />
           </span>
-          <p className={`tracking-[0.1em] text-white/90 transition-[font-size] ${idle >= 1 ? "mt-2 text-lg font-bold" : "text-sm"}`}>長押しで構える</p>
+          <p className={`tracking-[0.1em] text-white/90 transition-[font-size] ${idle >= 1 ? "mt-2 text-[length:calc(1.125rem*var(--inv-scale))] font-bold" : "text-[length:calc(0.875rem*var(--inv-scale))]"}`}>長押しで構える</p>
         </div>
         {/* 離す合図の案内（Issue #192）。文字だけ。光らせる見本は出さない
             ★一番大事な指示なので大きく出す★（Issue #201。黒の地で 16px は目に入りにくかった）
             ★「START」は合図で出る START（下の startText）と同じ太さ・字間にする★「この文字が出たら」と一致させるため。
-            改行は文の切れ目に手で入れる（iOS の Safari は word-break: auto-phrase に未対応）。幅 320px の画面でも3行に収まる */}
+            改行は文の切れ目に手で入れる（iOS の Safari は word-break: auto-phrase に未対応）。幅 320px の画面でも3行に収まる
+            ★横の余白は inset-x-4★ 親族用の大きさでも、幅 320px で3行に収める（中央ぞろえなので友人用の見た目は変わらない）
+            ★「長押しで構える」とこの案内だけは、親族用の倍率（--inv-scale。Issue #240）に従う★ ほかの黒い画面の文字はそのまま */}
         <p
-          className="absolute inset-x-6 top-1/2 -translate-y-1/2 text-center text-[19px] leading-[1.7] tracking-[0.06em] text-white transition-opacity duration-200"
+          className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center text-[length:calc(19px*var(--inv-scale))] leading-[1.7] tracking-[0.06em] text-white transition-opacity duration-200"
           style={{ opacity: guide ? 1 : 0 }}
         >
           画面が白く光り
           <br />
-          <b className="text-[24px] font-black tracking-[0.08em]">START</b> と出たら、
+          <b className="text-[length:calc(24px*var(--inv-scale))] font-black tracking-[0.08em]">START</b> と出たら、
           <br />
           素早く指を離してください
         </p>

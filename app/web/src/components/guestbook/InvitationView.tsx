@@ -59,26 +59,26 @@ export function InvitationView({
         className="relative flex flex-col items-center justify-center px-6 pb-20 pt-16 text-center"
         style={{ minHeight: `calc(100dvh - ${INVITATION_PEEK_PX}px)` }}
       >
-        <p style={delay(0)} className="invitation-rise font-serif text-[11px] font-medium tracking-[0.4em] text-stone-500">
+        <p style={delay(0)} className="invitation-rise font-serif text-[length:calc(11px*var(--inv-scale))] font-medium tracking-[0.4em] text-stone-500">
           WEDDING INVITATION
         </p>
         <h1 style={delay(0.2)} className="invitation-rise mt-6 font-serif font-medium leading-tight">
-          <span className="block text-[32px] tracking-[0.1em]">{groom}</span>
-          <span className="my-1.5 block text-[22px]" style={{ color: INVITATION_COLORS.gold }}>
+          <span className="block text-[length:calc(32px*var(--inv-scale))] tracking-[0.1em]">{groom}</span>
+          <span className="my-1.5 block text-[length:calc(22px*var(--inv-scale))]" style={{ color: INVITATION_COLORS.gold }}>
             &amp;
           </span>
-          <span className="block text-[32px] tracking-[0.1em]">{bride}</span>
+          <span className="block text-[length:calc(32px*var(--inv-scale))] tracking-[0.1em]">{bride}</span>
         </h1>
         {/* ★日付は名前より目立たせない★（Issue #189）名前が先に目に入るように、小さく・色を一段薄く */}
-        <p style={delay(0.45)} className="invitation-rise mt-7 font-serif text-[24px] font-medium tracking-[0.12em] tabular-nums text-stone-700">
+        <p style={delay(0.45)} className="invitation-rise mt-7 font-serif text-[length:calc(24px*var(--inv-scale))] font-medium tracking-[0.12em] tabular-nums text-stone-700">
           {opening.date}
-          {weekday && <small className="ml-1.5 text-[12px] font-normal tracking-[0.2em] text-stone-500">{weekday}</small>}
+          {weekday && <small className="ml-1.5 text-[length:calc(12px*var(--inv-scale))] font-normal tracking-[0.2em] text-stone-500">{weekday}</small>}
         </p>
-        <p style={delay(0.6)} className="invitation-rise mt-2 font-serif text-[12px] tracking-[0.45em] text-stone-500">
+        <p style={delay(0.6)} className="invitation-rise mt-2 font-serif text-[length:calc(12px*var(--inv-scale))] tracking-[0.45em] text-stone-500">
           {opening.venue}
         </p>
         {/* 1画面目の下端の少し上。2回目以降は最初から出る画面下の「エントリーする」（下から 80px ほど）にもかぶらない */}
-        <div aria-hidden className="absolute inset-x-0 bottom-6 text-[10px] tracking-[0.3em] text-stone-500">
+        <div aria-hidden className="absolute inset-x-0 bottom-6 text-[length:calc(10px*var(--inv-scale))] tracking-[0.3em] text-stone-500">
           SCROLL
           <span className="invitation-scroll-cue mx-auto mt-2 block h-[26px] w-px bg-stone-400" />
         </div>

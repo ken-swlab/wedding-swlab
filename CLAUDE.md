@@ -68,7 +68,7 @@ cd app/web && npm run test:screens   # 小さい画面のスクショを一通�
 2. 例外の本文（`e.message`、`String(e)`、外部 API の応答）をレスポンスにも Firestore にも入れない。catch では `console.error(...)`（Sentry に届く）→ `fail(safeMessage(e), 500)`。見せてよい文言だけ `throw new PublicError("...")`。
 3. すべてのルートに `rateLimit`、更新系には `audit` も付ける。ログ・監査ログ・Sentry に本名・アレルギー・パスコード・トークンを出さない。
 4. 秘密は環境変数だけに置く（コード・ログ・コミットに書かない）。GCP は ADC かサービスアカウントの環境変数で、API キーをハードコードしない。`.env*` は読まない・コミットしない。
-4a. **新郎新婦の名前・日付・会場・住所をリポジトリに書かない**（公開リポジトリ。コード・コメント・テスト・Issue・試作にも）。本物は Firestore の `config/invitation` にだけ置き（`cd app/web && node scripts/ops.mjs invitation set <リポジトリの外の JSON>`。オーナーが実行）、サーバー（`src/lib/invitation-server.ts`）がパスコードを通った人にだけ返す。リポジトリにあるのは架空の見本（`src/config/invitation-sample.json`）だけ。未設定のとき、招待状は「準備中」と出る（架空の名前は出さない）。
+4a. **新郎新婦の名前・日付・会場・住所をリポジトリに書かない**（公開リポジトリ。コード・コメント・テスト・Issue・試作にも）。本物は Firestore の `config/invitation`（親族用は `config/invitation_family`。Issue #240）にだけ置き（`cd app/web && node scripts/ops.mjs invitation set <リポジトリの外の JSON>`、親族用は `--family` を付ける。オーナーが実行）、サーバー（`src/lib/invitation-server.ts`）がパスコードを通った人にだけ返す。リポジトリにあるのは架空の見本（`src/config/invitation-sample.json`・`invitation-sample-family.json`）だけ。未設定のとき、招待状は「準備中」と出る（架空の名前は出さない）。
 
 ### データと権限（Firestore）
 5. 個人情報の置き場所: `guests` は承認済みゲスト全員が読める（公開名・アイコン・タグだけ）。本名・出欠・アレルギーは `guestPrivate`（本人と管理者）、運営情報は `guestAdmin`（管理者のみ）。本名や LINE 表示名を `guests` / `posts` に書かない。

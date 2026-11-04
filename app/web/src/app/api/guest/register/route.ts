@@ -4,7 +4,8 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { syncHeavyDrinkerTag } from "@/lib/drink-tag-server";
 import { isPasscodeCleared } from "@/lib/passcode-server";
-import { answerChangePatch, answersPrivatePatch, parseAnswers, type AnswersBody } from "@/lib/answers-server";
+import { answerChangePatch, answersPrivatePatch, parseAnswers, storedInvitationKind, type AnswersBody } from "@/lib/answers-server";
+import type { InvitationKind } from "@/types/admin";
 import { DEFAULT_NICKNAME_PREFIX } from "@/config/answers";
 import { PROFILE_NICKNAME_MAX } from "@/config/profile";
 
@@ -47,19 +48,19 @@ async function handle(req: Request) {
     return fail("ログインし直してください", 401);
   }
 
-  let body: AnswersBody & { nickname?: unknown };
+  let body: AnswersBody & { nickname?: unknown; invitationKind?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return fail("リクエストが不正です", 400);
   }
 
-  const parsed = parseAnswers(body);
-  if ("error" in parsed) return fail(parsed.error, 400);
-  const { answers } = parsed;
   const nicknameInput = typeof body.nickname === "string" ? body.nickname.trim() : "";
   if (nicknameInput.length > PROFILE_NICKNAME_MAX) {
     return fail(`ニックネームは${PROFILE_NICKNAME_MAX}文字までです`, 400);
+  }
+  if (body.invitationKind !== undefined && body.invitationKind !== "friend" && body.invitationKind !== "family") {
+    return fail("リクエストが不正です", 400);
   }
 
   const publicRef = db.collection("guests").doc(uid);
@@ -90,6 +91,18 @@ async function handle(req: Request) {
   if (!isPasscodeCleared(publicSnap, adminSnap)) {
     return fail("先に招待状のページでパスコードをご入力ください", 403);
   }
+
+  /**
+   * ★招待状の種類（友人用・親族用。Issue #240）は最初の回答のときだけ決める★
+   *   記録があればそれを使い、本文の invitationKind は無視する（あとから友人用・親族用を行き来させない）。
+   *   登録済みで記録が無い人は、Issue #240 より前に友人用から答えた人なので友人用。
+   */
+  const kind: InvitationKind = privateSnap.get("invitationKind") !== undefined || publicSnap.get("isRegistered") === true
+    ? storedInvitationKind(privateSnap)
+    : body.invitationKind === "family" ? "family" : "friend";
+  const parsed = parseAnswers(body, kind);
+  if ("error" in parsed) return fail(parsed.error, 400);
+  const { answers } = parsed;
 
   /**
    * ★guests に氏名を書かない★

@@ -101,9 +101,10 @@ export type InvitationHighlight = {
 /**
  * 当日の流れの行の役目（Issue #166）。挙式の選択肢の時刻を、どの行から取るかを決める。
  *   gather … 挙式に参加する人の集合 ／ ceremony … 挙式 ／ reception … 受付 ／ party … 披露宴
+ *   meal … 親族会食（親族用の招待状 config/invitation_family だけ。Issue #240）
  * 役目のない行（2次会など）には付けない。同じ役目は1行だけ。
  */
-export type ProgramRole = "gather" | "ceremony" | "reception" | "party";
+export type ProgramRole = "gather" | "ceremony" | "reception" | "party" | "meal";
 
 /** 当日の流れの1行。時刻は "HH:MM"、未定なら ""（画面は --:-- と出す） */
 export type ProgramItem = {
@@ -131,6 +132,8 @@ export type InvitationConfig = InvitationContent & { opening: OpeningContent };
 
 /** GET /api/guest/invitation の応答 */
 export type InvitationStatus = {
+  /** どちらの招待状の中身か（Issue #240。?kind= か、本人が答えたときの記録） */
+  kind: "friend" | "family";
   /** パスコードを通ったか（登録済み・管理者も含む） */
   cleared: boolean;
   /** 登録フォームを送信済みか */

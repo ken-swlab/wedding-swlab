@@ -15,6 +15,31 @@ export const ATTENDANCE_OPTIONS = [
 export type Attendance = (typeof ATTENDANCE_OPTIONS)[number]["value"];
 
 /**
+ * どの招待状から回答したか（Issue #240）。friend … 友人用（/invitation）／ family … 親族用（/invitation/family）。
+ * 未設定は friend として扱う。★guestPrivate に置く★（ゲストどうしで見える guests には置かない）。
+ * ★URL は転送されうる★ 親族用から回答しても承認は手動。管理画面に「親族用から回答」と出し、名簿で確かめてから承認する。
+ */
+export const INVITATION_KINDS = ["friend", "family"] as const;
+export type InvitationKind = (typeof INVITATION_KINDS)[number];
+
+/**
+ * 親族の出欠（Issue #240）。友人の attendance とは別の項目にする（会費の計算 = attendance に混ぜない）。
+ * 親族の当日の流れは「親族会食 → 挙式 → 親族だけで写真 → 解散」で、友人会食・2次会には出ない。
+ * ★時刻はコードに書かない★ config/invitation_family の program から組み立てる（lib/invitation-program.ts の familyChoiceNote）。
+ */
+export const FAMILY_ATTENDANCE_OPTIONS = [
+  { value: "both",          label: "会食・挙式",  formLabel: "親族会食・挙式 両方参加" },
+  { value: "meal_only",     label: "会食のみ",    formLabel: "親族会食のみ参加" },
+  { value: "ceremony_only", label: "挙式のみ",    formLabel: "挙式のみ参加" },
+  { value: "declined",      label: "欠席",        formLabel: "欠席" },
+] as const;
+export type FamilyAttendance = (typeof FAMILY_ATTENDANCE_OPTIONS)[number]["value"];
+
+export const FAMILY_ATTENDANCE_LABEL = Object.fromEntries(
+  FAMILY_ATTENDANCE_OPTIONS.map((o) => [o.value, o.label]),
+) as Record<FamilyAttendance, string>;
+
+/**
  * 挙式へのご参加。出欠が「欠席」以外のときだけ聞く（欠席・未回答なら空文字）。
  * ★時刻はコードに書かない★ config/invitation の program から組み立てる（Issue #166。
  *   回答フォームは lib/invitation-program.ts の ceremonyChoiceNote）。
@@ -69,7 +94,14 @@ export type GuestPublic = {
 /** /guestPrivate/{uid} : 本人と管理者だけが読める */
 export type GuestPrivate = {
   uid: string;
+  /** どちらの招待状から答えたか（Issue #240）。未設定は friend */
+  invitationKind: InvitationKind;
+  /** 友人用の出欠。★親族用の人は "unanswered" のまま★（会費の計算に混ぜない） */
   attendance: Attendance;
+  /** 親族用の出欠（Issue #240）。友人用・未回答は null */
+  familyAttendance: FamilyAttendance | null;
+  /** 前日に泊まるか（親族用だけ。Issue #240）。友人用・欠席・未回答は null */
+  stayPrevNight: boolean | null;
   /** 挙式から出るか。出欠が欠席・未回答なら "" */
   ceremony: Ceremony | "";
   /** お酒の量 0〜4（Issue #147）。欠席・未回答なら null。★他のゲストに見せない★ */
@@ -146,8 +178,8 @@ export type GuestAdmin = {
   answerChange: {
     fields: ("attendance" | "allergy")[];
     at: Timestamp | null;
-    /** 確認済みにしてから最初に出欠が変わる前の値 */
-    attendanceBefore: Attendance | null;
+    /** 確認済みにしてから最初に出欠が変わる前の値（親族用の人は familyAttendance の値。Issue #240） */
+    attendanceBefore: Attendance | FamilyAttendance | null;
   } | null;
 };
 

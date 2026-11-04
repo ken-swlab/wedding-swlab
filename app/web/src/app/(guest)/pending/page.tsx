@@ -17,7 +17,7 @@ import { lastOpeningRun } from "@/lib/opening-run";
  *   layout の振り分けに届かない（Context の★参照）。
  */
 export default function PendingPage() {
-  const { user, profile, refreshTags } = useGuestSessionContext();
+  const { user, profile, refreshTags, invitationKind } = useGuestSessionContext();
   const approved = profile?.isApproved === true;
   // ★「承認されました」を見せきってから取り直す★ 取り直しが済むと layout がすぐ /guestbook へ移す（Issue #165）
   const { stale, retry } = useApprovalAdvance({ approved, refresh: refreshTags, delayMs: APPROVED_REVEAL_MS });
@@ -41,13 +41,16 @@ export default function PendingPage() {
 
   if (!user || !profile) return <SplashScreen phase="booting" />;
 
+  // 親族用の招待状から答えた人は、文字とボタンを約 1.12 倍（Issue #240。globals.css の .inv-family）
   return (
-    <PendingApproval
-      reactionMs={reactionMs}
-      currentMs={currentMs}
-      approved={approved}
-      stale={stale}
-      onRetry={retry}
-    />
+    <div className={invitationKind === "family" ? "inv-family inv-scaled" : undefined}>
+      <PendingApproval
+        reactionMs={reactionMs}
+        currentMs={currentMs}
+        approved={approved}
+        stale={stale}
+        onRetry={retry}
+      />
+    </div>
   );
 }
