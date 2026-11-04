@@ -5,6 +5,8 @@
 export const GUIDE_PATHS = {
   home: "/guide",
   questionnaire: "/guide/questionnaire",
+  /** 当日のご案内（日時・会場・地図。Issue #241）。招待状から写真とメッセージを除いた、時間と場所だけの画面 */
+  details: "/guide/details",
   guests: "/guide/guests",
   payment: "/guide/payment",
 } as const;

@@ -14,7 +14,7 @@ import { EnvelopeIcon, SeatIcon, SparkleIcon, YenIcon } from "@/components/icons
  */
 // アイコンは線のアイコン（components/icons.tsx。Issue #227）
 const NAV: { key: string; label: string; icon: ReactNode; href: string | null; also?: string[] }[] = [
-  { key: "home", label: "ご案内", icon: <EnvelopeIcon />, href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire] },
+  { key: "home", label: "ご案内", icon: <EnvelopeIcon />, href: GUIDE_PATHS.home, also: [GUIDE_PATHS.questionnaire, GUIDE_PATHS.details] },
   { key: "guests", label: "座席", icon: <SeatIcon />, href: GUIDE_PATHS.guests },
   { key: "payment", label: "会費", icon: <YenIcon />, href: GUIDE_PATHS.payment },
   // まだ画面が無い。押せないタブとして「予定」を見せる
