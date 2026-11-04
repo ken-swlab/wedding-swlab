@@ -175,8 +175,8 @@ export function ComposerStrip() {
       className="-mx-4 flex h-[52px] w-[calc(100%+2rem)] touch-manipulation items-center gap-3 border-b border-stone-200 px-4 text-left text-sm font-semibold text-sub-600 transition hover:bg-stone-100/60"
     >
       <CameraIcon className="h-5 w-5" />
+      {/* 右端に「＋」を置かない（Issue #238。右上の大きな＋とダブって見えた）。帯全体が押せる */}
       <span className="min-w-0 flex-1 truncate">写真や一言を投稿する</span>
-      <span aria-hidden className="text-sub-600/70">＋</span>
     </button>
   );
 }

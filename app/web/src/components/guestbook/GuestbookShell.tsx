@@ -310,13 +310,15 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         </ul>
       </nav>
 
-      {/* 全画面のときだけ出る丸いボタン。押すと横長のナビに戻す（スクロール位置はそのまま） */}
+      {/* 全画面のときだけ出る丸いボタン。押すと横長のナビに戻す（スクロール位置はそのまま）
+          ★左上の H&K の丸と同じ見た目★（Issue #238）白の半透明・薄い縁・弱い影・墨のアイコン。
+          以前は黒（stone-900）で画面で一番強い色になり、写真や投稿の＋（テラコッタ）より目立った。黒・テラコッタは使わない */}
       <button
         type="button"
         inert={!compact}
         onClick={onExpand}
         aria-label={`メニューを開く（いまは${current.label}${unread > 0 ? `。通知の未読 ${unreadLabel}` : ""}）`}
-        className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-stone-900/90 text-xl leading-none text-white shadow-lg backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
+        className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-white/90 text-stone-900 shadow-sm ring-1 ring-stone-200/80 backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
       >
         <span aria-hidden className="flex">{current.icon}</span>
         <UnreadBadge count={unread} className="right-0 top-0" />
