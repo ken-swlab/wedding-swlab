@@ -252,8 +252,46 @@ export function exportTheme(id: string, label: string, t: ThemeTuning): string {
   return [`export const ACTIVE_THEME: Theme = {`, `  id: ${JSON.stringify(id)},`, `  label: ${JSON.stringify(label)},`, ...THEME_ROLES.map(line), `};`].join("\n");
 }
 
+/**
+ * 紙と墨（Issue #236）。枠なし・無彩色・写真が主役。色は役割のある所にだけ置く。
+ *   base   … 50 を招待状と同じ紙の地（#f9f8f6）、200 を罫線（#ebe6df）にする。300 から先は stone のまま（文字・アイコン）
+ *   accent … いいねの赤（ハート・いいねの動き・酒豪のハンコ）。THEME_CURRENT と同じ
+ *   sub    … ★押す場所のテラコッタ★ 600 を #b4462a にした並び。＋ボタン・投稿の帯・投稿画面の「投稿する」（押せるとき）だけに使う
+ *   pop    … まだ使っていない（THEME_CURRENT と同じ）
+ * ★sub-600 と base-50・base-200 は、指定の 16 進に一致させる★（OKLCH から 16 進に戻したときに同じ値になるよう、小数 4 桁で持つ）
+ */
+export const THEME_PAPER: Theme = {
+  id: "paper",
+  label: "紙と墨",
+  base: {
+    values: [
+      [0.9793, 0.0029, 84.56],
+      [0.958, 0.006, 80],
+      [0.9269, 0.0109, 76.6],
+      ...(THEME_CURRENT.base as { values: readonly Oklch[] }).values.slice(3),
+    ],
+  },
+  accent: THEME_CURRENT.accent,
+  sub: {
+    values: [
+      [0.969, 0.009, 35.32],
+      [0.941, 0.0179, 35.32],
+      [0.892, 0.0344, 35.32],
+      [0.81, 0.0687, 35.32],
+      [0.712, 0.115, 35.32],
+      [0.645, 0.1449, 35.32],
+      [0.5387, 0.1494, 35.32],
+      [0.48, 0.1315, 35.32],
+      [0.43, 0.1106, 35.32],
+      [0.39, 0.0941, 35.32],
+      [0.271, 0.0627, 35.32],
+    ],
+  },
+  pop: THEME_CURRENT.pop,
+};
+
 /** 選べるテーマ。足すときはここに並べる */
-export const THEME_PRESETS: readonly Theme[] = [THEME_CURRENT];
+export const THEME_PRESETS: readonly Theme[] = [THEME_CURRENT, THEME_PAPER];
 
 /** ★本番で使うテーマ★ ここを差し替えて push すると、全画面の stone / accent / sub / pop の色が変わる */
-export const ACTIVE_THEME: Theme = THEME_CURRENT;
+export const ACTIVE_THEME: Theme = THEME_PAPER;

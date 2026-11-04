@@ -167,7 +167,7 @@ export function PhotoPicker({
       {/* 選択中の操作。ボトムナビの上に重ねる（選択モードの間はナビの代わり） */}
       {portalReady &&
         createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
+          <div className="fixed inset-x-0 bottom-0 z-50 border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur">
             <div className="mx-auto flex h-16 max-w-xl items-center gap-2 px-4">
               <button
                 type="button"

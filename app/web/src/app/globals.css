@@ -193,6 +193,8 @@ body {
 }
 
 @theme {
+  /* ゲスト側のタグの枠（Issue #236。タグは無彩色。地なし・枠 1px・文字 stone-500）。テーマに従わない */
+  --color-tagline: #e2dcd3;
   --color-tagstone-100: oklch(97% 0.001 106.424);
   --color-tagstone-200: oklch(92.3% 0.003 48.717);
   --color-tagstone-600: oklch(44.4% 0.011 73.639);

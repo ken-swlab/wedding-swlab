@@ -15,7 +15,8 @@ export default function GuidePage() {
       {/* アンケートはタブに無いので、ここから開く */}
       <Link
         href={GUIDE_PATHS.questionnaire}
-        className="mt-4 flex min-h-16 touch-manipulation items-center gap-3 rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition hover:bg-stone-50"
+        // カードにせず、罫線で区切った行にする（Issue #236）
+        className="-mx-4 mt-4 flex min-h-16 touch-manipulation items-center gap-3 border-y border-stone-200 px-4 py-4 transition hover:bg-stone-100/60"
       >
         <FormIcon className="h-7 w-7 text-stone-700" />
         <span className="min-w-0 flex-1">

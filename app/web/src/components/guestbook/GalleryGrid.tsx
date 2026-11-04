@@ -44,7 +44,7 @@ export function GalleryGrid({
 
   if (entries.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">
+      <p className="py-10 text-center text-sm text-stone-400">
         まだ写真がありません。
       </p>
     );

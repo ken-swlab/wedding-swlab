@@ -416,7 +416,8 @@ export function Composer({
             onClick={onSubmitTap}
             aria-disabled={!ready}
             className={`min-h-11 justify-self-end touch-manipulation rounded-full px-4 text-sm font-medium transition ${
-              ready ? "bg-stone-900 text-white hover:bg-stone-700" : "bg-stone-100 text-stone-400"
+              // ★押せるときは押す場所の色（テラコッタ・sub）★（Issue #236）
+              ready ? "bg-sub-600 text-white hover:bg-sub-700" : "bg-stone-100 text-stone-400"
             }`}
           >
             {busy ? "送信中…" : preparing ? "準備中…" : "投稿する"}
@@ -551,7 +552,8 @@ export function Composer({
 
         {/* 4. 思い出エピソード（チェックしたときに、お題と説明を開く） */}
         <div className={`mt-4 rounded-xl border transition ${
-          episodeOn ? "border-accent-200 bg-accent-50/60" : "border-stone-200 bg-stone-50/40"
+          // 無彩色（Issue #236。ピンクはいいねにだけ使う）
+          episodeOn ? "border-stone-300 bg-stone-50" : "border-stone-200 bg-stone-50/40"
         }`}>
           <label className="flex cursor-pointer items-start gap-2.5 p-3">
             <input
@@ -561,7 +563,7 @@ export function Composer({
                 setEpisodeOn(e.target.checked);
                 if (!e.target.checked) setTheme("");
               }}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-600"
+              className="mt-0.5 h-4 w-4 shrink-0 accent-stone-900"
             />
             <span className="min-w-0">
               <span className="block text-sm font-medium text-stone-800">
@@ -575,7 +577,7 @@ export function Composer({
           </label>
 
           {episodeOn && (
-            <div className="border-t border-accent-200/70 p-3">
+            <div className="border-t border-stone-200 p-3">
               <p className="mb-1.5 text-xs font-medium text-stone-600">
                 お題を選んでください
               </p>
@@ -589,7 +591,8 @@ export function Composer({
                       onClick={() => setTheme(t.id)}
                       aria-pressed={on}
                       className={`min-h-9 touch-manipulation rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                        on ? t.className : "bg-white text-stone-400 ring-stone-200 hover:bg-stone-50"
+                        // お題のチップも無彩色（Issue #236）。選んでいるものは墨の枠と文字
+                        on ? "bg-white font-semibold text-stone-900 ring-stone-900" : "bg-white text-stone-400 ring-tagline hover:bg-stone-50"
                       }`}
                     >
                       {t.label}

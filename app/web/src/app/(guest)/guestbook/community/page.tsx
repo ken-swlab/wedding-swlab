@@ -89,6 +89,7 @@ export default function CommunityPage() {
 
   return (
     <GuestbookShell>
+      {/* カードにせず、罫線と余白で区切る（Issue #236） */}
       <div className="space-y-6">
         <header>
           <h1 className="font-serif text-xl text-stone-900">コミュニティ</h1>
@@ -96,7 +97,7 @@ export default function CommunityPage() {
         </header>
 
         {tag === null ? (
-          <p className="rounded-2xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-400">見られるグループがありません</p>
+          <p className="py-8 text-center text-sm text-stone-400">見られるグループがありません</p>
         ) : (
           <>
             <div>
@@ -119,7 +120,7 @@ export default function CommunityPage() {
               <h2 id="community-ranking" className="text-sm font-medium text-stone-800">リアクション選手権</h2>
               <p className="mb-2 mt-0.5 text-xs leading-relaxed text-stone-500">オープニングで、START の合図から指を離すまでの時間です。記録は1人1回だけ。</p>
               {myRecord === null && (
-                <div className="mb-3 rounded-2xl border border-stone-200/80 bg-white p-4 text-center shadow-sm">
+                <div className="mb-3 border-y border-stone-200 py-4 text-center">
                   <p className="text-sm text-stone-700">まだ記録がありません。</p>
                   <Link
                     href={GUESTBOOK_PATHS.opening}
@@ -137,7 +138,7 @@ export default function CommunityPage() {
         {/* オープニング演出の見返し（Issue #131。マイページから移した） */}
         <Link
           href={GUESTBOOK_PATHS.opening}
-          className="flex min-h-11 touch-manipulation items-center justify-between gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 py-3 shadow-sm transition hover:bg-stone-50"
+          className="-mx-4 flex min-h-11 touch-manipulation items-center justify-between gap-3 border-y border-stone-200 px-4 py-3 transition hover:bg-stone-100/60"
         >
           <span className="min-w-0">
             <span className="block text-sm font-medium text-stone-800">オープニングをもう一度見る</span>
@@ -158,7 +159,7 @@ function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers> | null
   if (!data) return null;
   if (all) {
     return (
-      <div className="rounded-2xl border border-stone-200/80 bg-white p-4 text-center shadow-sm">
+      <div className="border-y border-stone-200 py-4 text-center">
         <p className="text-sm text-stone-600">
           参加予定 <strong className="text-2xl font-semibold tabular-nums text-stone-900">{data.count}</strong> 名
         </p>
@@ -168,10 +169,10 @@ function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers> | null
   }
   const list = data.members ?? [];
   if (list.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-stone-300 p-6 text-center text-sm text-stone-400">このグループには、まだ参加予定の人がいません</p>;
+    return <p className="py-6 text-center text-sm text-stone-400">このグループには、まだ参加予定の人がいません</p>;
   }
   return (
-    <div className="rounded-2xl border border-stone-200/80 bg-white p-3 shadow-sm">
+    <div className="border-y border-stone-200 py-3">
       <ul className="grid grid-cols-4 gap-x-2 gap-y-3">
         {list.map((m, i) => (
           <MemberCell key={i} member={m} />
@@ -200,13 +201,13 @@ function RankingPanel({ loaded, label }: { loaded: Loaded<ReactionRanking> | nul
   if (loaded.error) return <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loaded.error}</p>;
   const data = loaded.data;
   if (!data || data.rows.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-stone-300 p-8 text-center text-sm text-stone-400">このグループには、まだ記録がありません</p>;
+    return <p className="py-8 text-center text-sm text-stone-400">このグループには、まだ記録がありません</p>;
   }
   // 自分が上位に入っていなければ、最後に自分の行を足す
   const outOfTop = data.me && !data.rows.some((r) => r.isMe) ? data.me : null;
   return (
     <div aria-label={`${label} のランキング`}>
-      <ol className="divide-y divide-stone-100 overflow-hidden rounded-2xl border border-stone-200/80 bg-white shadow-sm">
+      <ol className="divide-y divide-stone-200 border-y border-stone-200">
         {data.rows.map((row, i) => (
           <RankRow key={i} row={row} />
         ))}
@@ -226,7 +227,7 @@ function RankingPanel({ loaded, label }: { loaded: Loaded<ReactionRanking> | nul
 }
 
 /**
- * 1行: 順位・アイコン・ニックネーム・タイム（1/100 秒・切り捨て）。自分の行は色を付ける。
+ * 1行: 順位・アイコン・ニックネーム・タイム（1/100 秒・切り捨て）。自分の行は淡い灰色の地（Issue #236。色は付けない）。
  * 名前を伏せた行（「全員」の本人以外。nickname が空）は、アイコンを灰色の丸にし、名前を出さない。
  */
 function RankRow({ row }: { row: ReactionRankingRow }) {
@@ -234,7 +235,7 @@ function RankRow({ row }: { row: ReactionRankingRow }) {
   return (
     <li
       aria-current={row.isMe ? "true" : undefined}
-      className={`flex min-h-14 items-center gap-3 px-3 py-2 ${row.isMe ? "bg-sky-50 ring-1 ring-inset ring-sky-200" : ""}`}
+      className={`flex min-h-14 items-center gap-3 px-3 py-2 ${row.isMe ? "bg-stone-100" : ""}`}
     >
       <span className={`w-8 shrink-0 text-center tabular-nums ${row.rank <= 3 ? "text-base font-bold text-stone-900" : "text-sm text-stone-500"}`}>
         {row.rank}

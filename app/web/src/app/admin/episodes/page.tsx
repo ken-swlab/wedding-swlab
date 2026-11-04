@@ -261,7 +261,7 @@ export default function AdminEpisodesPage() {
                             </td>
                             <td className="border-b border-stone-200 px-3 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {withoutSystemTags(ep.targetTags).map((id) => <TagBadge key={id} id={id} size="sm" />)}
+                                {withoutSystemTags(ep.targetTags).map((id) => <TagBadge key={id} id={id} size="sm" colored />)}
                                 {ep.targetUids.map((uid) => {
                                   const g = byUid.get(uid);
                                   return (
@@ -278,7 +278,7 @@ export default function AdminEpisodesPage() {
                             </td>
                             <td className="border-b border-stone-200 px-3 py-3">
                               <div className="flex flex-wrap gap-1">
-                                {displayVisibleTags(ep.visibleToTags).map((id) => <TagBadge key={id} id={id} size="sm" />)}
+                                {displayVisibleTags(ep.visibleToTags).map((id) => <TagBadge key={id} id={id} size="sm" colored />)}
                               </div>
                             </td>
                             <td className="border-b border-stone-200 px-3 py-3 text-right">

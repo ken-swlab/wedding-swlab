@@ -77,10 +77,11 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
     <form
       onSubmit={onSubmit}
       // 下の余白はキーボードの開閉で変えない（★参照）
-      className="relative z-10 shrink-0 border-t border-stone-200/80 bg-white px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2"
+      // 地は紙の色・境目は罫線（Issue #236。下のタブと同じ）。入力欄そのものは白い面のまま
+      className="relative z-10 shrink-0 border-t border-stone-200 bg-stone-50 px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2"
     >
       {/* キーボードの裏を隠す白（★参照） */}
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-lvh bg-white" />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-full h-lvh bg-stone-50" />
       <div className="relative mx-auto max-w-xl">
         <MentionSuggestions state={mention.suggestions} className="bottom-full mb-3" />
         <div className="flex items-end gap-2">
@@ -103,7 +104,7 @@ export function CommentBar({ post, user, onSent }: { post: Post; user: User; onS
             rows={expanded ? 3 : 1}
             aria-label="コメント"
             placeholder="コメントを追加…"
-            className="min-h-11 flex-1 touch-manipulation resize-none rounded-[1.375rem] border border-transparent bg-stone-100 px-4 py-2.5 text-base leading-snug text-stone-800 outline-none placeholder:text-stone-500 focus:border-stone-300 focus:bg-white"
+            className="min-h-11 flex-1 touch-manipulation resize-none rounded-[1.375rem] border border-stone-200 bg-white px-4 py-2.5 text-base leading-snug text-stone-800 outline-none placeholder:text-stone-500 focus:border-stone-300 focus:bg-white"
           />
           <button
             type="submit"

@@ -21,23 +21,29 @@ export function WelcomeCard({
   liked,
   photoOverlay,
   onPhotoClick,
+  plain = false,
 }: {
   content: WelcomeContent;
   liked: boolean;
   photoOverlay?: ReactNode;
   onPhotoClick?: (e: MouseEvent<HTMLDivElement>) => void;
+  /**
+   * カードにしない（タイムラインにピン留めするとき。Issue #236）。投稿（PostCard）と同じく罫線で区切る。
+   * 写真が届く演出（暗い幕の上）では、別の面として白いカードのままにする。
+   */
+  plain?: boolean;
 }) {
   // URL を組み立てられない（配信元の設定が無い・古いデータ）ときは仮の画像にする（空の src を描かない）
   const src = (content.media && thumbSrc(content.media)) || WELCOME_PLACEHOLDER_IMAGE;
   const count = content.reactionCount + (liked ? 1 : 0);
   return (
-    <article className="rounded-2xl border border-stone-200/80 bg-white p-4 text-left shadow-sm">
+    <article className={plain ? "-mx-4 border-b border-stone-200 px-4 py-[18px] text-left" : "rounded-2xl border border-stone-200/80 bg-white p-4 text-left shadow-sm"}>
       <header className="flex items-start gap-3">
-        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-accent-50 text-accent-500">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100 text-stone-400">
           {content.authorPhotoURL ? (
             <Image src={content.authorPhotoURL} alt="" fill sizes="40px" className="object-cover" unoptimized />
           ) : (
-            <HeartIcon filled />
+            <HeartIcon filled={false} className="h-5 w-5" />
           )}
         </span>
         <div className="min-w-0 flex-1">
@@ -60,12 +66,13 @@ export function WelcomeCard({
         {photoOverlay}
       </div>
 
-      <footer className="mt-3 border-t border-stone-100 pt-2">
+      <footer className={plain ? "mt-2" : "mt-3 border-t border-stone-100 pt-2"}>
         <div className="flex items-center gap-1">
           <span
             aria-label={`いいね ${count}件${liked ? "（いいね済み）" : ""}`}
             className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm transition ${
-              liked ? "bg-accent-50 text-accent-600" : "text-stone-500"
+              // 行は無彩色。いいね済みはハートだけ赤（Issue #236）
+              "text-stone-500"
             }`}
           >
             <HeartIcon filled={liked} />
@@ -89,11 +96,9 @@ export function WelcomeCard({
 export function WelcomePinned({ content, hidden }: { content: WelcomeContent; hidden: boolean }) {
   return (
     <div data-welcome-pin="" className={hidden ? "invisible" : ""}>
-      <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-accent-600">
-        <HeartIcon filled />
-        新郎新婦から
-      </p>
-      <WelcomeCard content={content} liked />
+      {/* ラベルは無彩色（Issue #236。赤はいいねにだけ使う）。カードにせず、投稿と同じく罫線で区切る */}
+      <p className="flex items-center gap-1 pt-3 text-[11px] font-medium text-stone-500">新郎新婦から</p>
+      <WelcomeCard content={content} liked plain />
     </div>
   );
 }
