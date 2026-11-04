@@ -61,7 +61,7 @@ export function MentionSuggestions({
                   onPointerDown={(e) => e.preventDefault()}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(p)}
-                  className="flex min-h-11 w-full touch-manipulation items-center gap-2.5 px-4 text-left text-sm text-violet-700 hover:bg-stone-50 disabled:opacity-40"
+                  className="flex min-h-[var(--inv-tap)] w-full touch-manipulation items-center gap-2.5 px-4 text-left text-sm text-violet-700 hover:bg-stone-50 disabled:opacity-40"
                 >
                   <Candidate person={p} />
                 </button>

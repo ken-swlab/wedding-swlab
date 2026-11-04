@@ -24,7 +24,7 @@ type Load = { state: "loading" } | { state: "error" } | { state: "pending" } | {
  *   選ぶので、親族用の招待状から答えた人には config/invitation_family の流れと会場が返る。会費は返さず、親族用には
  *   2次会も無いので、その行は出ない（InvitationVenue は無ければ出さない）。親族用が未設定なら ready: false で「準備中」
  *   （友人用の時刻・会場で代わりに出さない）。
- * ★文字の大きさは 1 倍のまま★ ご案内は招待状の外なので .inv-family を付けない（親族用でも今の大きさ）。
+ * ★文字の大きさは (guest)/layout が <html> に付ける★（Issue #243。親族用から入った人は既定で大きい）
  */
 export default function GuideDetailsPage() {
   const [load, setLoad] = useState<Load>({ state: "loading" });
@@ -58,7 +58,7 @@ export default function GuideDetailsPage() {
       {load.state === "error" && (
         <div role="alert" className="py-6 text-center">
           <p className="text-sm text-stone-600">ご案内を読み込めませんでした。もう一度お試しください</p>
-          <button type="button" onClick={retry} className="mt-4 min-h-11 touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white hover:bg-stone-700">
+          <button type="button" onClick={retry} className="mt-4 min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white hover:bg-stone-700">
             再読み込み
           </button>
         </div>
@@ -76,10 +76,10 @@ function Details({ invitation, opening }: Required<Pick<InvitationStatus, "invit
     <div className="-mx-4 text-stone-800">
       {/* 日付と会場の一行（招待状の表紙と同じ値。明朝） */}
       {/* ★日付と会場は、それぞれ途中で折り返さない★ 狭い画面では「／」のところで2行に分かれる */}
-      <p className="border-b border-stone-200 px-5 pb-5 text-center font-serif text-[17px] tracking-[0.08em] tabular-nums text-stone-800">
+      <p className="border-b border-stone-200 px-5 pb-5 text-center font-serif text-[length:calc(17px*var(--inv-scale))] tracking-[0.08em] tabular-nums text-stone-800">
         <span className="whitespace-nowrap">
           {opening.date}
-          {weekday && <span className="ml-1.5 text-[12px] tracking-[0.2em] text-stone-500">{weekday}</span>}
+          {weekday && <span className="ml-1.5 text-[length:calc(12px*var(--inv-scale))] tracking-[0.2em] text-stone-500">{weekday}</span>}
           <span className="mx-2 text-stone-400">／</span>
         </span>{" "}
         <span className="whitespace-nowrap">{opening.venue}</span>
@@ -93,7 +93,7 @@ function Details({ invitation, opening }: Required<Pick<InvitationStatus, "invit
             invitation={invitation}
             feeNote={
               // 内訳は「会費」タブにある。ここは一行だけ
-              <Link href={GUIDE_PATHS.payment} className="inline-flex min-h-11 items-center text-[12px] text-stone-500 underline underline-offset-4">
+              <Link href={GUIDE_PATHS.payment} className="inline-flex min-h-[var(--inv-tap)] items-center text-[length:calc(12px*var(--inv-scale))] text-stone-500 underline underline-offset-4">
                 会費の詳しい内訳を見る
               </Link>
             }

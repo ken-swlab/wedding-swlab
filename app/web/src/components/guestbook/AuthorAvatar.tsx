@@ -116,7 +116,7 @@ function ProfileSheet({
             <Link
               href={GUESTBOOK_PATHS.settings}
               onClick={onClose}
-              className="flex min-h-11 touch-manipulation items-center justify-center rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
+              className="flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-center rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
             >
               プロフィールを編集
             </Link>
@@ -124,7 +124,7 @@ function ProfileSheet({
           <button
             type="button"
             onClick={onClose}
-            className="min-h-11 touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
           >
             閉じる
           </button>

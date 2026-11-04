@@ -10,6 +10,8 @@ import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext
 import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
 import { GUIDE_PATHS, isGuidePath } from "@/config/guide";
 import { recallInvitationKind } from "@/lib/invitation-kind-local";
+import { useTextScale } from "@/hooks/useTextScale";
+import { effectiveTextScale } from "@/config/text-scale";
 
 /**
  * ★ゲスト画面の振り分けをここ1箇所に集める★
@@ -30,6 +32,15 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
   const { user, isActive, tags, loading, profile, profileLoading } = session;
 
   const ready = !loading && (!user || !profileLoading);
+
+  /**
+   * ★文字の大きさ（Issue #243）★ ゲストの画面ぜんぶ（ゲストブック・ご案内・登録フォーム・承認待ち）に効かせる。
+   *   本人の設定（guestPrivate.textScale）が無ければ、親族用から答えた人は大きく。まだ答えていない人は、
+   *   この端末で最後に開いた招待状の種類で決める（親族用の招待状から来た人を、登録フォームでも大きくする）。
+   *   guestPrivate を読み終えるまでは null（この端末で最後に使った大きさのまま）。
+   */
+  const scaleKind = profile?.isRegistered ? session.invitationKind : recallInvitationKind();
+  useTextScale(session.privateReady || (ready && !user) ? effectiveTextScale(session.textScale, scaleKind) : null);
 
   /**
    * 登録済みでも /onboarding には留まれるようにする。

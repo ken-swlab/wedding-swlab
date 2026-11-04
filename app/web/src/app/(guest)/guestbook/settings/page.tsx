@@ -12,6 +12,7 @@ import { PostOwnerMenu } from "@/components/guestbook/PostOwnerMenu";
 import { QualityMark } from "@/components/guestbook/QualityMark";
 import { postQuality } from "@/lib/original-status";
 import { TagBadge } from "@/components/guestbook/TagBadge";
+import { TextScaleSwitch } from "@/components/guestbook/TextScaleSwitch";
 import { useMyPosts } from "@/hooks/useMyPosts";
 import { postJson } from "@/lib/api-client";
 import { cropForIcon, loadIconSource, type IconCrop, type IconSource } from "@/lib/image";
@@ -258,14 +259,15 @@ export default function SettingsPage() {
           />
           {!editing && (
             <div className="flex min-h-20 min-w-0 flex-1 items-center gap-2">
-              {/* 幅 360px 未満は 18px（Issue #230。320px で「テストゲスト」程度の名前が途中で折り返した）。長い名前は折り返す */}
-              <h1 className="min-w-0 flex-1 break-words text-lg font-semibold leading-snug text-stone-900 min-[360px]:text-xl">
+              {/* 幅 360px 未満は 18px（Issue #230。320px で「テストゲスト」程度の名前が途中で折り返した）。長い名前は折り返す
+                  ★幅 360px 未満は文字を大きくしていても 18px のまま★（Issue #243。倍率を掛けると 320px でまた折り返す） */}
+              <h1 className="min-w-0 flex-1 break-words text-[18px] font-semibold leading-snug text-stone-900 min-[360px]:text-xl">
                 {profile ? publicName(profile) : ""}
               </h1>
               <button
                 type="button"
                 onClick={onEdit}
-                className="min-h-11 shrink-0 touch-manipulation self-start rounded-full border border-stone-200 bg-white px-4 text-sm text-stone-700 transition hover:bg-stone-100"
+                className="min-h-[var(--inv-tap)] shrink-0 touch-manipulation self-start rounded-full border border-stone-200 bg-white px-4 text-sm text-stone-700 transition hover:bg-stone-100"
               >
                 編集
               </button>
@@ -284,7 +286,7 @@ export default function SettingsPage() {
             type="button"
             onClick={onUseLineIcon}
             disabled={iconBusy || saving}
-            className="-ml-2 min-h-11 touch-manipulation rounded-full px-2 text-xs text-stone-500 transition hover:bg-stone-100 disabled:opacity-40"
+            className="-ml-2 min-h-[var(--inv-tap)] touch-manipulation rounded-full px-2 text-xs text-stone-500 transition hover:bg-stone-100 disabled:opacity-40"
           >
             LINE のアイコンに戻す
           </button>
@@ -299,7 +301,7 @@ export default function SettingsPage() {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 autoComplete="nickname"
-                className="mt-1 block min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-base text-stone-900 outline-none focus:border-stone-400"
+                className="mt-1 block min-h-[var(--inv-tap)] w-full rounded-xl border border-stone-200 bg-white px-3 text-base text-stone-900 outline-none focus:border-stone-400"
               />
               <span className={`mt-1 block text-right text-xs tabular-nums ${nicknameOk ? "text-stone-400" : "text-rose-600"}`}>
                 {nicknameCount} / {PROFILE_NICKNAME_MAX}
@@ -313,7 +315,7 @@ export default function SettingsPage() {
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="例: 最近神奈川に引っ越しました！"
-                className="mt-1 block min-h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-stone-400"
+                className="mt-1 block min-h-[var(--inv-tap)] w-full rounded-xl border border-stone-200 bg-white px-3 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:border-stone-400"
               />
               <span className={`mt-1 block text-right text-xs tabular-nums ${bioOk ? "text-stone-400" : "text-rose-600"}`}>
                 {bioCount} / {PROFILE_BIO_MAX}
@@ -325,14 +327,14 @@ export default function SettingsPage() {
                 type="button"
                 onClick={onCancel}
                 disabled={saving}
-                className="min-h-11 flex-1 touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
+                className="min-h-[var(--inv-tap)] flex-1 touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
               >
                 キャンセル
               </button>
               <button
                 type="submit"
                 disabled={!canSave}
-                className="min-h-11 flex-1 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+                className="min-h-[var(--inv-tap)] flex-1 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
               >
                 {saving ? "保存中…" : "保存"}
               </button>
@@ -359,7 +361,7 @@ export default function SettingsPage() {
               type="button"
               onClick={onCancel}
               disabled={saving}
-              className="min-h-11 flex-1 touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
+              className="min-h-[var(--inv-tap)] flex-1 touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-700 transition hover:bg-stone-100 disabled:opacity-40"
             >
               キャンセル
             </button>
@@ -367,7 +369,7 @@ export default function SettingsPage() {
               type="button"
               onClick={() => void onSave()}
               disabled={!canSave}
-              className="min-h-11 flex-1 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+              className="min-h-[var(--inv-tap)] flex-1 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
             >
               {saving ? "保存中…" : "保存"}
             </button>
@@ -387,6 +389,11 @@ export default function SettingsPage() {
       </section>
 
       {/* オープニングの見返しとランキングは、コミュニティ（/guestbook/community）へ移した（Issue #174）。マイページは「自分のこと」だけ */}
+
+      {/* 表示の設定（Issue #243）。親族用から入った人は最初からオン */}
+      <section aria-label="表示" className="mt-5 border-t border-stone-200 pt-3">
+        <TextScaleSwitch />
+      </section>
 
       <section aria-label="自分の投稿" className="mt-5 border-t border-stone-200 pt-4">
         {mine.loading ? (
@@ -447,7 +454,7 @@ export default function SettingsPage() {
                 type="button"
                 onClick={() => void mine.loadMore()}
                 disabled={mine.loadingMore}
-                className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
+                className="min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
               >
                 {mine.loadingMore ? "読み込み中…" : "もっと見る"}
               </button>

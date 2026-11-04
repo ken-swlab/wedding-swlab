@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { admin } from "@/lib/firebase-admin";
+import { storedInvitationKind } from "@/lib/answers-server";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { paymentConfig } from "@/lib/payment-server";
@@ -31,6 +32,8 @@ async function _GET(req: Request) {
  * ★呼び出した本人の分だけを返す★ uid はトークンから取り、本文やクエリでほかの人を指定させない。
  * ★承認済みだけ★ 承認前は 403（会費は承認されたゲストに案内するもの）。
  * ★金額は config/payment から読む★ コードに書かない。未設定なら configured: false（画面は金額を出さない）。
+ * ★親族用から入ったゲスト（invitationKind: "family"）には返さない★（Issue #243）親族からは会費を手渡しでいただくので、
+ *   内訳も送金先も返さず 403「親族の方は会費の対象外です」。画面も「会費」タブを出さない（GuideShell）。
  * ★管理者だけ、出欠とお車代を差し替えて試せる★（?attendance=both&carFare=1。会費タブの表示確認用）。
  *   差し替えるのは計算の入力だけで、ほかの人のデータは読まない。
  */
@@ -56,6 +59,7 @@ async function handle(req: Request) {
   ]);
   if (privateSnap.get("isActive") === false) return fail("このアカウントはご利用いただけません", 403);
   if (!isAdmin && publicSnap.get("isApproved") !== true) return fail("承認後にご覧いただけます", 403);
+  if (!isAdmin && storedInvitationKind(privateSnap) === "family") return fail("親族の方は会費の対象外です", 403);
 
   let attendance = privateSnap.get("attendance") as unknown;
   let carFare = privateSnap.get("carFare") === true;

@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useTags } from "@/lib/tags-client";
+import { useOptionalGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { EnvelopeIcon, SeatIcon, SparkleIcon, YenIcon } from "@/components/icons";
 
 /**
@@ -46,6 +47,8 @@ export function GuideShell({ children }: { children: ReactNode }) {
 
 function GuideNav() {
   const pathname = usePathname();
+  // ★親族用から入った人には「会費」を出さない★（Issue #243。会費は手渡し。ご案内・座席・ミニAI の3つ）
+  const items = useOptionalGuestSessionContext()?.invitationKind === "family" ? NAV.filter((item) => item.key !== "payment") : NAV;
   return (
     <nav
       aria-label="ご案内のメニュー"
@@ -53,8 +56,8 @@ function GuideNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <ul className="mx-auto flex h-16 max-w-xl">
-        {NAV.map((item) => {
-          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px]";
+        {items.map((item) => {
+          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[length:calc(11px*var(--inv-scale))]";
           if (!item.href) {
             return (
               <li key={item.key} className="flex-1">
@@ -62,7 +65,7 @@ function GuideNav() {
                   <span aria-hidden className="flex h-5 items-center">{item.icon}</span>
                   <span>
                     {item.label}
-                    <span className="ml-0.5 text-[9px]">（予定）</span>
+                    <span className="ml-0.5 text-[length:calc(9px*var(--inv-scale))]">（予定）</span>
                   </span>
                 </span>
               </li>

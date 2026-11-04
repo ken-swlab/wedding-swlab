@@ -96,7 +96,7 @@ export function UploadStatusBar({
               style={{ width: `${Math.max(3, (current?.progress ?? 0) * 100)}%` }}
             />
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-sky-700">
+          <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-sky-700">
             ゲストブックを開いたままお待ちください。閉じても写真は端末に残るので、
             あとから続きを送れます。
           </p>
@@ -110,11 +110,11 @@ export function UploadStatusBar({
             <p className="text-sm font-medium text-amber-900">
               <span className="tabular-nums">{remaining}</span> 枚が本アップロード待ちです
             </p>
-            <span className="shrink-0 tabular-nums text-[11px] text-amber-700">
+            <span className="shrink-0 tabular-nums text-[length:calc(11px*var(--inv-scale))] text-amber-700">
               {mb(remainingBytes)}
             </span>
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800">
+          <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-amber-800">
             会場の電波が混み合うため、高画質版は自動では送っていません。
             <span className="font-medium">ご自宅などで Wi-Fi に繋いだタイミング</span>
             で、下のボタンから送信をお願いします 📶
@@ -122,13 +122,13 @@ export function UploadStatusBar({
 
           {failed.length > 0 && (
             <details className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2">
-              <summary className="cursor-pointer text-[11px] font-medium text-rose-800">
+              <summary className="cursor-pointer text-[length:calc(11px*var(--inv-scale))] font-medium text-rose-800">
                 うち {failed.length} 枚が失敗しています（詳細）
               </summary>
               {/* スマホではコンソールが見られないので、理由は必ず画面に出す */}
               <ul className="mt-1.5 space-y-1">
                 {failed.map((j) => (
-                  <li key={j.id} className="text-[10px] leading-tight text-rose-700">
+                  <li key={j.id} className="text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                     <span className="font-medium">{j.fileName}</span>
                     <span className="block text-rose-600">{j.error ?? "原因不明"}</span>
                   </li>
@@ -145,7 +145,7 @@ export function UploadStatusBar({
             本アップロードを開始
           </button>
 
-          <p className="mt-1.5 text-center text-[10px] text-amber-700/80">
+          <p className="mt-1.5 text-center text-[length:calc(10px*var(--inv-scale))] text-amber-700/80">
             写真はこの端末に保存されています。通信量にご注意ください。
           </p>
         </div>
@@ -158,7 +158,7 @@ export function UploadStatusBar({
             <CheckIcon className="h-4 w-4" />
             <span className="tabular-nums">{sentCount}</span> 枚の高画質版を送信しました
           </p>
-          <p className="mt-0.5 text-[11px] text-emerald-700">
+          <p className="mt-0.5 text-[length:calc(11px*var(--inv-scale))] text-emerald-700">
             ありがとうございます。ふたりの宝物になります 🌿
           </p>
         </div>
@@ -170,7 +170,7 @@ export function UploadStatusBar({
           <p className="text-xs font-medium text-stone-800">
             高画質版がこの端末に見つからない写真が {missing.length} 枚あります
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
+          <p className="mt-1 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-600">
             考えられる理由は2つです。
             <span className="mt-1 block">
               ① <span className="font-medium">別の画面から投稿した</span> — 高画質版は投稿したときの
@@ -194,7 +194,7 @@ export function UploadStatusBar({
 
       {/* ---- エラー ---- */}
       {error && (
-        <p className="rounded-xl bg-rose-50 px-3 py-2 text-[11px] leading-relaxed text-rose-700">
+        <p className="rounded-xl bg-rose-50 px-3 py-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-rose-700">
           {error}
         </p>
       )}

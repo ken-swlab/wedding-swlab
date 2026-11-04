@@ -4,9 +4,9 @@ import { useTagDef } from "@/lib/tags-client";
 
 const SIZE = {
   /** ゲスト側の既定 */
-  md: "px-2 py-0.5 text-[11px]",
+  md: "px-2 py-0.5 text-[length:calc(11px*var(--inv-scale))]",
   /** 管理画面の表（エピソード・名簿の取り込み） */
-  sm: "px-1.5 py-0.5 text-[10px]",
+  sm: "px-1.5 py-0.5 text-[length:calc(10px*var(--inv-scale))]",
 } as const;
 
 /**

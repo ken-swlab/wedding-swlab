@@ -36,15 +36,15 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
       <AuthorAvatar uid={comment.authorUid} profile={author} className="mt-0.5 h-7 w-7" sizes="28px" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="truncate text-[13px] font-semibold text-stone-800">
+          <span className="truncate text-[length:calc(13px*var(--inv-scale))] font-semibold text-stone-800">
             {author.name}
           </span>
-          <time className="shrink-0 text-[11px] tabular-nums text-stone-400">{shortTime(comment)}</time>
+          <time className="shrink-0 text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">{shortTime(comment)}</time>
           {mine && (
             <button
               type="button"
               onClick={() => void deleteComment(post.id, comment.id)}
-              className="ml-auto shrink-0 text-[11px] text-stone-300 hover:text-rose-500"
+              className="ml-auto shrink-0 text-[length:calc(11px*var(--inv-scale))] text-stone-300 hover:text-rose-500"
             >
               削除
             </button>
@@ -57,7 +57,7 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
         />
         {/* 親の投稿が非表示になったコメントは、書いた本人（と投稿者・管理者）にだけ届く */}
         {comment.hidden && (
-          <p className="mt-1 text-[11px] text-amber-700">このコメントは非表示になりました（投稿が非表示になったため）</p>
+          <p className="mt-1 text-[length:calc(11px*var(--inv-scale))] text-amber-700">このコメントは非表示になりました（投稿が非表示になったため）</p>
         )}
       </div>
     </li>

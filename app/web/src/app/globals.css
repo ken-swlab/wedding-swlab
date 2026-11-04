@@ -534,25 +534,31 @@ body {
 }
 
 /*
- * ★親族用の招待状だけ、文字とボタンを約 1.12 倍にする★（Issue #240）
- *   --inv-scale … 文字の倍率。ふだんは 1、親族用の画面の外側（.inv-family）で 1.12。
- *   --inv-tap   … 押せる部品の高さの下限。ふだんは 44px、親族用は 52px。
- *   .inv-scaled … 招待状・回答フォーム・送信完了・承認待ちの画面に付ける。Tailwind の text-xs〜text-3xl を
- *                 --inv-scale 倍にする（友人用は 1 倍なので変わらない）。text-[13px] のような直接の値は
- *                 text-[length:calc(13px*var(--inv-scale))] と書く。
- * ★1画面ずつ数字を書き換えない・zoom を使わない★ 倍率は 1 か所（.inv-family）で決める。
- *   zoom は iOS の Safari で fixed の位置やタップの座標がずれることがあるため使わない（オーナーの判断）。
- * ★オープニング（黒い画面）には .inv-scaled を付けない★ すでに大きい。案内の文字だけ calc で倍率に従う。
- * ★ゲストブック（承認後）には付けない★
+ * ★文字の倍率（Issue #240・#243）★ 文字とボタンを約 1.12 倍にする。余白・アイコン・写真・並びは変えない。
+ *   --inv-scale … 文字の倍率。ふだんは 1、大きくするときは 1.12。
+ *   --inv-tap   … 押せる部品の高さの下限。ふだんは 44px、大きくするときは 52px。
+ *   :root[data-text-scale="large"] … アプリ全体を大きくする（Issue #243）。<html> への付け外しは hooks/useTextScale.ts。
+ *                 親族用から入ったゲストは既定で付く。マイページの「文字を大きくする」で本人が切り替える。
+ *                 ゲストの画面（(guest) 以下）と親族用の招待状だけで付け、管理画面・/screen では外す。
+ *   .inv-family  … その中だけを大きくする（招待状テストの親族用・body に Portal で出るオープニング）。
+ *   .inv-scaled  … .inv-family の中で、Tailwind の text-xs〜text-3xl を倍率に合わせ直す。
+ * ★文字の大きさは text-xs〜text-3xl か text-[length:calc(13px*var(--inv-scale))] で書く★
+ *   text-[13px] のように px を直接書くと倍率が効かない（CLAUDE.md の「文字の大きさ」）。
+ * ★html の font-size（rem）は変えない★ Tailwind の余白・幅・アイコン（h-5 w-5）も rem なので、一緒に大きくなって
+ *   並びが崩れる（オーナーの判断。Issue #243）。
+ * ★zoom を使わない★ iOS の Safari で fixed の位置やタップの座標がずれ、横にはみ出しやすい。
+ * ★オープニングの黒い画面の大きな文字（招集・レーン・START・タイム）は px のまま★ 倍率に従わない。
  */
 :root {
   --inv-scale: 1;
   --inv-tap: 44px;
 }
+:root[data-text-scale="large"],
 .inv-family {
   --inv-scale: 1.12;
   --inv-tap: 52px;
 }
+:root[data-text-scale="large"],
 .inv-scaled {
   --text-xs: calc(0.75rem * var(--inv-scale));
   --text-sm: calc(0.875rem * var(--inv-scale));

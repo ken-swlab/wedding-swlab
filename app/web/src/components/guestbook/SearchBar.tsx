@@ -145,7 +145,7 @@ export function SearchBar() {
                 // blur より先に選べるよう、mousedown でフォーカスを外さない
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => pick(tag)}
-                className="flex min-h-11 w-full touch-manipulation items-center px-4 text-left text-sm text-sky-700 hover:bg-stone-50"
+                className="flex min-h-[var(--inv-tap)] w-full touch-manipulation items-center px-4 text-left text-sm text-sky-700 hover:bg-stone-50"
               >
                 #{tag}
               </button>
