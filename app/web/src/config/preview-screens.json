@@ -19,6 +19,8 @@
     { "key": "community", "group": "承認後", "label": "コミュニティ", "account": "guest", "path": "/guestbook/community", "settleMs": 4000 },
     { "key": "notifications", "group": "承認後", "label": "通知", "account": "guest", "path": "/guestbook/notifications", "settleMs": 3000 },
     { "key": "settings", "group": "承認後", "label": "マイページ", "account": "guest", "path": "/guestbook/settings", "settleMs": 3500 },
+    { "key": "guide", "group": "ご案内", "label": "ご案内のトップ", "account": "guest", "path": "/guide", "settleMs": 2500 },
+    { "key": "guide-details", "group": "ご案内", "label": "当日のご案内", "account": "guest", "path": "/guide/details", "settleMs": 6000 },
     { "key": "payment", "group": "ご案内", "label": "会費", "account": "guest", "path": "/guide/payment", "settleMs": 3500 },
     { "key": "questionnaire", "group": "ご案内", "label": "出欠・アンケート", "account": "guest", "path": "/guide/questionnaire", "settleMs": 3500 }
   ]
