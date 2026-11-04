@@ -79,7 +79,8 @@ async function handle(req: Request) {
   const members: CommunityMember[] = [];
   for (let i = 0; i < candidates.length; i++) {
     const attendance: unknown = privates[i].get("attendance");
-    if (attendance === "declined" || privates[i].get("isActive") === false) continue;
+    // ★親族用の欠席（familyAttendance）も除く★（Issue #240）
+    if (attendance === "declined" || privates[i].get("familyAttendance") === "declined" || privates[i].get("isActive") === false) continue;
     const nickname: unknown = candidates[i].get("nickname");
     const photoURL: unknown = candidates[i].get("photoURL");
     members.push({

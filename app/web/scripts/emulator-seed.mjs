@@ -112,6 +112,14 @@ if (!invitationSnap.exists || invitationSnap.get("updatedBy") === "emulator-seed
   await invitationRef.set({ ...sample, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
 }
 
+// 親族用の招待状の中身（Issue #240。config/invitation_family）。同じく架空の値だけ
+const familyInvitationRef = db.collection("config").doc("invitation_family");
+const familyInvitationSnap = await familyInvitationRef.get();
+if (!familyInvitationSnap.exists || familyInvitationSnap.get("updatedBy") === "emulator-seed") {
+  const sample = JSON.parse(readFileSync(new URL("../src/config/invitation-sample-family.json", import.meta.url), "utf8"));
+  await familyInvitationRef.set({ ...sample, updatedAt: FieldValue.serverTimestamp(), updatedBy: "emulator-seed" });
+}
+
 // 会費の金額（Issue #148）。本番は scripts/ops.mjs payment set で入れる
 const paymentRef = db.collection("config").doc("payment");
 if (!(await paymentRef.get()).exists) {

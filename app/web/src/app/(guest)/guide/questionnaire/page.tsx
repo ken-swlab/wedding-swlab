@@ -15,7 +15,17 @@ import {
   scrollToAnswerField,
   type AnswerDraft,
 } from "@/components/guestbook/AnswerFields";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_OPTIONS, type Attendance, type Ceremony } from "@/types/admin";
+import {
+  ATTENDANCE_LABEL,
+  ATTENDANCE_OPTIONS,
+  CEREMONY_OPTIONS,
+  FAMILY_ATTENDANCE_LABEL,
+  FAMILY_ATTENDANCE_OPTIONS,
+  type Attendance,
+  type Ceremony,
+  type FamilyAttendance,
+  type InvitationKind,
+} from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useInvitationProgram } from "@/hooks/useInvitationProgram";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
@@ -24,6 +34,13 @@ import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 
 const ATTENDANCE_VALUES = new Set<string>(ATTENDANCE_OPTIONS.map((o) => o.value));
 const CEREMONY_VALUES = new Set<string>(CEREMONY_OPTIONS.map((o) => o.value));
+const FAMILY_ATTENDANCE_VALUES = new Set<string>(FAMILY_ATTENDANCE_OPTIONS.map((o) => o.value));
+
+/** 出欠の表記。親族用（Issue #240）は familyAttendance の表記 */
+function attendanceText(kind: InvitationKind, d: AnswerDraft): string {
+  if (kind === "family") return d.familyAttendance === "unanswered" ? "未回答" : FAMILY_ATTENDANCE_LABEL[d.familyAttendance];
+  return ATTENDANCE_LABEL[d.attendance];
+}
 
 /** guestPrivate の値をフォームの初期値にする。姓・名が無い古い形は「姓 名」を最初の空白で分ける */
 function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
@@ -42,6 +59,8 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
     firstKana,
     attendance: (typeof d.attendance === "string" && ATTENDANCE_VALUES.has(d.attendance) ? d.attendance : "unanswered") as Attendance,
     ceremony: (typeof d.ceremony === "string" && CEREMONY_VALUES.has(d.ceremony) ? d.ceremony : "") as Ceremony | "",
+    familyAttendance: (typeof d.familyAttendance === "string" && FAMILY_ATTENDANCE_VALUES.has(d.familyAttendance) ? d.familyAttendance : "unanswered") as FamilyAttendance | "unanswered",
+    stayPrevNight: typeof d.stayPrevNight === "boolean" ? d.stayPrevNight : null,
     drinkLevel: isDrinkLevel(d.drinkLevel) ? d.drinkLevel : null,
     carFare: typeof d.carFare === "boolean" ? d.carFare : null,
     hasAllergy: typeof d.hasAllergy === "boolean" ? d.hasAllergy : allergy.trim() ? true : null,
@@ -58,6 +77,8 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
  * ★出欠を変えて保存するときだけ確認のダイアログを出す★
  *   出欠は座席と料理の数に関わる。誤ってタップしたまま保存しないよう、もう一度押してもらう。
  *   アレルギーなどは確認なしで保存する。どちらの変更も管理画面に「変更あり」と出る（answers-server の★参照）。
+ * ★親族用の招待状から答えた人（guestPrivate.invitationKind === "family"。Issue #240）は親族用のフォーム★
+ *   質問・文字の大きさとも招待状と同じ。種類はサーバーも記録から決める（ここで切り替えても送る形が変わるだけ）。
  */
 export default function GuideQuestionnairePage() {
   const { user, profile, tags } = useGuestSessionContext();
@@ -68,6 +89,7 @@ export default function GuideQuestionnairePage() {
   const darkEntry = useDarkEntry();
   const [saved, setSaved] = useState<AnswerDraft | null>(null);
   const [form, setForm] = useState<AnswerDraft | null>(null);
+  const [kind, setKind] = useState<InvitationKind>("friend");
   const [loadError, setLoadError] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -85,6 +107,7 @@ export default function GuideQuestionnairePage() {
       .then((snap) => {
         if (!alive) return;
         const a = draftFromPrivate(snap.data() ?? {});
+        setKind(snap.data()?.invitationKind === "family" ? "family" : "friend");
         setSaved(a);
         setForm(a);
       })
@@ -103,9 +126,10 @@ export default function GuideQuestionnairePage() {
   }
 
   // 比べるのは送る形（前後の空白や、隠れた項目に残った値の違いで「変更あり」にしない）
-  const changed = !!form && !!saved && JSON.stringify(answerPayload(form)) !== JSON.stringify(answerPayload(saved));
-  const attendanceChanged = !!form && !!saved && form.attendance !== saved.attendance;
-  const missing = form ? answerDraftMissing(form) : [];
+  const changed = !!form && !!saved && JSON.stringify(answerPayload(form, kind)) !== JSON.stringify(answerPayload(saved, kind));
+  const attendanceChanged =
+    !!form && !!saved && (kind === "family" ? form.familyAttendance !== saved.familyAttendance : form.attendance !== saved.attendance);
+  const missing = form ? answerDraftMissing(form, kind) : [];
   // ★足りない項目があっても保存は押せる★ 押したら、足りない最初の項目へスクロールする（Issue #157 A-3）
   const canSave = changed && !busy;
 
@@ -123,14 +147,14 @@ export default function GuideQuestionnairePage() {
 
   async function save() {
     if (!form) return;
-    const payload = answerPayload(form);
+    const payload = answerPayload(form, kind);
     setConfirming(false);
     setBusy(true);
     setMessage(null);
     setError(null);
     try {
       await postJson("/api/guest/questionnaire", payload);
-      const next: AnswerDraft = { ...payload };
+      const next: AnswerDraft = { ...form, ...payload };
       setSaved(next);
       setForm(next);
       setMessage("保存しました");
@@ -163,8 +187,14 @@ export default function GuideQuestionnairePage() {
       ) : !form ? (
         <div className="h-80 animate-pulse rounded-2xl bg-stone-200/60" />
       ) : (
-        <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm">
+        <form
+          ref={formRef}
+          onSubmit={onSubmit}
+          noValidate
+          className={`rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm ${kind === "family" ? "inv-family inv-scaled" : ""}`}
+        >
           <AnswerFields
+            kind={kind}
             value={form}
             onChange={update}
             program={program?.program}
@@ -173,7 +203,7 @@ export default function GuideQuestionnairePage() {
               attendanceChanged &&
               saved && (
                 <p className="mt-1.5 text-xs text-amber-700">
-                  {ATTENDANCE_LABEL[saved.attendance]} から {ATTENDANCE_LABEL[form.attendance]} に変更します（保存前に確認します）
+                  {attendanceText(kind, saved)} から {attendanceText(kind, form)} に変更します（保存前に確認します）
                 </p>
               )
             }
@@ -213,8 +243,8 @@ export default function GuideQuestionnairePage() {
 
       {confirming && saved && form && (
         <ConfirmAttendance
-          from={saved.attendance}
-          to={form.attendance}
+          from={attendanceText(kind, saved)}
+          to={attendanceText(kind, form)}
           onCancel={() => setConfirming(false)}
           onConfirm={() => void save()}
         />
@@ -239,8 +269,8 @@ function ConfirmAttendance({
   onCancel,
   onConfirm,
 }: {
-  from: Attendance;
-  to: Attendance;
+  from: string;
+  to: string;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -272,7 +302,7 @@ function ConfirmAttendance({
           本当に出欠を変更しますか？
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-stone-600">
-          {ATTENDANCE_LABEL[from]} → <span className="font-semibold text-stone-900">{ATTENDANCE_LABEL[to]}</span>
+          {from} → <span className="font-semibold text-stone-900">{to}</span>
         </p>
         <p className="mt-1 text-xs leading-relaxed text-stone-500">※変更内容は新郎新婦へ通知されます。</p>
         <div className="mt-5 grid grid-cols-2 gap-2">

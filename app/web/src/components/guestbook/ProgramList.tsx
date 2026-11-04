@@ -28,13 +28,13 @@ export function ProgramList({ program }: { program: readonly ProgramItem[] }) {
             : { background: INVITATION_COLORS.paper, borderColor: INVITATION_COLORS.gold };
           return (
             <li key={i} className="relative flex items-center py-3">
-              <span className="shrink-0 whitespace-nowrap text-right font-serif text-[17px] font-medium tabular-nums text-stone-600" style={{ width: TIME_COL_PX }}>
+              <span className="shrink-0 whitespace-nowrap text-right font-serif text-[length:calc(17px*var(--inv-scale))] font-medium tabular-nums text-stone-600" style={{ width: TIME_COL_PX }}>
                 {programTime(row)}
               </span>
               <span aria-hidden className="relative z-[1] shrink-0 rounded-full border-[1.5px]" style={{ ...dot, width: DOT_PX, height: DOT_PX, marginLeft: DOT_GAP_PX }} />
               <span className="ml-4 min-w-0 text-left">
-                <span className="block font-serif text-[16px] font-semibold text-stone-800">{row.title}</span>
-                {row.note && <span className="block text-[12px] leading-relaxed text-stone-500">{row.note}</span>}
+                <span className="block font-serif text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-800">{row.title}</span>
+                {row.note && <span className="block text-[length:calc(12px*var(--inv-scale))] leading-relaxed text-stone-500">{row.note}</span>}
               </span>
             </li>
           );
@@ -74,7 +74,7 @@ export function ProgramStrip({
       style={{ background: `${INVITATION_COLORS.paper}f0`, ...style }}
     >
       <div className="flex min-h-7 items-center gap-2">
-        <p className="min-w-0 flex-1 truncate font-serif text-[10px] tracking-[0.35em] text-stone-500">
+        <p className="min-w-0 flex-1 truncate font-serif text-[length:calc(10px*var(--inv-scale))] tracking-[0.35em] text-stone-500">
           PROGRAM {shortDateLabel(date)} ／ {venue}
         </p>
         {action}

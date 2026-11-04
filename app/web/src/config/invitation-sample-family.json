@@ -1,0 +1,46 @@
+{
+  "groom": "新郎 太郎",
+  "bride": "新婦 花子",
+  "dateLabel": "20XX年X月X日（土）",
+  "venueName": "（ダミー）会場名",
+  "venueAddress": "（ダミー）住所",
+  "venueMapUrl": "",
+  "greeting": ["（ダミー）親族用のご挨拶の一行目です。", "（ダミー）ご挨拶の二行目です。"],
+  "program": [
+    { "time": "10:00", "title": "親族会食", "note": "（ダミー）親族のみ", "highlight": true, "role": "meal" },
+    { "time": "11:30", "title": "挙式の集合", "note": "", "highlight": false, "role": "gather" },
+    { "time": "11:45", "title": "挙式", "note": "（ダミー）補足", "highlight": true, "role": "ceremony" },
+    { "time": "12:30", "title": "親族写真", "note": "", "highlight": false },
+    { "time": "13:00", "title": "解散", "note": "", "highlight": false }
+  ],
+  "approvalNote": "（ダミー）通常、1〜2 日以内に確認します。",
+  "passcodeHint": "宴の日です",
+  "passcodeHintFrom": 2,
+  "photos": {
+    "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "", "overlayText": "", "overlayColor": "black" }
+  },
+  "fromUs": [
+    { "name": "太郎", "photoUrl": "/placeholders/invitation/groom.svg", "alt": "（ダミー）新郎の写真", "message": "（ダミー）新郎からのメッセージです。3〜4行くらいの長さを想定しています。来てくれるのを楽しみにしています。" },
+    { "name": "花子", "photoUrl": "/placeholders/invitation/bride.svg", "alt": "（ダミー）新婦の写真", "message": "（ダミー）新婦からのメッセージです。3〜4行くらいの長さを想定しています。ぜひお腹を空かせて来てください。" }
+  ],
+  "highlights": [
+    { "key": "food", "title": "料理", "body": "（ダミー）料理の紹介です。具体的な料理名は書かず、雰囲気だけを伝えます。" },
+    { "key": "drink", "title": "お酒", "body": "（ダミー）お酒の紹介です。" },
+    { "key": "game", "title": "競技", "body": "（ダミー）当日の競技の紹介です。" }
+  ],
+  "showGreeting": false,
+  "opening": {
+    "date": "20XX.XX.XX",
+    "venue": "（かいじょう）",
+    "names": {
+      "kanjiFull": ["山田 一郎", "山田 花子"],
+      "kanjiFirst": ["一郎", "花子"],
+      "hiraFull": ["やまだ いちろう", "やまだ はなこ"],
+      "hiraFirst": ["いちろう", "はなこ"],
+      "kataFull": ["ヤマダ イチロウ", "ヤマダ ハナコ"],
+      "kataFirst": ["イチロウ", "ハナコ"],
+      "latinFull": ["Ichiro Yamada", "Hanako Yamada"],
+      "latinFirst": ["Ichiro", "Hanako"]
+    }
+  }
+}

@@ -112,9 +112,9 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
   return (
     <section className="invitation-rise text-center">
       <div className={fade}>
-      <p className="text-[11px] tracking-[0.35em] text-stone-500">PASSCODE</p>
+      <p className="text-[length:calc(11px*var(--inv-scale))] tracking-[0.35em] text-stone-500">PASSCODE</p>
       <h2 className="mt-3 font-serif text-xl text-stone-800">パスコードをご入力ください</h2>
-      <p className="mt-3 text-[13px] leading-relaxed text-stone-500">
+      <p className="mt-3 text-[length:calc(13px*var(--inv-scale))] leading-relaxed text-stone-500">
         LINE でお送りした {PASSCODE_LENGTH} 桁の数字です。
         <br />
         最後の数字を入れると、そのまま招待状が開きます。
@@ -161,16 +161,16 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
           autoCapitalize="off"
           spellCheck={false}
           maxLength={PASSCODE_LENGTH * 2}
-          className="absolute inset-0 h-full w-full touch-manipulation cursor-pointer text-[16px] text-transparent caret-transparent opacity-0 disabled:cursor-default"
+          className="absolute inset-0 h-full w-full touch-manipulation cursor-pointer text-[length:calc(16px*var(--inv-scale))] text-transparent caret-transparent opacity-0 disabled:cursor-default"
         />
       </div>
 
       <div className={`mt-6 min-h-[4.5rem] ${fade}`} aria-live="polite">
-        {(busy || cleared) && <p className="text-[13px] text-stone-500">確認しています…</p>}
+        {(busy || cleared) && <p className="text-[length:calc(13px*var(--inv-scale))] text-stone-500">確認しています…</p>}
         {error && (
           <p
             role="alert"
-            className={`mx-auto max-w-[20rem] rounded-xl px-4 py-3 text-[13px] leading-relaxed ${
+            className={`mx-auto max-w-[20rem] rounded-xl px-4 py-3 text-[length:calc(13px*var(--inv-scale))] leading-relaxed ${
               locked ? "bg-amber-50 text-amber-800" : "bg-rose-50 text-rose-700"
             }`}
           >
@@ -179,10 +179,10 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
         )}
         {/* ★ヒントは打ち直している間も残す★ エラーは1桁めで消えるが、ヒントは次に送るまで見えていてほしい */}
         {feedback && (feedback.hint || feedback.remaining != null) && (
-          <div className="mx-auto mt-2 max-w-[20rem] text-[13px] leading-relaxed text-stone-600">
+          <div className="mx-auto mt-2 max-w-[20rem] text-[length:calc(13px*var(--inv-scale))] leading-relaxed text-stone-600">
             {feedback.hint && <p>ヒント：{feedback.hint}</p>}
             {feedback.remaining != null && (
-              <p className="mt-1 text-[12px] text-stone-500">
+              <p className="mt-1 text-[length:calc(12px*var(--inv-scale))] text-stone-500">
                 {feedback.nextLock === "permanent"
                   ? `あと${feedback.remaining}回まちがえると、受付を停止します`
                   : `あと${feedback.remaining}回まちがえると、${PASSCODE_LOCK_MINUTES}分お待ちいただきます`}
@@ -192,7 +192,7 @@ export function PasscodeStep({ onSubmit, onCleared }: { onSubmit: (passcode: str
         )}
       </div>
 
-      <p className={`mt-2 text-[11px] leading-relaxed text-stone-500 ${fade}`}>
+      <p className={`mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500 ${fade}`}>
         お困りのときは、新郎新婦へ LINE でお気軽にご連絡ください。
       </p>
     </section>

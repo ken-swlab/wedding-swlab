@@ -12,13 +12,21 @@ import { useInvitationProgram } from "@/hooks/useInvitationProgram";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { EntryFinish } from "@/components/opening/EntryFinish";
 import { classifyDisplayName } from "@/lib/opening-names";
+import { recallInvitationKind } from "@/lib/invitation-kind-local";
+import type { InvitationKind } from "@/types/admin";
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { user, profile } = useGuestSession();
+  const { user, profile, invitationKind } = useGuestSession();
   const needsCheck = profile !== null && !profile.isRegistered;
   const [cleared, setCleared] = useState(false);
-  const program = useInvitationProgram(!!user);
+  /**
+   * ★招待状の種類（Issue #240）★ 登録済みなら記録（guestPrivate.invitationKind）、まだならこの端末で最後に開いた招待状。
+   *   どちらで答えるかの記録はサーバーが最初の回答のときだけ書く（あとから変わらない）。
+   */
+  const [localKind] = useState<InvitationKind>(recallInvitationKind);
+  const kind: InvitationKind = profile?.isRegistered ? invitationKind : localKind;
+  const program = useInvitationProgram(!!user, kind);
   // 初めて送ったときだけエントリー完了を出す（Issue #149）。承認待ちからの「入力内容を変更する」では出さない
   const [finished, setFinished] = useState(false);
 
@@ -34,7 +42,7 @@ export default function OnboardingPage() {
       .then((s) => {
         if (cancelled) return;
         if (s.cleared) setCleared(true);
-        else router.replace("/invitation");
+        else router.replace(kind === "family" ? "/invitation/family" : "/invitation");
       })
       .catch(() => {
         if (!cancelled) setCleared(true);
@@ -42,16 +50,22 @@ export default function OnboardingPage() {
     return () => {
       cancelled = true;
     };
-  }, [needsCheck, router]);
+  }, [needsCheck, router, kind]);
 
   // layout が揃うまで待つ。ここに来る時点で通常は揃っている
   if (!user || !profile || (needsCheck && !cleared)) return <SplashScreen phase="booting" />;
   if (finished) {
-    return <EntryFinish guestName={classifyDisplayName(user.displayName).guest} onNext={() => router.replace("/guestbook")} />;
+    return (
+      <div className={kind === "family" ? "inv-family inv-scaled" : undefined}>
+        <EntryFinish guestName={classifyDisplayName(user.displayName).guest} onNext={() => router.replace("/guestbook")} />
+      </div>
+    );
   }
 
   return (
     <GuestShell>
+      {/* 親族用は文字とボタンを約 1.12 倍（globals.css の .inv-family）。招待状のエントリー画面と同じ */}
+      <div className={kind === "family" ? "inv-family inv-scaled" : undefined}>
       {/* 当日の流れを上部に固定する（Issue #166。招待状のエントリー画面と同じ） */}
       {program && (
         <ProgramStrip
@@ -63,6 +77,7 @@ export default function OnboardingPage() {
         />
       )}
       <OnboardingForm
+        kind={kind}
         displayName={user.displayName}
         initialNickname={profile.nickname}
         program={program?.program}
@@ -73,6 +88,7 @@ export default function OnboardingPage() {
           else router.replace("/guestbook");
         }}
       />
+      </div>
     </GuestShell>
   );
 }

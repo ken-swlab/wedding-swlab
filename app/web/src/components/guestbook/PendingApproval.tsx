@@ -75,7 +75,7 @@ export function PendingApproval({
   // 表示の形（1/100 秒・切り捨て）で比べる。同じに見える値なら添えない
   const currentDiffers = reactionMs != null && currentMs !== null && formatReaction(currentMs) !== formatReaction(reactionMs);
   const card = { borderColor: OPENING_COLORS.laneLine, background: "rgba(255,255,255,0.04)" };
-  const editClass = "inline-flex min-h-11 touch-manipulation items-center text-sm underline underline-offset-4";
+  const editClass = "inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center text-sm underline underline-offset-4";
 
   return (
     <main
@@ -90,12 +90,12 @@ export function PendingApproval({
         className={`w-full max-w-[22rem] transition-opacity ease-out ${approved ? "pointer-events-none opacity-0" : "opacity-100"}`}
         style={{ transitionDuration: `${OPENING_TIMING.approvedBodyFade}ms` }}
       >
-        <p className="text-[12px] tracking-[0.35em]" style={{ fontFamily: MONO, color: OPENING_COLORS.dim }}>
+        <p className="text-[length:calc(12px*var(--inv-scale))] tracking-[0.35em]" style={{ fontFamily: MONO, color: OPENING_COLORS.dim }}>
           EVENT 1　ENTRY
         </p>
         <h1 className="mt-5 text-2xl font-bold tracking-wide">承認待ち</h1>
         {/* ★改行は文の切れ目に手で入れる★（Issue #157 A-1。iOS の Safari は word-break: auto-phrase に未対応） */}
-        <p className="mt-4 text-balance text-[15px] leading-[1.9]">
+        <p className="mt-4 text-balance text-[length:calc(15px*var(--inv-scale))] leading-[1.9]">
           ただいま新郎新婦が確認しています。
           <br />
           承認されると、
@@ -111,7 +111,7 @@ export function PendingApproval({
           <section aria-label={test ? "今回のタイム" : "あなたの記録"} className="mt-7 rounded-2xl border px-5 py-4" style={card}>
             {reactionMs !== null ? (
               <>
-                <p className="text-[13px]" style={{ color: OPENING_COLORS.ink }}>
+                <p className="text-[length:calc(13px*var(--inv-scale))]" style={{ color: OPENING_COLORS.ink }}>
                   {test ? "今回のタイム" : "あなたの記録"}
                   <strong className="ml-2 text-3xl font-extrabold tabular-nums" style={{ fontFamily: MONO, color: OPENING_COLORS.led }}>
                     {formatReaction(reactionMs)}
@@ -119,16 +119,16 @@ export function PendingApproval({
                   <span className="ml-1">秒</span>
                 </p>
                 {!test && currentDiffers && currentMs !== null && (
-                  <p className="mt-1.5 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
+                  <p className="mt-1.5 text-[length:calc(12px*var(--inv-scale))] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
                     今回 <span className="tabular-nums">{formatReaction(currentMs)}</span> 秒（記録は最初の1回だけです）
                   </p>
                 )}
-                <p className="mt-2 text-[12px] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
+                <p className="mt-2 text-[length:calc(12px*var(--inv-scale))] leading-relaxed" style={{ color: OPENING_COLORS.ink, opacity: 0.75 }}>
                   {test ? "（テスト・記録されません）" : "承認後、マイページのランキングで確認できます。"}
                 </p>
               </>
             ) : (
-              <p className="text-[13px] leading-relaxed">マイページから挑戦できます（承認後）</p>
+              <p className="text-[length:calc(13px*var(--inv-scale))] leading-relaxed">マイページから挑戦できます（承認後）</p>
             )}
           </section>
         )}

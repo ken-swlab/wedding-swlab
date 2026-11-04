@@ -103,7 +103,10 @@ async function handle(req: Request) {
     } else if (body.isApproved === true) {
       // ★必ず和集合★ 統合済みゲストはタグが空でないため
       //   「空のときだけ付与」だと all が抜けて画面が真っ白になる。
-      tags = [...new Set([...current.tags, ...DEFAULT_GUEST_TAGS])].sort();
+      // ★親族用の招待状から答えた人には family も付ける★（Issue #240。guestPrivate.invitationKind）
+      const priv = await db.collection("guestPrivate").doc(uid).get();
+      const familyTag = priv.get("invitationKind") === "family" ? ["family"] : [];
+      tags = [...new Set([...current.tags, ...DEFAULT_GUEST_TAGS, ...familyTag])].sort();
       // ★承認前に「大量」と答えた人の酒豪タグは、承認のときに付ける★（Issue #147。lib/drink-tag-server.ts）
       tags = await withHeavyDrinkerTag(db, uid, tags);
     } else if (body.isApproved === false) {

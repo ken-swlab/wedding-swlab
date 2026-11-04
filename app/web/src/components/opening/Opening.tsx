@@ -40,6 +40,7 @@ export function Opening({
   intro,
   under,
   testDive,
+  family = false,
   onReaction,
   onFinish,
 }: {
@@ -56,6 +57,11 @@ export function Opening({
   under?: ReactNode;
   /** テスト画面だけ: 飛び込みの場面から始める（/admin/invitation_test。Issue #165 の切り替わりの確認用） */
   testDive?: { reactionMs: number };
+  /**
+   * 親族用の招待状（Issue #240）。案内の文字（StartScene）と水の下の招待状を約 1.12 倍にする（globals.css の .inv-family）。
+   * ★body へ Portal で出すので、招待状の外側の .inv-family は届かない★ ここで付け直す。
+   */
+  family?: boolean;
   onReaction?: (reactionMs: number) => void;
   onFinish: (result: OpeningResult) => void;
 }) {
@@ -98,7 +104,7 @@ export function Opening({
       aria-modal="true"
       aria-label="オープニング"
       onContextMenu={(e) => e.preventDefault()}
-      className="fixed inset-0 z-[100] touch-none select-none overflow-hidden"
+      className={`fixed inset-0 z-[100] touch-none select-none overflow-hidden ${family ? "inv-family" : ""}`}
       style={{ background: calm ? OPENING_COLORS.calm : "#000", WebkitTouchCallout: "none", WebkitUserSelect: "none" }}
     >
       {scene === "call" && <CallScene date={date} venue={venue} intro={intro} onDone={() => setScene("lanes")} />}

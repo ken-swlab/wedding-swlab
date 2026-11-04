@@ -9,6 +9,9 @@ import type {
   Attendance, Ceremony, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
 } from "@/types/admin";
 import { isDrinkLevel } from "@/config/drink";
+import { FAMILY_ATTENDANCE_OPTIONS, type FamilyAttendance } from "@/types/admin";
+
+const FAMILY_ATTENDANCE_VALUES = new Set<unknown>(FAMILY_ATTENDANCE_OPTIONS.map((o) => o.value));
 
 /**
  * 3つのコレクションをそれぞれ読む上限。★届いたら画面に警告を出す（truncated）★（Issue #203）
@@ -70,7 +73,10 @@ export function useAdminGuests(enabled: boolean) {
         const v = d.data();
         next[d.id] = {
           uid: d.id,
+          invitationKind: v.invitationKind === "family" ? "family" : "friend",
           attendance: (v.attendance ?? "unanswered") as Attendance,
+          familyAttendance: FAMILY_ATTENDANCE_VALUES.has(v.familyAttendance) ? (v.familyAttendance as FamilyAttendance) : null,
+          stayPrevNight: typeof v.stayPrevNight === "boolean" ? v.stayPrevNight : null,
           ceremony: (v.ceremony ?? "") as Ceremony | "",
           drinkLevel: isDrinkLevel(v.drinkLevel) ? v.drinkLevel : null,
           carFare: typeof v.carFare === "boolean" ? v.carFare : null,
@@ -143,7 +149,10 @@ export function useAdminGuests(enabled: boolean) {
           const a = adm[p.uid];
           return {
             ...p,
+            invitationKind: v?.invitationKind ?? "friend",
             attendance: v?.attendance ?? "unanswered",
+            familyAttendance: v?.familyAttendance ?? null,
+            stayPrevNight: v?.stayPrevNight ?? null,
             ceremony: v?.ceremony ?? "",
             drinkLevel: v?.drinkLevel ?? null,
             carFare: v?.carFare ?? null,
