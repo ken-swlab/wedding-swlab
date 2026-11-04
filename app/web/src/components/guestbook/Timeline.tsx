@@ -43,14 +43,15 @@ export function Timeline({
 
   if (posts.length === 0) {
     return (
-      <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">
+      <p className="py-10 text-center text-sm text-stone-400">
         まだ投稿がありません。最初のメッセージを書いてみませんか。
       </p>
     );
   }
 
   return (
-    <div className="space-y-3">
+    // 投稿は罫線で区切るので、間は空けない（Issue #236）
+    <div>
       {posts.map((p) => <PostCard key={p.id} post={p} user={user} actions={own.actionsFor(p)} />)}
       {own.editor}
     </div>

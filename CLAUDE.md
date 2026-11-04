@@ -49,10 +49,12 @@ cd app/web && npm test           # 単体テスト（tests/*.test.mjs。Node 22.
 python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認（読み取りのみ）
 python3 scripts/media-referer-check.py <写真の URL>   # 公開バケットの Referer の制限を外から確認（読み取りのみ。Issue #123）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
+cd app/web && npm run test:screens   # 小さい画面のスクショを一通り撮る（Issue #230。app/web/screenshots/ に出る）
 ```
 
 - 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。
 
+- 小さい画面の確認は `npm run test:screens`（Issue #230）。新しいエミュレーターと next dev（3100 番）を立ち上げ、iPhone 13 mini・SE・小さい Android・幅 320px の大きさ（ブラウザのバーで縮んだ高さを含む）で、主な画面の1画面目とページ全体を撮る。場面の一覧は `src/config/preview-screens.json`、開発用の見本ページは `/dev/preview?screen=<key>`（本番では 404）。横スクロールと 44px に満たない押せる部品は `screenshots/report.json` に出る。`dev:emulator` と同時には動かせない。Playwright は npm の依存に足していない（手元に入っているものを使う）。LINE・Safari・Chrome の実際のバーとの重なりは、実機で確かめる。
 - テストがあるのは Firestore の Rules（`infra/firestore/test`。Issue #101）と、アプリのごく一部の純粋な関数（`app/web/tests`。Issue #131。依存は足さず Node 標準の `node --test`。テストする関数は `@/` で値を import しない）だけ。初回は `cd infra/firestore/test && npm ci`。Java 21 が要る。つなぐ先はエミュレーター（プロジェクト `demo-wedding-rules`）だけで、本番には届かない。`dev:emulator` と同じポート（8080）を使うので、同時には動かせない。アプリ本体（`app/web/src`）の画面・API のテストは無く、型チェックとビルドの通過が最低ライン。
 - **Rules（`infra/firestore/firestore.rules`）を変える PR では、対応するテスト（許可と拒否の両方）を `infra/firestore/test/rules.test.mjs` に足し、`npm test` を通す。** CI は `rules-test`。
 - CI（`.github/workflows/`）: `security`（gitleaks・npm audit・OSV-Scanner・Semgrep・Checkov）、`rules-test`、`unit-test`、`deps-runtime`。Vercel は CI を待たずにデプロイするので、PR 上で赤が無いことを見てからマージする。`npm audit fix --force` は使わない。脆弱性の例外は `.github/audit-ignore.json`（理由と 90 日以内の期限が必須）、秘密の誤検知は `.gitleaks.toml`（理由つき）。
@@ -119,4 +121,16 @@ cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュ
   数字は同じ行の日本語と同じ書体にそろえる（時刻は隣の予定名に合わせて明朝）。縦にそろえたい数字（時刻・件数・金額）には `tabular-nums`。
   ゴシックは端末の書体（`globals.css` の `--font-sans`。ヒラギノ角ゴ・Noto Sans）で、Arial を混ぜない。iPhone は英数字も和文と同じ書体で出る。Android は英数字が Roboto になることがあるが、読み込みを増やさないため Web フォントは足さない。MONO は `config/opening.ts` の `MONO`（Geist Mono）だけを使い、コピーする番号・コードの `font-mono` も同じ書体。
   アイコンは線のアイコン（`components/icons.tsx`）を使い、絵文字や記号（☰ ⌕ など）をアイコン代わりにしない（文章の中の絵文字はよい）。新しく作る画面はこれに従う。
+- **色のルール（Issue #236）**: ゲストブック・ご案内は「枠なし・無彩色・写真が主役」（カードにせず、罫線と余白で区切る）。色は役割のある所にだけ置き、どの色も「なぜそこにあるか」を説明できるようにする。テーマは `config/theme.ts` の `THEME_PAPER`（紙と墨）。
+
+  | 役割 | 色 | 使う場所 |
+  |---|---|---|
+  | 地 | 紙 `#f9f8f6`（`stone-50`。招待状と同じ） | ゲストブック・ご案内の背景、ヘッダー・下のタブの地（`bg-stone-50/94`） |
+  | 文字・アイコン | 墨 `stone-900` / 補足 `stone-500` / 罫線 `#ebe6df`（`stone-200`） | 本文・名前・アイコン・区切り |
+  | **押す場所** | **テラコッタ `#b4462a`（`sub-600`）** | ＋ボタン、「写真や一言を投稿する」の帯、投稿画面の「投稿する」（押せるとき）。**ここ以外に使わない** |
+  | 2人らしさ | 金 `INVITATION_COLORS.gold` | ロゴの「&」だけ |
+  | いいね | 赤（`accent`） | ハート・いいねの動き（酒豪のハンコも） |
+  | 状態 | rose / amber / emerald / sky | エラー・警告・成功・情報 |
+
+  タグはゲスト側では無彩色（地なし・枠 1px `tagline` #e2dcd3・文字 `stone-500`）。色分け（`palette`）は管理画面だけ。招待状まわり・オープニング・黒い画面の色は、このルールの外。
 - 詳しいルールは `.claude/rules/`（該当ファイルを読むと自動で読み込まれる）: `api.md` / `data.md` / `media.md` / `frontend.md` / `platform.md` / `infra.md`。

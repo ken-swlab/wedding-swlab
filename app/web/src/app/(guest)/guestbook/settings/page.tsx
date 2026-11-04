@@ -258,7 +258,8 @@ export default function SettingsPage() {
           />
           {!editing && (
             <div className="flex min-h-20 min-w-0 flex-1 items-center gap-2">
-              <h1 className="min-w-0 flex-1 break-words text-xl font-semibold leading-snug text-stone-900">
+              {/* 幅 360px 未満は 18px（Issue #230。320px で「テストゲスト」程度の名前が途中で折り返した）。長い名前は折り返す */}
+              <h1 className="min-w-0 flex-1 break-words text-lg font-semibold leading-snug text-stone-900 min-[360px]:text-xl">
                 {profile ? publicName(profile) : ""}
               </h1>
               <button
@@ -399,16 +400,17 @@ export default function SettingsPage() {
             投稿を読み込めませんでした。時間をおいて、もう一度お試しください。
           </p>
         ) : mine.posts.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">
+          <p className="py-10 text-center text-sm text-stone-400">
             まだ投稿がありません
           </p>
         ) : (
-          <div className="space-y-3">
+          // 投稿は罫線で区切るので、間は空けない（Issue #236）
+          <div>
             {mine.posts.map((p) =>
               p.status !== "visible" ? (
                 <p
                   key={p.id}
-                  className="rounded-2xl border border-dashed border-stone-300 px-4 py-3 text-sm text-stone-400"
+                  className="-mx-4 border-b border-stone-200 px-4 py-3 text-sm text-stone-400"
                 >
                   非表示にしました。
                 </p>

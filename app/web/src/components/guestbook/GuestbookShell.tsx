@@ -133,7 +133,8 @@ function Header({ compact }: { compact: boolean }) {
     <header className="sticky top-0 z-40 pt-[env(safe-area-inset-top)] group-data-[chrome=compact]/chrome:pointer-events-none">
       <div
         aria-hidden
-        className={`absolute inset-0 -z-10 border-b border-stone-200/80 bg-white/95 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
+        // 地は紙の色の半透明（Issue #236。stone-50 = 紙 #f9f8f6）、境目は罫線 1px
+        className={`absolute inset-0 -z-10 border-b border-stone-200 bg-stone-50/94 backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:-translate-y-full`}
       />
       {/* 部品の間は 6px（gap-1.5）。ロゴ「H&K」（Issue #226）が「GB」より広いので、幅 320px でも検索欄を 160px 以上残す */}
       <div className="mx-auto flex h-14 max-w-xl items-center gap-1.5 px-4">
@@ -186,7 +187,8 @@ function Header({ compact }: { compact: boolean }) {
           aria-label="新しく投稿する"
           // 承認後の初回の演出（Issue #150）の2つ目の案内で照らす
           data-welcome-plus=""
-          className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white transition hover:bg-stone-700"
+          // ★押す場所の色（テラコッタ・sub）★（Issue #236）。ここ・投稿の帯・投稿画面の「投稿する」だけに使う
+          className="pointer-events-auto flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full bg-sub-600 text-2xl leading-none text-white transition hover:bg-sub-700"
         >
           <span aria-hidden>＋</span>
         </button>
@@ -268,7 +270,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
       <nav
         aria-label="ゲストブックのメニュー"
         inert={compact}
-        className={`fixed inset-x-0 bottom-0 z-40 origin-[2.75rem_calc(100%-2.75rem)] border-t border-stone-200/80 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:pointer-events-none group-data-[chrome=compact]/chrome:scale-x-[0.14] group-data-[chrome=compact]/chrome:scale-y-[0.6] group-data-[chrome=compact]/chrome:opacity-0`}
+        className={`fixed inset-x-0 bottom-0 z-40 origin-[2.75rem_calc(100%-2.75rem)] border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:pointer-events-none group-data-[chrome=compact]/chrome:scale-x-[0.14] group-data-[chrome=compact]/chrome:scale-y-[0.6] group-data-[chrome=compact]/chrome:opacity-0`}
       >
         <ul className="mx-auto flex h-16 max-w-xl">
           {NAV.map((item) => {
@@ -288,8 +290,11 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                     e.preventDefault();
                     scrollToTop();
                   }}
-                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition ${
-                    on ? "text-stone-900" : "text-stone-400 hover:text-stone-600"
+                  // ★ラベルは1行★（Issue #230）幅 320px では 1 タブ 64px で、11px だと「タイムライン」「コミュニティ」が折り返した。
+                  //   幅 360px 未満だけ 10px にし、折り返さない
+                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[11px] transition max-[359px]:text-[10px] ${
+                    // 選んでいるタブは墨の太字（Issue #236。下線や色は付けない）
+                    on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}
                 >
                   <span aria-hidden className="relative flex h-5 items-center leading-none">
@@ -305,13 +310,15 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         </ul>
       </nav>
 
-      {/* 全画面のときだけ出る丸いボタン。押すと横長のナビに戻す（スクロール位置はそのまま） */}
+      {/* 全画面のときだけ出る丸いボタン。押すと横長のナビに戻す（スクロール位置はそのまま）
+          ★左上の H&K の丸と同じ見た目★（Issue #238）白の半透明・薄い縁・弱い影・墨のアイコン。
+          以前は黒（stone-900）で画面で一番強い色になり、写真や投稿の＋（テラコッタ）より目立った。黒・テラコッタは使わない */}
       <button
         type="button"
         inert={!compact}
         onClick={onExpand}
         aria-label={`メニューを開く（いまは${current.label}${unread > 0 ? `。通知の未読 ${unreadLabel}` : ""}）`}
-        className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-stone-900/90 text-xl leading-none text-white shadow-lg backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
+        className={`fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-white/90 text-stone-900 shadow-sm ring-1 ring-stone-200/80 backdrop-blur ${CHROME_MOTION} pointer-events-none scale-50 opacity-0 group-data-[chrome=compact]/chrome:pointer-events-auto group-data-[chrome=compact]/chrome:scale-100 group-data-[chrome=compact]/chrome:opacity-100`}
       >
         <span aria-hidden className="flex">{current.icon}</span>
         <UnreadBadge count={unread} className="right-0 top-0" />
@@ -328,7 +335,8 @@ function scrollToTop() {
 /** 通知・設定など、まだ中身の無い画面の共通表示 */
 export function PlaceholderPanel({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-2xl border border-stone-200/80 bg-white p-6 text-center shadow-sm">
+    // 白いカードにせず、紙の地の上に置く（Issue #236）
+    <section className="px-2 py-8 text-center">
       <h1 className="font-serif text-xl tracking-wide text-stone-900">{title}</h1>
       <p className="mt-3 text-sm leading-relaxed text-stone-500">{children}</p>
     </section>

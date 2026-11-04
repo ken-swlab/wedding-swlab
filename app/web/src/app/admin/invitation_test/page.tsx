@@ -13,7 +13,8 @@ import { WelcomeCard, WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { WELCOME_DEFAULT_MESSAGE } from "@/config/welcome";
 import type { WelcomeContent } from "@/types/welcome";
 import { SAMPLE_INVITATION } from "@/config/wedding";
-import { OPENING_NOTE } from "@/config/invitation";
+import { INVITATION_COLORS, OPENING_NOTE } from "@/config/invitation";
+import { GUESTBOOK_LOGO } from "@/config/guestbook";
 import { classifyDisplayName } from "@/lib/opening-names";
 import { clearInvitationRead, hasReadInvitation } from "@/lib/invitation-read";
 import { getJson } from "@/lib/api-client";
@@ -22,6 +23,7 @@ import { PASSCODE_HINT_FROM_DEFAULT } from "@/config/passcode";
 import { ScreenFade } from "@/components/ScreenFade";
 import { APPROVED_REVEAL_MS, OPENING_TIMING } from "@/config/opening";
 import type { InvitationConfig, InvitationStatus } from "@/types/invitation";
+import { CameraIcon, CommunityIcon, GalleryIcon, NotificationIcon, TimelineIcon, UserIcon } from "@/components/icons";
 
 /**
  * 中身は「本番の値」と「見本」を切り替えられる。
@@ -208,6 +210,26 @@ export default function InvitationTestPage() {
     } else setStep({ kind, approval: null });
   }, [displayName, currentOpening, currentInvitation]);
 
+  /**
+   * ?step= で場面を指定して開く（画面の見本と撮影。Issue #230。/dev/preview・scripts/screens-capture.mjs）。
+   * entrance・passcode・opening・dive・open・finish・pending・welcome。開いたときに1回だけ見る（あとは URL に関係なく動く）。
+   */
+  const stepFromUrl = useRef(false);
+  useEffect(() => {
+    if (stepFromUrl.current || loading || !isAdmin) return;
+    stepFromUrl.current = true;
+    const want = new URLSearchParams(window.location.search).get("step");
+    if (!want) return;
+    // 描画の外で切り替える（effect の中で直接 setState しない）
+    const t = setTimeout(() => {
+      if (want === "entrance") restart();
+      else if (want === "opening") onPasscodeCleared();
+      else if (want === "open") setStep({ kind: "open", invitation: currentInvitation, opening: currentOpening });
+      else if (want === "passcode" || want === "dive" || want === "finish" || want === "pending" || want === "welcome") jump(want);
+    }, 0);
+    return () => clearTimeout(t);
+  }, [loading, isAdmin, restart, onPasscodeCleared, jump, currentInvitation, currentOpening]);
+
   if (loading) {
     return <main className="min-h-screen bg-stone-50 p-8"><div className="h-32 animate-pulse rounded-2xl bg-stone-200/60" /></main>;
   }
@@ -237,6 +259,8 @@ export default function InvitationTestPage() {
         }}
         aria-expanded={panelOpen}
         aria-controls="invitation-test-panel"
+        // 小さい画面のスクショ（Issue #230。scripts/screens-capture.mjs）では隠す（ゲストの画面には無い部品）
+        data-preview-hide=""
         style={{ bottom: "calc(5.75rem + env(safe-area-inset-bottom))" }}
         className="fixed right-0 z-[201] min-h-11 touch-manipulation rounded-l-full bg-stone-900/55 pl-3 pr-2 text-[11px] text-white backdrop-blur"
       >
@@ -469,11 +493,11 @@ function TestPending({
 
 /** テスト画面の下のタブ（見た目だけ。本番の GuestbookShell の NAV に合わせる） */
 const TEST_NAV = [
-  { label: "タイムライン", icon: "☰", community: false },
-  { label: "ギャラリー", icon: "▦", community: false },
-  { label: "コミュニティ", icon: "◎", community: true },
-  { label: "通知", icon: "♡", community: false },
-  { label: "マイページ", icon: "☺", community: false },
+  { label: "タイムライン", icon: <TimelineIcon />, community: false },
+  { label: "ギャラリー", icon: <GalleryIcon />, community: false },
+  { label: "コミュニティ", icon: <CommunityIcon />, community: true },
+  { label: "通知", icon: <NotificationIcon />, community: false },
+  { label: "マイページ", icon: <UserIcon />, community: false },
 ] as const;
 
 /** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */
@@ -497,7 +521,12 @@ function WelcomeTestStage({ curtain }: { curtain: boolean }) {
       <ScreenFade from={curtain ? "approved" : null} />
       <header className="sticky top-0 z-40 border-b border-stone-200/80 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-xl items-center gap-2 px-4">
-          <p className="flex-1 font-serif text-xl text-stone-900">GB</p>
+          {/* 本番の左上のロゴ（SpaceSwitch。Issue #226）と同じ見た目 */}
+          <p className="flex-1 font-serif text-[21px] font-medium leading-none tracking-[0.06em] text-stone-900">
+            {GUESTBOOK_LOGO.left}
+            <span style={{ color: INVITATION_COLORS.gold, fontSize: "0.85em", margin: "0 1px" }}>{GUESTBOOK_LOGO.amp}</span>
+            {GUESTBOOK_LOGO.right}
+          </p>
           <span
             data-welcome-plus=""
             className="flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-2xl leading-none text-white"
@@ -513,7 +542,7 @@ function WelcomeTestStage({ curtain }: { curtain: boolean }) {
           空のカードは「タイムラインの一番上に空白のカードが出る」不具合に見えた。投稿の入口だと分かる見た目にする。
         */}
         <div className="flex h-[52px] items-center gap-3 rounded-2xl border border-stone-200/80 bg-white px-4 text-sm text-stone-500 shadow-sm" aria-hidden>
-          <span className="text-lg leading-none">📷</span>
+          <CameraIcon className="h-5 w-5 text-stone-600" />
           <span className="flex-1">写真や一言を投稿する</span>
           <span className="text-stone-400">＋</span>
         </div>
@@ -533,7 +562,7 @@ function WelcomeTestStage({ curtain }: { curtain: boolean }) {
               data-welcome-community={t.community ? "" : undefined}
               className="flex flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-medium text-stone-400"
             >
-              <span className="text-lg leading-none">{t.icon}</span>
+              <span className="flex h-5 items-center">{t.icon}</span>
               {t.label}
             </li>
           ))}

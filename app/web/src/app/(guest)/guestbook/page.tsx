@@ -217,7 +217,7 @@ export default function GuestbookPage() {
                     onExit={() => router.replace(selectModeHref(params, false), { scroll: false })}
                   />
                 ) : personUid && gallery.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">その方が写っている写真はまだありません。</p>
+                  <p className="py-10 text-center text-sm text-stone-400">その方が写っている写真はまだありません。</p>
                 ) : (
               <GalleryGrid posts={gallery} onOpen={setOpenId}
                 footer={
@@ -262,7 +262,8 @@ function SearchSummary({
   onLoadMore: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-stone-200/80 bg-white p-4 text-sm shadow-sm">
+    // カードにせず、下に罫線（Issue #236）
+    <div className="border-b border-stone-200 pb-4 text-sm">
       <p className="text-stone-800">
         「<span className="font-medium">{query}</span>」の検索結果：
         <span className="tabular-nums">{count}</span>
@@ -293,7 +294,7 @@ function LoadMore({ loading, onClick }: { loading: boolean; onClick: () => void 
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="w-full rounded-full border border-stone-200 bg-white py-2.5 text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
+      className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
     >
       {loading ? "読み込み中…" : "もっと見る"}
     </button>

@@ -65,13 +65,14 @@ export default function NotificationsPage() {
           お知らせを読み込めませんでした。時間をおいて、もう一度お試しください。
         </p>
       ) : notifications.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-stone-300 p-10 text-center text-sm text-stone-400">
+        <p className="py-10 text-center text-sm text-stone-400">
           まだお知らせはありません
         </p>
       ) : (
-        <ul className="space-y-5">
+        // カードにせず、投稿と同じく罫線で区切る（Issue #236）
+        <ul>
           {notifications.map((n) => (
-            <li key={n.id}>{user && <NotificationRow notification={n} user={user} unread={fresh.has(n.id)} />}</li>
+            <li key={n.id} className="pt-3">{user && <NotificationRow notification={n} user={user} unread={fresh.has(n.id)} />}</li>
           ))}
           {hasMore && (
             <li>
@@ -139,7 +140,7 @@ function MentionSource({ notification: n, user }: { notification: AppNotificatio
   }
   if (!post || !visible || (n.commentId && !mentioned.comment)) {
     return (
-      <p className="rounded-2xl border border-dashed border-stone-300 px-4 py-3 text-sm text-stone-400">
+      <p className="-mx-4 border-b border-stone-200 px-4 py-3 text-sm text-stone-400">
         この投稿は表示できません
       </p>
     );
@@ -156,7 +157,7 @@ function CommentPreview({ postId, comment }: { postId: string; comment: Comment 
   return (
     <Link
       href={`${postPath(postId)}#${commentAnchorId(comment.id)}`}
-      className="block touch-manipulation rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm transition hover:bg-stone-50"
+      className="-mx-4 block touch-manipulation border-b border-stone-200 px-4 py-[18px] transition hover:bg-stone-100/60"
     >
       <p className="text-[11px] font-medium text-stone-400">コメント</p>
       <p className="mt-1 truncate text-[13px] font-semibold text-stone-800">{author.name}</p>

@@ -245,7 +245,7 @@ function InvitationOpen({
           className="top-0"
           style={{ paddingTop: "max(0.5rem, env(safe-area-inset-top))" }}
           action={
-            <button type="button" onClick={() => go(false)} className="min-h-9 shrink-0 touch-manipulation rounded-full border border-stone-200 bg-white px-3 text-[11px] text-stone-500">
+            <button type="button" onClick={() => go(false)} className="relative min-h-9 shrink-0 touch-manipulation rounded-full border border-stone-200 bg-white px-3 text-[11px] text-stone-500 after:absolute after:-inset-y-1 after:inset-x-0 after:content-['']">
               招待状を見る
             </button>
           }

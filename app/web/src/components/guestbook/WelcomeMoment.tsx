@@ -231,7 +231,8 @@ export function WelcomeMoment({
           <div ref={backdropRef} className="welcome-fade-in absolute inset-0 bg-black/75 backdrop-blur-sm" />
           <div
             className={`absolute inset-0 flex flex-col items-center justify-center px-5 transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}
-            style={{ paddingTop: "env(safe-area-inset-top)", paddingBottom: "env(safe-area-inset-bottom)" }}
+            // ★上はスキップ（右上）の分を空ける★（Issue #230）背の低い画面では見出しが一番上まで来て、スキップと重なった
+            style={{ paddingTop: "calc(env(safe-area-inset-top) + 3.75rem)", paddingBottom: "calc(env(safe-area-inset-bottom) + 0.5rem)" }}
           >
             <p
               role="status"
