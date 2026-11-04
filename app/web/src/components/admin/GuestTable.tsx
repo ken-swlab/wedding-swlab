@@ -7,13 +7,32 @@ import { adminName } from "@/lib/names";
 import { compareGuests, rosterCandidateLabel } from "@/lib/roster";
 import { RosterLinkDialog } from "@/components/admin/RosterLinkDialog";
 import { DRINK_LEVELS } from "@/config/drink";
-import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, PAYMENT_OPTIONS, type Attendance, type GuestRow, type PaymentStatus } from "@/types/admin";
+import { ATTENDANCE_LABEL, ATTENDANCE_OPTIONS, CEREMONY_LABEL, FAMILY_ATTENDANCE_LABEL, PAYMENT_OPTIONS, type Attendance, type FamilyAttendance, type GuestRow, type PaymentStatus } from "@/types/admin";
 
 type Draft = Partial<Pick<GuestRow, "nickname" | "tags" | "attendance" | "allergy" | "paymentStatus" | "aiMemo">>;
 export type GuestPatch = Draft & { isApproved?: boolean; isActive?: boolean; ackAnswerChange?: boolean };
 type SaveState = "idle" | "saving" | "done" | "error";
 
 const ATTENDANCE_STYLE: Record<Attendance, string> = { unanswered: "bg-stone-100 text-stone-600", both: "bg-emerald-50 text-emerald-700", first_only: "bg-teal-50 text-teal-700", second_only: "bg-sky-50 text-sky-700", declined: "bg-rose-50 text-rose-700" };
+/** 親族用の出欠の色（Issue #240）。友人用の ATTENDANCE_STYLE に合わせる */
+const FAMILY_ATTENDANCE_STYLE: Record<FamilyAttendance, string> = { both: "bg-emerald-50 text-emerald-700", meal_only: "bg-teal-50 text-teal-700", ceremony_only: "bg-sky-50 text-sky-700", declined: "bg-rose-50 text-rose-700" };
+/** 出欠の表記。親族用の人は familyAttendance（Issue #240） */
+function attendanceText(row: GuestRow, value: string | null): string {
+  if (row.invitationKind === "family") return value && value in FAMILY_ATTENDANCE_LABEL ? FAMILY_ATTENDANCE_LABEL[value as FamilyAttendance] : "未回答";
+  return value && value in ATTENDANCE_LABEL ? ATTENDANCE_LABEL[value as Attendance] : "未回答";
+}
+/**
+ * 親族用の招待状から答えた印（Issue #240）。★URL は転送されうる★ 承認の前に名簿で確かめられるよう、承認待ちでは目立たせる。
+ * 承認すると family タグが自動で付く（update-guest）。
+ */
+function FamilyKindBadge({ row, pending }: { row: GuestRow; pending: boolean }) {
+  if (row.invitationKind !== "family") return null;
+  return (
+    <span className={`inline-flex shrink-0 items-center self-start rounded-full px-2 py-0.5 text-[10px] font-semibold ${pending ? "bg-amber-100 text-amber-800" : "bg-stone-100 text-stone-600"}`}>
+      {pending ? "親族用から回答" : "親族用"}
+    </span>
+  );
+}
 const PAYMENT_STYLE: Record<PaymentStatus, string> = { none: "bg-stone-100 text-stone-600", remitted: "bg-amber-50 text-amber-700", confirmed: "bg-emerald-50 text-emerald-700" };
 /** 表（PC）のセルに置く入力欄。枠はホバー・フォーカスのときだけ出す */
 const CELL_INPUT = "w-full rounded border border-transparent bg-transparent px-1.5 py-1 hover:border-stone-200 focus:border-stone-400 focus:bg-white focus:outline-none";
@@ -34,7 +53,7 @@ function AnswerChangeBadge({ row, onAck, busy, card = false }: { row: GuestRow; 
         {attendance && c.fields.includes("allergy") && "・アレルギーも"}
       </p>
       {attendance && c.attendanceBefore && (
-        <p>{ATTENDANCE_LABEL[c.attendanceBefore]} → {ATTENDANCE_LABEL[row.attendance]}</p>
+        <p>{attendanceText(row, c.attendanceBefore)} → {attendanceText(row, row.invitationKind === "family" ? row.familyAttendance : row.attendance)}</p>
       )}
       {when && <p className="text-[10px] opacity-70">{when}</p>}
       <button type="button" disabled={busy} onClick={onAck} className={`mt-1 w-full bg-white/80 font-medium hover:bg-white disabled:opacity-50 ${card ? "min-h-11 touch-manipulation rounded-lg px-3 text-sm" : "rounded px-2 py-0.5 text-[10px]"}`}>確認済みにする</button>
@@ -111,6 +130,16 @@ export function GuestTable({ mode, rows, preGuests = [], linkedUids, onSave, onA
   //   承認解除と違い、承認待ちキューにも戻らない
   function ban(row: GuestRow) { if (confirm(`${adminName(row)} のアクセスを停止します。よろしいですか？`)) void run(row, onSave(row.uid, { isActive: false })); }
   function attendanceSelect(row: GuestRow, card: boolean) {
+    // ★親族用の出欠は管理画面から直さない★（Issue #240）attendance を書くと会費の計算に混ざる。表示だけ
+    if (row.invitationKind === "family") {
+      const style = row.familyAttendance ? FAMILY_ATTENDANCE_STYLE[row.familyAttendance] : "bg-stone-100 text-stone-600";
+      return (
+        <div>
+          <p className={`w-full ${card ? "rounded-lg px-3 py-2.5 text-sm" : "rounded-md px-2 py-1 text-xs"} font-medium ${style}`}>{attendanceText(row, row.familyAttendance)}</p>
+          {row.stayPrevNight !== null && <p className={`mt-1 text-stone-500 ${card ? "text-xs" : "text-[10px]"}`}>前泊: {row.stayPrevNight ? "あり" : "なし"}</p>}
+        </div>
+      );
+    }
     return <select value={field(row, "attendance")} onChange={(e) => patch(row.uid, { attendance: e.target.value as Attendance })} aria-label="出欠" className={`w-full ${card ? `${CARD_SELECT} min-w-0` : "rounded-md px-2 py-1 text-xs font-medium"} ${ATTENDANCE_STYLE[field(row, "attendance")]}`}>{ATTENDANCE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
   }
   function allergyTextarea(row: GuestRow, card: boolean) {
@@ -155,6 +184,7 @@ export function GuestTable({ mode, rows, preGuests = [], linkedUids, onSave, onA
                 <button type="button" aria-expanded={open} onClick={toggle} className="flex min-h-11 min-w-0 flex-1 touch-manipulation flex-col justify-center text-left">
                   <span className="max-w-full break-words text-base font-medium leading-snug text-stone-900">{name}</span>
                   {row.kana && <span className="max-w-full truncate text-[11px] text-stone-400">{row.kana}</span>}
+                  <FamilyKindBadge row={row} pending={mode === "pending"} />
                 </button>
                 {/* ★カードの1行目に承認の解除を置かない★ 「▾」の隣にあり、押し間違えると承認が外れる。解除は詳細の中 */}
                 {mode === "pending" ? approveButton(row, true) : <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">✓ 承認済</span>}
@@ -229,6 +259,7 @@ export function GuestTable({ mode, rows, preGuests = [], linkedUids, onSave, onA
                   <td className={`sticky left-0 z-10 border-b border-r border-stone-200 px-3 py-2 ${bg}`}>
                     <p className="truncate font-medium text-stone-900" title={adminName(row)}>{adminName(row)}</p>
                     {row.kana && <p className="truncate text-[10px] text-stone-400">{row.kana}</p>}
+                    <FamilyKindBadge row={row} pending={mode === "pending"} />
                     {uidButton(row)}
                   </td>
                   <td className="border-b border-stone-200 px-2 py-2">{nicknameInput(row, false)}</td>

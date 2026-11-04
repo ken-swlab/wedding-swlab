@@ -532,3 +532,33 @@ body {
     animation-name: screen-fade;
   }
 }
+
+/*
+ * ★親族用の招待状だけ、文字とボタンを約 1.12 倍にする★（Issue #240）
+ *   --inv-scale … 文字の倍率。ふだんは 1、親族用の画面の外側（.inv-family）で 1.12。
+ *   --inv-tap   … 押せる部品の高さの下限。ふだんは 44px、親族用は 52px。
+ *   .inv-scaled … 招待状・回答フォーム・送信完了・承認待ちの画面に付ける。Tailwind の text-xs〜text-3xl を
+ *                 --inv-scale 倍にする（友人用は 1 倍なので変わらない）。text-[13px] のような直接の値は
+ *                 text-[length:calc(13px*var(--inv-scale))] と書く。
+ * ★1画面ずつ数字を書き換えない・zoom を使わない★ 倍率は 1 か所（.inv-family）で決める。
+ *   zoom は iOS の Safari で fixed の位置やタップの座標がずれることがあるため使わない（オーナーの判断）。
+ * ★オープニング（黒い画面）には .inv-scaled を付けない★ すでに大きい。案内の文字だけ calc で倍率に従う。
+ * ★ゲストブック（承認後）には付けない★
+ */
+:root {
+  --inv-scale: 1;
+  --inv-tap: 44px;
+}
+.inv-family {
+  --inv-scale: 1.12;
+  --inv-tap: 52px;
+}
+.inv-scaled {
+  --text-xs: calc(0.75rem * var(--inv-scale));
+  --text-sm: calc(0.875rem * var(--inv-scale));
+  --text-base: calc(1rem * var(--inv-scale));
+  --text-lg: calc(1.125rem * var(--inv-scale));
+  --text-xl: calc(1.25rem * var(--inv-scale));
+  --text-2xl: calc(1.5rem * var(--inv-scale));
+  --text-3xl: calc(1.875rem * var(--inv-scale));
+}

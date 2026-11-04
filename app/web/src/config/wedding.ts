@@ -1,4 +1,5 @@
 import sample from "./invitation-sample.json";
+import sampleFamily from "./invitation-sample-family.json";
 import type { InvitationConfig } from "@/types/invitation";
 
 /**
@@ -17,3 +18,9 @@ import type { InvitationConfig } from "@/types/invitation";
  * ★新郎新婦の写真を public/ に置かない★ public/ の中身は URL を知っていれば誰でも取れる。
  */
 export const SAMPLE_INVITATION: InvitationConfig = sample as unknown as InvitationConfig;
+
+/**
+ * 親族用の招待状（Issue #240。本物は config/invitation_family）の架空の見本。
+ * 当日の流れは 親族会食 → 挙式 → 親族写真 → お開き。文言は親族向け（とりあえずの下書き。オーナーが本物に書き換える）。2次会の会場（afterParty）は入れない。
+ */
+export const SAMPLE_INVITATION_FAMILY: InvitationConfig = sampleFamily as unknown as InvitationConfig;

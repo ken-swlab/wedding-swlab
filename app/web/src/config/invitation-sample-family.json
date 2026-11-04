@@ -1,0 +1,50 @@
+{
+  "groom": "新郎 太郎",
+  "bride": "新婦 花子",
+  "dateLabel": "20XX年X月X日（土）",
+  "venueName": "（ダミー）会場名",
+  "venueAddress": "（ダミー）住所",
+  "venueMapUrl": "",
+  "greeting": [
+    "皆さまには日頃より温かく見守っていただき、心より感謝申し上げます。",
+    "このたび、私たちは結婚式を挙げることになりました。",
+    "挙式に先立ち、両家の親族の皆さまとささやかな食事の席を設けました。",
+    "ご多用のところ恐縮ですが、ご出席いただけましたら幸いです。"
+  ],
+  "program": [
+    { "time": "10:00", "title": "親族会食", "note": "両家の親族でお食事をご一緒します", "highlight": true, "role": "meal" },
+    { "time": "11:30", "title": "挙式の集合", "note": "控室にお集まりください", "highlight": false, "role": "gather" },
+    { "time": "11:45", "title": "挙式", "note": "", "highlight": true, "role": "ceremony" },
+    { "time": "12:30", "title": "親族写真", "note": "両家そろって記念撮影をします", "highlight": false },
+    { "time": "13:00", "title": "お開き", "note": "お気をつけてお帰りください", "highlight": false }
+  ],
+  "approvalNote": "新郎新婦が確認のうえ、1〜2 日以内にご案内いたします。",
+  "passcodeHint": "宴の日です",
+  "passcodeHintFrom": 2,
+  "photos": {
+    "hero": { "url": "/placeholders/invitation/hero.svg", "alt": "（ダミー）ふたりの後ろ姿のシルエット", "overlayDate": "", "overlayText": "", "overlayColor": "black" }
+  },
+  "fromUs": [
+    { "name": "太郎", "photoUrl": "/placeholders/invitation/groom.svg", "alt": "（ダミー）新郎の写真", "message": "いつも気にかけてくださり、ありがとうございます。小さい頃からお世話になってきた皆さまに、晴れの日を見届けていただけたらうれしいです。当日はどうぞゆっくりお過ごしください。" },
+    { "name": "花子", "photoUrl": "/placeholders/invitation/bride.svg", "alt": "（ダミー）新婦の写真", "message": "遠方からお越しいただく方もいらっしゃると思います。どうぞご無理のないよう、お体に気をつけていらしてください。皆さまにお会いできるのを楽しみにしています。" }
+  ],
+  "highlights": [
+    { "key": "food", "title": "親族会食", "body": "両家の親族だけで、ゆっくりとお食事を囲みます。初めてお会いする方とも、和やかにお話しできればと思います。" },
+    { "key": "drink", "title": "お飲みもの", "body": "お酒が苦手な方やお車でお越しの方にも、ソフトドリンクをご用意しています。" }
+  ],
+  "showGreeting": true,
+  "opening": {
+    "date": "20XX.XX.XX",
+    "venue": "（かいじょう）",
+    "names": {
+      "kanjiFull": ["山田 一郎", "山田 花子"],
+      "kanjiFirst": ["一郎", "花子"],
+      "hiraFull": ["やまだ いちろう", "やまだ はなこ"],
+      "hiraFirst": ["いちろう", "はなこ"],
+      "kataFull": ["ヤマダ イチロウ", "ヤマダ ハナコ"],
+      "kataFirst": ["イチロウ", "ハナコ"],
+      "latinFull": ["Ichiro Yamada", "Hanako Yamada"],
+      "latinFirst": ["Ichiro", "Hanako"]
+    }
+  }
+}

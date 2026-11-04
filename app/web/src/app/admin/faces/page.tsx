@@ -38,7 +38,7 @@ export default function AdminFacesPage() {
   const guests = useMemo(
     () =>
       rows
-        .filter((r) => r.attendance !== "declined" && r.invitationStatus !== "declined").sort(compareGuests),
+        .filter((r) => r.attendance !== "declined" && r.familyAttendance !== "declined" && r.invitationStatus !== "declined").sort(compareGuests),
     [rows],
   );
 

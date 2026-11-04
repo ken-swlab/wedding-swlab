@@ -4,7 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { syncHeavyDrinkerTag } from "@/lib/drink-tag-server";
 import { safeMessage } from "@/lib/public-error";
-import { answerChangePatch, answersPrivatePatch, parseAnswers, type AnswersBody } from "@/lib/answers-server";
+import { answerChangePatch, answersPrivatePatch, parseAnswers, storedInvitationKind, type AnswersBody } from "@/lib/answers-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,10 +49,6 @@ async function handle(req: Request) {
   } catch {
     return fail("リクエストが不正です", 400);
   }
-  const parsed = parseAnswers(body);
-  if ("error" in parsed) return fail(parsed.error, 400);
-  const { answers } = parsed;
-
   const publicRef = db.collection("guests").doc(uid);
   const privateRef = db.collection("guestPrivate").doc(uid);
   const adminRef = db.collection("guestAdmin").doc(uid);
@@ -68,6 +64,11 @@ async function handle(req: Request) {
   if (publicSnap.get("isRegistered") !== true) {
     return fail("先に招待状のページからご回答ください", 403);
   }
+
+  // ★種類（友人用・親族用）は登録のときの記録で決める★（Issue #240。本文では切り替えない）
+  const parsed = parseAnswers(body, storedInvitationKind(privateSnap));
+  if ("error" in parsed) return fail(parsed.error, 400);
+  const { answers } = parsed;
 
   const batch = db.batch();
   batch.set(

@@ -12,11 +12,14 @@ import {
 } from "@/components/guestbook/AnswerFields";
 import { PROFILE_NICKNAME_MAX } from "@/config/profile";
 import type { ProgramItem } from "@/types/invitation";
+import type { InvitationKind } from "@/types/admin";
 
 /** 出欠の回答。POST /api/guest/register の本文 */
 export type OnboardingAnswer = ReturnType<typeof answerPayload> & {
   /** 空欄ならサーバーが既定名（ゲスト0000 の形）を付ける */
   nickname: string;
+  /** どちらの招待状から答えたか（Issue #240）。★サーバーが使うのは最初の回答のときだけ★ */
+  invitationKind: InvitationKind;
 };
 
 const inputClass =
@@ -29,12 +32,15 @@ const inputClass =
  * ★説明文（ご出席のご確認・ゲストブックとは）を置かない★（Issue #166）承認後の演出が説明を担う。
  */
 export function OnboardingForm({
+  kind = "friend",
   displayName,
   initialNickname,
   program,
   initialDraft,
   onSubmit: submit,
 }: {
+  /** 友人用か親族用か（Issue #240）。親族用の質問にする */
+  kind?: InvitationKind;
   /** LINE の表示名。フォームの下に「〜として回答します」と出す（★ニックネームの既定値には使わない★） */
   displayName?: string | null;
   initialNickname?: string;
@@ -55,7 +61,7 @@ export function OnboardingForm({
   const [tried, setTried] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const missing = answerDraftMissing(draft);
+  const missing = answerDraftMissing(draft, kind);
   const ready = missing.length === 0;
 
   async function onSubmit(e: FormEvent) {
@@ -69,7 +75,7 @@ export function OnboardingForm({
     setBusy(true);
     setError(null);
     try {
-      await submit({ ...answerPayload(draft), nickname: nickname.trim() });
+      await submit({ ...answerPayload(draft, kind), nickname: nickname.trim(), invitationKind: kind });
     } catch (e) {
       setError(e instanceof Error ? e.message : "送信に失敗しました");
     } finally {
@@ -81,6 +87,7 @@ export function OnboardingForm({
     // ★noValidate★ ブラウザの「入力してください」の吹き出しではなく、足りない項目の案内を出す（Issue #157 A-3）
     <form ref={formRef} onSubmit={onSubmit} noValidate className="rounded-2xl border border-stone-200 bg-white p-6 shadow-sm">
       <AnswerFields
+        kind={kind}
         value={draft}
         onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
         program={program}
@@ -95,7 +102,7 @@ export function OnboardingForm({
               placeholder="たろう"
               className={inputClass}
             />
-            <p className="mt-1.5 text-[11px] leading-relaxed text-stone-400">
+            <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
               ゲストブックに表示されます。空欄のときは「ゲスト」と番号の名前になります。※後日いつでも修正可能です
             </p>
           </Section>
@@ -109,7 +116,7 @@ export function OnboardingForm({
       )}
 
       {!ready && (
-        <p className="mt-8 text-center text-[12px] text-stone-500" aria-live="polite">
+        <p className="mt-8 text-center text-[length:calc(12px*var(--inv-scale))] text-stone-500" aria-live="polite">
           あと {missing.length} 項目です
         </p>
       )}
@@ -117,12 +124,12 @@ export function OnboardingForm({
       <button
         type="submit"
         disabled={busy}
-        className={`${ready ? "mt-8" : "mt-2"} min-h-12 w-full touch-manipulation rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40`}
+        className={`${ready ? "mt-8" : "mt-2"} min-h-[max(3rem,var(--inv-tap))] w-full touch-manipulation rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40`}
       >
         {busy ? "送信中…" : "送信する"}
       </button>
 
-      <p className="mt-3 text-center text-[11px] text-stone-400">
+      <p className="mt-3 text-center text-[length:calc(11px*var(--inv-scale))] text-stone-400">
         {displayName ? `${displayName} として回答します` : ""}
       </p>
     </form>

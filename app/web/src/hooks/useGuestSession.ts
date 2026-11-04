@@ -33,6 +33,11 @@ export type GuestSession = {
    * 他のゲストの停止状態は見えない。
    */
   isActive: boolean;
+  /**
+   * どちらの招待状から答えたか（guestPrivate.invitationKind。Issue #240）。未設定・読めない場合は "friend"。
+   * 承認待ち・回答の修正の画面を親族用の文字の大きさ・フォームにするために使う（守りではない）。
+   */
+  invitationKind: "friend" | "family";
   tags: string[];
   isAdmin: boolean;
   loading: boolean;
@@ -53,7 +58,7 @@ export function useGuestSession(): GuestSession {
    *   切り替わりの一瞬に前のユーザーのプロフィールが見えてしまう。
    */
   const [profileState, setProfileState] = useState<{ uid: string; profile: GuestProfile | null } | null>(null);
-  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean } | null>(null);
+  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean; invitationKind: "friend" | "family" } | null>(null);
   const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
@@ -134,9 +139,14 @@ export function useGuestSession(): GuestSession {
     if (!user) return;
     return onSnapshot(
       doc(db, "guestPrivate", user.uid),
-      (snap) => setActiveState({ uid: user.uid, isActive: snap.data()?.isActive !== false }),
+      (snap) =>
+        setActiveState({
+          uid: user.uid,
+          isActive: snap.data()?.isActive !== false,
+          invitationKind: snap.data()?.invitationKind === "family" ? "family" : "friend",
+        }),
       // 読めないときは停止と決めつけない（Rules の一時的な失敗で閉め出さない）
-      () => setActiveState({ uid: user.uid, isActive: true }),
+      () => setActiveState({ uid: user.uid, isActive: true, invitationKind: "friend" }),
     );
   }, [user]);
 
@@ -146,6 +156,7 @@ export function useGuestSession(): GuestSession {
   const profileLoading = user ? !profileReady : loading;
   // 未ログイン・読み込み前は有効扱い（以前と同じ）
   const isActive = user && activeState?.uid === user.uid ? activeState.isActive : true;
+  const invitationKind = user && activeState?.uid === user.uid ? activeState.invitationKind : "friend";
 
-  return { user, isActive, tags, isAdmin, loading, profile, profileLoading, refreshTags };
+  return { user, isActive, invitationKind, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

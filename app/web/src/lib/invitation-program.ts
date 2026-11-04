@@ -34,6 +34,20 @@ export function ceremonyChoiceNote(program: readonly ProgramItem[], choice: "cer
     .join(" ／ ");
 }
 
+/**
+ * 親族の出欠の選択肢に添える時刻（Issue #240。例: 「12:00 親族会食 ／ 15:15 挙式」）。
+ * config/invitation_family の program の役目（meal・gather・ceremony）の行の時刻だけを使う。どれも無ければ空文字。
+ */
+export function familyChoiceNote(program: readonly ProgramItem[], choice: "both" | "meal_only" | "ceremony_only" | "declined"): string {
+  const meal: [string, string] = [timeOf(program, "meal"), "親族会食"];
+  const ceremony: [string, string] = [timeOf(program, "gather") || timeOf(program, "ceremony"), timeOf(program, "gather") ? "挙式の集合" : "挙式"];
+  const parts = choice === "both" ? [meal, ceremony] : choice === "meal_only" ? [meal] : choice === "ceremony_only" ? [ceremony] : [];
+  return parts
+    .filter(([time]) => time)
+    .map(([time, label]) => `${time} ${label}`)
+    .join(" ／ ");
+}
+
 /** "2027.5.22" や "2027.05.22" を読む。読めなければ null */
 function parseDotDate(date: string): { y: number; m: number; d: number } | null {
   const m = /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/.exec(date.trim());

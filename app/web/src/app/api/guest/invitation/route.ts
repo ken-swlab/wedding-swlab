@@ -6,6 +6,8 @@ import { isPasscodeCleared } from "@/lib/passcode-server";
 import { invitationConfig } from "@/lib/invitation-server";
 import { paymentConfig } from "@/lib/payment-server";
 import type { InvitationStatus } from "@/types/invitation";
+import type { InvitationKind } from "@/types/admin";
+import { storedInvitationKind } from "@/lib/answers-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +35,9 @@ async function _GET(req: Request) {
  * ★オープニング用の名前の表記一式も、同じ条件で一緒に返す★（Issue #131）
  * ★会費（会食・2次会）は config/payment から一緒に返す★ お車代の額は返さない（Issue #148）。
  * ★config/invitation が未設定なら ready: false★ 架空の名前は返さない。画面は「準備中」を出す。
+ * ★?kind=family なら親族用（config/invitation_family。Issue #240）★
+ *   未設定なら ready: false（友人用の中身で代わりに出さない）。会費は返さない（親族は会費なし）。
+ *   ★URL を書き換えれば友人も親族用を見られる★（パスコードは共通。オーナー了承済み）。親族用に秘密の値を入れない。
  */
 async function handle(req: Request) {
   const { auth, db } = admin();
@@ -62,16 +67,22 @@ async function handle(req: Request) {
 
   const registered = publicSnap.get("isRegistered") === true;
   const cleared = isAdmin || isPasscodeCleared(publicSnap, adminSnap);
-  const config = cleared ? await invitationConfig() : null;
+  // ★?kind= が無ければ、回答のときに記録した種類★（承認待ち・回答の修正・登録フォームの当日の流れを、本人の招待状に合わせる）
+  const kindParam = new URL(req.url).searchParams.get("kind");
+  const kind: InvitationKind = kindParam === "family" || kindParam === "friend" ? kindParam : storedInvitationKind(privateSnap);
+  const config = cleared ? await invitationConfig(kind) : null;
   let res: InvitationStatus;
-  if (config) {
+  if (config && kind === "family") {
+    const { opening, ...invitation } = config;
+    res = { kind, cleared, registered, ready: true, invitation, opening };
+  } else if (config) {
     const { opening, ...invitation } = config;
     // 会費は config/payment から（Issue #148）。★お車代の額は返さない★（招待状に出さない）
     const payment = await paymentConfig();
     const fee = payment ? { partyYen: payment.partyYen, secondYen: payment.secondYen } : undefined;
-    res = { cleared, registered, ready: true, invitation: fee ? { ...invitation, fee } : invitation, opening };
+    res = { kind, cleared, registered, ready: true, invitation: fee ? { ...invitation, fee } : invitation, opening };
   } else {
-    res = { cleared, registered, ready: false };
+    res = { kind, cleared, registered, ready: false };
   }
   return NextResponse.json({ ok: true, ...res }, { headers: { "Cache-Control": "private, no-store" } });
 }

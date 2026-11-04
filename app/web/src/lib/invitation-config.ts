@@ -28,7 +28,7 @@ const TIME_RE = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
 /** 当日の流れの行数の上限（Issue #166） */
 const MAX_PROGRAM_ROWS = 12;
 /** 当日の流れの行の役目（types/invitation.ts の ProgramRole と同じ） */
-const PROGRAM_ROLES: readonly ProgramRole[] = ["gather", "ceremony", "reception", "party"];
+const PROGRAM_ROLES: readonly ProgramRole[] = ["gather", "ceremony", "reception", "party", "meal"];
 /** ふたりからのカードの枚数の上限（新郎・新婦。Issue #173） */
 const MAX_FROM_US = 2;
 /** 当日のおたのしみのカードの枚数の上限（Issue #173） */
