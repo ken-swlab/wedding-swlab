@@ -1,9 +1,11 @@
 import { DEFAULT_INVITATION, NEW_GUEST_NAME, toInvitationStatus, toTag, type InvitationStatus } from "@/config/roster";
 import { adminName } from "@/lib/names";
+import { tagDef } from "@/config/tags";
 import type { GuestRow } from "@/types/admin";
 
 export type RosterEntry = { displayName: string; kana: string; tags: string[]; invitationStatus: InvitationStatus; };
-export type ParsedRow = RosterEntry & { line: number; duplicate: boolean; };
+/** hiddenTags: 言葉は当たったが、隠したタグ（Issue #248）なので付けないタグ。プレビューで知らせる */
+export type ParsedRow = RosterEntry & { line: number; duplicate: boolean; hiddenTags: string[] };
 
 export function normalizeName(raw: string): string { return raw.normalize("NFKC").replace(/\s+/g, "").toLowerCase(); }
 function looksLikeKana(s: string): boolean { return /^[ぁ-んァ-ヶーｦ-ﾟ\s]+$/u.test(s) || /^[A-Za-z\s.'-]+$/u.test(s); }
@@ -21,19 +23,21 @@ export function parseRoster(text: string, existingNames: Set<string>): ParsedRow
     const displayName = cells[0];
     if (!displayName) return;
 
-    let kana = ""; let invitationStatus: InvitationStatus | null = null; const tags: string[] = [];
+    let kana = ""; let invitationStatus: InvitationStatus | null = null; const tags: string[] = []; const hiddenTags: string[] = [];
     for (const cell of cells.slice(1)) {
       if (!invitationStatus) {
         const s = toInvitationStatus(cell);
         if (s) { invitationStatus = s; continue; }
       }
       const t = toTag(cell);
+      // ★隠したタグは付けない★（Issue #248）プレビューに「このタグは隠されています」と出す
+      if (t && tagDef(t).archived) { if (!hiddenTags.includes(t)) hiddenTags.push(t); continue; }
       if (t) { if (!tags.includes(t)) tags.push(t); continue; }
       if (!kana && looksLikeKana(cell)) { kana = cell; continue; }
     }
 
     const key = normalizeName(displayName);
-    rows.push({ line: i + 1, displayName, kana, tags, invitationStatus: invitationStatus ?? DEFAULT_INVITATION, duplicate: existingNames.has(key) || seen.has(key) });
+    rows.push({ line: i + 1, displayName, kana, tags, hiddenTags, invitationStatus: invitationStatus ?? DEFAULT_INVITATION, duplicate: existingNames.has(key) || seen.has(key) });
     seen.add(key);
   });
   return rows;

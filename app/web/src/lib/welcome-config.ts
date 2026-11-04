@@ -6,8 +6,11 @@
  *     byTag: { "friends_groom": "…", … },   // タグ → 投稿 ID（任意）
  *     message: "来てくれて、ありがとう",       // 本文の一言の既定（任意）
  *     messages: { "c_xxxxxxxx": "〇〇大水泳部のみんなへ" }, // タグごとの一言（任意）
- *     priority: ["c_xxxxxxxx", "friends_groom"]  // タグの優先順。上ほど優先（任意。Issue #215）
  *   }
+ *
+ * ★タグの優先順は、タグの管理（/admin/tags）の並び順★（Issue #248）上ほど優先。以前の priority（Issue #215）は
+ *   読み込みで無視し（残っていても壊れない）、保存では書かない。並び順は呼び出し側が pickWelcome に渡す
+ *   （サーバーは lib/tags-server.ts の welcomeTagOrder、画面は tags の購読の並び順）。
  *
  * 編集は管理画面の /admin/welcome（PUT /api/admin/welcome）から。
  *
@@ -19,15 +22,13 @@ export type WelcomeConfig = {
   byTag: Record<string, string>;
   message: string;
   messages: Record<string, string>;
-  /** タグ ID の優先順（上ほど優先。重複なし）。タグが重なった人に、どのタグの写真・一言を出すかを決める */
-  priority: string[];
 };
 
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const TAG_RE = /^[A-Za-z0-9_]{1,40}$/;
 /** 一言の最大の文字数。管理画面の入力欄もこれを使う */
 export const MAX_MESSAGE = 60;
-/** byTag・messages・priority の最大の件数 */
+/** byTag・messages の最大の件数 */
 export const MAX_ENTRIES = 50;
 
 function map(v: unknown, valueOk: (s: string) => boolean): Record<string, string> | null {
@@ -56,16 +57,8 @@ export function parseWelcomeConfig(data: unknown): { ok: true; value: WelcomeCon
   if (typeof message !== "string" || message.trim().length > MAX_MESSAGE) return { ok: false, field: "message" };
   const messages = map(d.messages, (s) => s.length > 0 && s.length <= MAX_MESSAGE);
   if (!messages) return { ok: false, field: "messages" };
-  const priority = d.priority === undefined ? [] : d.priority;
-  if (
-    !Array.isArray(priority) ||
-    priority.length > MAX_ENTRIES ||
-    !priority.every((t) => typeof t === "string" && TAG_RE.test(t)) ||
-    new Set(priority).size !== priority.length
-  ) {
-    return { ok: false, field: "priority" };
-  }
-  return { ok: true, value: { defaultPostId, byTag, message: message.trim(), messages, priority: priority as string[] } };
+  // ★priority（以前の優先順。Issue #215）は見ない★ 残っていても、形が違っていても壊れない（Issue #248）
+  return { ok: true, value: { defaultPostId, byTag, message: message.trim(), messages } };
 }
 
 /** 全員に付くタグ。グループのタグより後に回す */
@@ -73,12 +66,13 @@ const GENERIC_TAGS = new Set(["all", "guest"]);
 
 /**
  * タグを調べる順。
- * ★priority の順 → priority にないグループのタグ（文字順）→ all・guest の順★（Issue #215）
- *   all・guest は priority に入っていても最後（全員に付くので、グループのタグより先に当たると意味がない）。
+ * ★タグの並び順 → 並び順にないグループのタグ（文字順）→ all・guest の順★（Issue #215・#248）
+ *   all・guest は並び順のどこにあっても最後（全員に付くので、グループのタグより先に当たると意味がない）。
+ *   並び順にないタグ（作った直後で、まだ辞書に届いていないなど）は、並び順の最後に置いて扱う。
  */
-export function welcomeTagOrder(config: Pick<WelcomeConfig, "priority">, tags: readonly string[]): string[] {
+export function welcomeTagOrder(tagOrder: readonly string[], tags: readonly string[]): string[] {
   const has = new Set(tags);
-  const ranked = config.priority.filter((t) => has.has(t) && !GENERIC_TAGS.has(t));
+  const ranked = tagOrder.filter((t) => has.has(t) && !GENERIC_TAGS.has(t));
   const rankedSet = new Set(ranked);
   const rest = [...has].filter((t) => !GENERIC_TAGS.has(t) && !rankedSet.has(t)).sort();
   const generic = [...has].filter((t) => GENERIC_TAGS.has(t)).sort();
@@ -87,11 +81,16 @@ export function welcomeTagOrder(config: Pick<WelcomeConfig, "priority">, tags: r
 
 /**
  * ゲストのタグから、表示する投稿 ID と一言を決める。画面（/admin/welcome の「確かめる」）でも同じ関数を呼ぶ。
+ * tagOrder: タグの並び順（タグの管理の順。上ほど優先。Issue #248）。
  * ★全員に付くタグ（all・guest）より、グループのタグを優先する★ 写真の設定されたタグが無ければ defaultPostId。
  *   一言も同じ順で、一言の設定されたタグを探す（無ければ message）。
  */
-export function pickWelcome(config: WelcomeConfig, tags: readonly string[]): { postId: string; message: string; tag: string | null } {
-  const ordered = welcomeTagOrder(config, tags);
+export function pickWelcome(
+  config: WelcomeConfig,
+  tags: readonly string[],
+  tagOrder: readonly string[],
+): { postId: string; message: string; tag: string | null } {
+  const ordered = welcomeTagOrder(tagOrder, tags);
   const postTag = ordered.find((t) => config.byTag[t]) ?? null;
   const msgTag = ordered.find((t) => config.messages[t]) ?? null;
   return {

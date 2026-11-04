@@ -3,7 +3,7 @@ import type { DocumentSnapshot, Firestore } from "firebase-admin/firestore";
 import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
-import { knownTagIds } from "@/lib/tags-server";
+import { knownTagIds, migrateTagOrder } from "@/lib/tags-server";
 import { parseWelcomeConfig, type WelcomeConfig } from "@/lib/welcome-config";
 import { COUPLE_TAG } from "@/config/tags";
 import { WELCOME_ADMIN_COUPLE_LIMIT, WELCOME_ADMIN_POSTS_PER_AUTHOR } from "@/config/welcome";
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 /** 一覧に出す本文の長さ */
 const TEXT_PREVIEW = 40;
 
-const EMPTY: WelcomeConfig = { defaultPostId: "", byTag: {}, message: "", messages: {}, priority: [] };
+const EMPTY: WelcomeConfig = { defaultPostId: "", byTag: {}, message: "", messages: {} };
 
 function fail(message: string, status: number) {
   return NextResponse.json({ ok: false, message }, { status });
@@ -151,7 +151,6 @@ async function _PUT(req: Request) {
     for (const [field, ids] of [
       ["byTag", Object.keys(config.byTag)],
       ["messages", Object.keys(config.messages)],
-      ["priority", config.priority],
     ] as const) {
       if (ids.some((t) => !known.has(t))) return fail(`未定義のタグがあります（項目: ${field}）`, 400);
     }
@@ -159,7 +158,10 @@ async function _PUT(req: Request) {
     const snaps = await getPosts(db, referencedPostIds(config));
     if (snaps.some((d) => !toOption(d, false))) return fail("見つからない投稿か、写真のない投稿が選ばれています", 400);
 
-    // ★丸ごと置き換える★ 画面は GET で受け取った設定を全部送り返す（画面に出ないタグの設定も消さない）
+    // ★置き換える前に、以前の優先順（priority）をタグの並び順へ移す★（Issue #248。移し済みなら何もしない）
+    //   丸ごと置き換えると priority が消えるので、先に移しておく。
+    await migrateTagOrder(db);
+    // ★丸ごと置き換える★ 画面は GET で受け取った設定を全部送り返す（画面に出ないタグの設定も消さない）。priority は書かない
     await db.collection("config").doc("welcome").set(config);
     return NextResponse.json({ ok: true });
   } catch (e) {

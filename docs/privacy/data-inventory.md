@@ -36,7 +36,7 @@
 | `config/invitation`（Issue #131） | 招待状とオープニングに出す、新郎新婦の名前（表記 8 通り）・日付・会場・住所・ご挨拶・当日の流れ（時刻と項目。Issue #166。以前の挙式の時刻（Issue #146）を移した）・確認までの目安（Issue #157。Issue #167 から画面には出さない）・写真の URL と説明（alt）・ふたりからのメッセージ・当日のおたのしみの文言（Issue #173）・パスコードのヒントと出す回数（Issue #181）。**ゲストの情報は入らない** | なし（サーバーだけ。パスコードを通った人に `/api/guest/invitation` が返す。ヒントの文言だけは、パスコードを間違えた人に `/api/guest/passcode` が返す） | 期限なし | オーナー（`scripts/ops.mjs invitation set`） |
 | `config/invitation_family`（Issue #240） | 親族用の招待状の中身。形は `config/invitation` と同じ（親族会食の時刻・会場を含む当日の流れ、ご挨拶、写真など）。**ゲストの情報は入らない**。パスコードは友人用と共通なので、URL を書き換えれば友人も見られる（秘密の値は入れない） | なし（サーバーだけ。パスコードを通った人に `/api/guest/invitation?kind=family` が返す） | 期限なし | オーナー（`scripts/ops.mjs invitation set --family`） |
 | `config/payment`（Issue #148） | 会費の金額（会食・2次会）とお車代の額。**ゲストの情報は入らない** | なし（サーバーだけ。会食・2次会の額は招待状に、本人の内訳は `/api/guest/payment` が本人にだけ返す。お車代の額は招待状に出さない） | 期限なし | オーナー（`scripts/ops.mjs payment set`。監査ログに残る） |
-| `config/welcome`（Issue #150・#215） | 承認後の初回の演出に出す投稿 ID（全員向け・タグごと）と一言、タグの優先順。**ゲストの情報は入らない** | なし（サーバーだけ。`/api/guest/welcome` が、そのゲストに見える投稿だけを返す） | 期限なし | オーナー（管理画面の /admin/welcome で設定。`/api/admin/welcome`） |
+| `config/welcome`（Issue #150・#215） | 承認後の初回の演出に出す投稿 ID（全員向け・タグごと）と一言。以前のタグの優先順（`priority`）は、Issue #248 からタグの並び順（`tags` の `order`）に移し、使っていない（消さずに残る）。**ゲストの情報は入らない** | なし（サーバーだけ。`/api/guest/welcome` が、そのゲストに見える投稿だけを返す） | 期限なし | オーナー（管理画面の /admin/welcome で設定。`/api/admin/welcome`） |
 
 **uid の形:** LINE でログインした人は `line:<LINE のユーザー ID>`。名簿だけの仮登録は `pre_…`（本人がログインすると、`mergedInto` で本物の uid に付け替わり、仮の文書は `isArchived` で残る）。**uid そのものが LINE のユーザー ID を含む**ので、uid が残る場所（監査ログ・ほかの人の投稿の `mentionUids` など）には、仮名の識別子が残ることになる。
 

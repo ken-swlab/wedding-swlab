@@ -4,6 +4,7 @@ import { admin } from "@/lib/firebase-admin";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
 import { parseWelcomeConfig, pickWelcome } from "@/lib/welcome-config";
+import { welcomeTagOrder } from "@/lib/tags-server";
 import { WELCOME_DEFAULT_MESSAGE } from "@/config/welcome";
 import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
 
@@ -58,7 +59,8 @@ async function content(tags: string[]): Promise<WelcomeContent> {
     console.error(`[guest/welcome] config/welcome の形が違います（項目: ${parsed.field}）`);
     return placeholder("");
   }
-  const pick = pickWelcome(parsed.value, tags);
+  // ★優先順はタグの管理の並び順★（Issue #248。並び順を移す前だけ、以前の priority を先に使う）
+  const pick = pickWelcome(parsed.value, tags, await welcomeTagOrder(db, snap.data()));
   if (!pick.postId) return placeholder(pick.message);
 
   const post = await db.collection("posts").doc(pick.postId).get();
