@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { OPENING_COLORS, OPENING_TIMING, REACTION_MAX_MS, REACTION_MIN_MS } from "@/config/opening";
 import { createTimeline, prefersReducedMotion } from "./timeline";
 
@@ -236,18 +236,24 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
           // ★背の低い画面では案内の上に収める★（Issue #230）36% のままだと、高さ 550〜570px で中央の案内（約 105px）と重なった。
           //   50% − 110px（案内の上半分 53px ＋ この行の高さ 45px ＋ すき間 12px）より下にしない
           // ★行の高さに余裕を持たせ、下に少し余白★（Issue #262。y の下（ディセンダー）を、箱の中に収める）
-          // ★案内（画面が白く光り…）より上に描く（z-10）・案内とのすき間を広くとる（50% − 130px）★
-          //   案内の箱は、見えていない間（opacity 0）も同じ場所にある。iPhone の LINE では、Take your marks の行と
-          //   すき間が小さい（8〜20px）と、重なった所で「y」の下が切れたり、色が描き直されずに残ったりした（実機で確認）。
-          //   上に描けば、多少重なっても欠けない。フライングの箱（下の role="alert"）は、この行の位置から決める
-          className="absolute inset-x-0 top-[min(36%,calc(50%-130px))] z-10 pb-1 text-center text-[30px] font-extrabold leading-[1.3] tracking-[0.06em] transition-opacity duration-[400ms]"
+          // ★案内（画面が白く光り…）より上に描く（z-10）★ 案内の箱は、見えていない間（opacity 0）も同じ場所にある。
+          //   フライングの箱（下の role="alert"）は、この行の位置から決める
+          className="absolute inset-x-0 top-[min(36%,calc(50%-110px))] z-10 pb-1 text-center text-[30px] font-extrabold leading-[1.3] tracking-[0.06em] transition-opacity duration-[400ms]"
           style={{ visibility: markHidden ? "hidden" : "visible", opacity: marksShown ? 1 : 0 }}
         >
+          {/*
+            ★1語ずつの箱を上下に広げ、色はすぐ切り替える★（Issue #262。iPhone の LINE で確認した不具合）
+              語の色を変えると、iPhone はその語の箱（文字の高さの範囲）だけを描き直す。「y」の尾はその箱から下にはみ出すので、
+              尾だけ前の色が残った（白い文字なのに尾がグレー、グレーの文字なのに尾が白）。
+              inline-block と上下の余白（同じだけの負のマージンで打ち消し、並びと行の高さは変えない）で、尾まで箱に入れる。
+              色のアニメーション（transition-colors）も、途中の色が残らないようにやめる。
+              語の間の空白は箱の外に置く（inline-block の末尾の空白は詰められて、語がくっつくため）
+          */}
           {WORDS.map((w, i) => (
-            <span key={w} className={`transition-colors duration-100 ${words > i ? "" : guide ? "text-white/10" : "text-white/15"}`}>
-              {w}
+            <Fragment key={w}>
+              <span className={`-my-[0.3em] inline-block py-[0.3em] ${words > i ? "" : guide ? "text-white/10" : "text-white/15"}`}>{w}</span>
               {i < WORDS.length - 1 ? " " : ""}
-            </span>
+            </Fragment>
           ))}
         </p>
         <div className="absolute inset-x-0 bottom-[14%] flex flex-col items-center gap-3 transition-opacity duration-300" style={{ opacity: hint ? 1 : 0 }}>
@@ -269,7 +275,7 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
             ★横の余白は inset-x-4★ 親族用の大きさでも、幅 320px で3行に収める（中央ぞろえなので友人用の見た目は変わらない）
             ★「長押しで構える」とこの案内だけは、親族用の倍率（--inv-scale。Issue #240）に従う★ ほかの黒い画面の文字はそのまま */}
         <p
-          className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center text-[length:calc(19px*var(--inv-scale))] leading-[1.7] tracking-[0.06em] text-white transition-opacity duration-200"
+          className="absolute inset-x-4 top-1/2 -translate-y-1/2 text-center text-[length:calc(19px*var(--inv-scale))] leading-[1.45] tracking-[0.06em] text-white transition-opacity duration-200"
           style={{ opacity: guide ? 1 : 0 }}
         >
           画面が白く光り
@@ -299,11 +305,11 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
         ★フライングの箱は Take your marks の下に置く★（Issue #262）
           以前は top-[38%] で、画面の高さによっては Take your marks の行の下 4〜9px に重なり、
           フライングのあと「y」の下が黒い帯（bg-black/80）で切られて見えた（iPhone 13 mini・SE で再現）。
-          Take your marks の行の上端（min(36%, 50%−130px)）から、行の高さ（約 43px）＋すき間の分だけ下げる。
+          Take your marks の行の上端（min(36%, 50%−110px)）から、行の高さ（約 43px）＋すき間の分だけ下げる。
       */}
       <div
         role="alert"
-        className="pointer-events-none absolute inset-x-6 top-[calc(min(36%,calc(50%-130px))+60px)] z-[22] rounded-2xl bg-black/80 py-[18px] text-center text-[34px] font-black transition-opacity duration-200"
+        className="pointer-events-none absolute inset-x-6 top-[calc(min(36%,calc(50%-110px))+60px)] z-[22] rounded-2xl bg-black/80 py-[18px] text-center text-[34px] font-black transition-opacity duration-200"
         style={{ opacity: foul ? 1 : 0, color: OPENING_COLORS.led }}
       >
         {foul && (
