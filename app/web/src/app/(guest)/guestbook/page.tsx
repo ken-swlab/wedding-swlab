@@ -29,6 +29,8 @@ import {
   postIdFromPath,
 } from "@/config/guestbook";
 import { useNearEnd } from "@/hooks/useNearEnd";
+import { currentConnection, galleryPrefetchCount, isSlowConnection, prefetchImage, whenIdle } from "@/lib/prefetch";
+import { gridSrc, posterSrc } from "@/lib/media-url";
 import { usePostOutboxContext } from "@/components/guestbook/ComposerSheet";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -84,11 +86,38 @@ export default function GuestbookPage() {
   // ★ギャラリーは、最初に格子が GALLERY_FIRST_TILES 枚になるまで続けて読む★（Issue #251）
   //   タイムラインは 10 件だけ読むので、写真の無い投稿が多いとギャラリーが数枚しか出ない。
   //   人・検索で絞っているときは読みに行かない（絞り込みの結果が少ないだけで、遡りが止まらなくなる）
-  const galleryShort = view === "gallery" && !personUid && !searching && !loading && !error
+  // ★タイムラインのうちに、手が空いたら先に読んでおく★（Issue #255。下の warm）
+  const [warm, setWarm] = useState(false);
+  const galleryShort = (view === "gallery" || warm) && !personUid && !searching && !loading && !error
     && hasMore && !loadingMore && allPosts.filter((p) => p.media.length > 0).length < GALLERY_FIRST_TILES;
   useEffect(() => {
     if (galleryShort) void loadMore();
   }, [galleryShort, loadMore]);
+
+  /**
+   * よく開く画面の先読み（Issue #255）。タイムラインを開いて落ち着いたら（requestIdleCallback、無ければ 2 秒後）、
+   *   - 下のタブの画面（コミュニティ・通知・マイページ）を router.prefetch で読む
+   *     （タブの Link は prefetch={false}。最初の画面の読み込みと取り合わないよう、ここでまとめて読む）
+   *   - ギャラリーの最初の GALLERY_FIRST_TILES 枚分の投稿のデータを読む（上の galleryShort）
+   *   - ギャラリーの最初の1画面分の写真（grid）を読む（下の effect）
+   * ★電波が悪いときはしない★（lib/prefetch.ts の isSlowConnection）。ギャラリーは開いたときに読む。
+   */
+  const settled = view === "timeline" && !loading && !error && !!user;
+  useEffect(() => {
+    if (!settled || warm || isSlowConnection(currentConnection())) return;
+    return whenIdle(() => {
+      for (const path of [GUESTBOOK_PATHS.community, GUESTBOOK_PATHS.notifications, GUESTBOOK_PATHS.settings]) router.prefetch(path);
+      setWarm(true);
+    });
+  }, [settled, warm, router]);
+  useEffect(() => {
+    if (!warm) return;
+    const count = galleryPrefetchCount(currentConnection(), { width: window.innerWidth, height: window.innerHeight }, 3);
+    for (const p of allPosts.filter((x) => x.media.length > 0).slice(0, count)) {
+      const m = p.media[0];
+      prefetchImage(m.type === "image" ? gridSrc(m) : posterSrc(m));
+    }
+  }, [warm, allPosts]);
   // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import type { User } from "firebase/auth";
 import type { FirestoreError } from "firebase/firestore";
 import type { Post } from "@/types";
@@ -10,6 +10,9 @@ import { useNearEnd } from "@/hooks/useNearEnd";
 import { TIMELINE_PREFETCH_POSTS } from "@/config/guestbook";
 import type { PostOutbox } from "@/hooks/usePostOutbox";
 import { PendingPostCard } from "./PendingPostCard";
+import { useLastVisible } from "@/hooks/useLastVisible";
+import { currentConnection, nextRange, prefetchImage, timelinePrefetchCount } from "@/lib/prefetch";
+import { feedSrc, posterSrc } from "@/lib/media-url";
 
 export function Timeline({
   posts, loading, error, user, hasMore = false, loadingMore = false, onNearEnd, outbox,
@@ -43,6 +46,19 @@ export function Timeline({
     return posts.filter((p) => !ids.has(p.id));
   }, [posts, pending]);
   const markAt = Math.max(0, visible.length - TIMELINE_PREFETCH_POSTS);
+
+  // ★見えている投稿の次の数件の写真を、先に読んでおく★（Issue #255）
+  //   読むのは一覧の写真（feed。動画は1枚目の画像）だけ。全画面の写真（軽量版・原本）は押したときだけ。
+  //   電波が悪いときは次の1件だけ（lib/prefetch.ts）。同じ写真は2回読まない。
+  const list = useRef<HTMLDivElement>(null);
+  const ids = useMemo(() => visible.map((p) => p.id), [visible]);
+  const lastSeen = useLastVisible(list, "data-post-card", ids);
+  useEffect(() => {
+    for (const p of nextRange(visible, lastSeen, timelinePrefetchCount(currentConnection()))) {
+      // 一覧に出すのは最初の4枚まで（MediaGrid）
+      for (const m of p.media.slice(0, 4)) prefetchImage(m.type === "image" ? feedSrc(m) : posterSrc(m));
+    }
+  }, [visible, lastSeen]);
   const pendingCards = pending.map((e) => (
     <PendingPostCard
       key={e.draft.postId}
@@ -87,7 +103,7 @@ export function Timeline({
 
   return (
     // 投稿は罫線で区切るので、間は空けない（Issue #236）
-    <div>
+    <div ref={list}>
       {pendingCards}
       {visible.map((p, i) => (
         <Fragment key={p.id}>

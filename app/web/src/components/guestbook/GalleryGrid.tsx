@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useLastVisible } from "@/hooks/useLastVisible";
+import { currentConnection, galleryPrefetchCount, nextRange, prefetchImage } from "@/lib/prefetch";
 import type { Post } from "@/types";
 import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { HeartIcon } from "./HeartIcon";
@@ -38,6 +40,9 @@ export function buildEntries(posts: Post[]): GalleryEntry[] {
     }));
 }
 
+/** 格子の列の数（クラスの grid-cols-3 と同じ。先読みの1画面分の計算に使う） */
+const GALLERY_COLUMNS = 3;
+
 export function GalleryGrid({
   posts,
   onOpen,
@@ -49,6 +54,18 @@ export function GalleryGrid({
 }) {
   const entries = useMemo(() => buildEntries(posts), [posts]);
 
+  // ★見えている格子の次の1画面分を、先に読んでおく★（Issue #255。電波が悪いときは1枚だけ）
+  //   動画で1枚目の画像が無いもの（動画そのもの）は読まない
+  const grid = useRef<HTMLDivElement>(null);
+  const ids = useMemo(() => entries.map((e) => e.post.id), [entries]);
+  const lastSeen = useLastVisible(grid, "data-gallery-tile", ids);
+  useEffect(() => {
+    const count = galleryPrefetchCount(currentConnection(), { width: window.innerWidth, height: window.innerHeight }, GALLERY_COLUMNS);
+    for (const e of nextRange(entries, lastSeen, count)) {
+      if (!e.isVideo || e.videoHasPoster) prefetchImage(e.coverUrl);
+    }
+  }, [entries, lastSeen]);
+
   if (entries.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-stone-400">
@@ -59,11 +76,12 @@ export function GalleryGrid({
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
+      <div ref={grid} className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
         {entries.map(({ post, coverUrl, isVideo, videoHasPoster, placeholder, count }) => (
           <button
             key={post.id}
             type="button"
+            data-gallery-tile={post.id}
             onClick={() => onOpen(post.id)}
             className="group relative aspect-square bg-stone-100"
           >

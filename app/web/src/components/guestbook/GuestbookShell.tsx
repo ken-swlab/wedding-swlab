@@ -281,6 +281,9 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
               <li key={item.key} className="flex-1">
                 <Link
                   href={item.href}
+                  // ★画面の先読みは、タイムラインが落ち着いてから guestbook/page.tsx がまとめて行う★（Issue #255）
+                  //   既定（見えたらすぐ先読み）だと、最初の画面の読み込みと取り合い、電波が悪いときも読んでしまう
+                  prefetch={false}
                   aria-current={here ? "page" : undefined}
                   // 承認後の演出の3つ目の案内で照らす（WelcomeMoment。Issue #174）
                   data-welcome-community={item.key === "community" ? "" : undefined}
