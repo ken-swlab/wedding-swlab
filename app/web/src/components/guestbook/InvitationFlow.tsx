@@ -101,8 +101,8 @@ function FlowSteps({ step, onLogin, onPasscodeSubmit, onPasscodeCleared, onOpeni
   const [prev, setPrev] = useState({ kind: step.kind, from: step.kind });
   if (prev.kind !== step.kind) setPrev({ kind: step.kind, from: prev.kind });
   const [openingSkipped, setOpeningSkipped] = useState(false);
-  // 入口で紙を画面いっぱいに広げたか（このページの中でログインした）。広げたなら、そのあとの読み込み中・パスコードは
-  // 同じ地の色のまま出す（紙を広げ直さない）。LINE の画面から戻ってきたとき（読み込み直し）は false で、パスコードの画面で広げ直す
+  // 入口で紙を画面いっぱいに広げたか（このページの中でログインした）。広げたなら、そのあとの読み込み中は
+  // 広げた紙と同じ地の色のまま出す。LINE の画面から戻ってきたとき（読み込み直し）は false で、これまでどおり
   const [paperUp, setPaperUp] = useState(false);
   const reveal: InvitationReveal = step.kind === "open" && prev.from === "opening" ? (openingSkipped ? "skipped" : "dive") : null;
 
@@ -122,8 +122,6 @@ function FlowSteps({ step, onLogin, onPasscodeSubmit, onPasscodeCleared, onOpeni
       return (
         // ★地の色は招集と同じ★（Issue #165。パスコード → 招集で地の色を変えない）。広げた紙も最後はこの色になる
         <main className="min-h-dvh text-stone-800" style={{ background: OPENING_COLORS.calm }}>
-          {/* LINE の画面から戻ってきたとき（入口で広げた紙が無い）は、ここで便せんを広げ直してからパスコードを見せる */}
-          {!paperUp && <PaperSheet mode="reveal" />}
           <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col justify-center px-6 py-10">
             <PasscodeStep onSubmit={onPasscodeSubmit} onCleared={onPasscodeCleared} />
           </div>
@@ -333,9 +331,9 @@ const ENVELOPE_OPEN_MS = 1050;
  * 入り口（Issue #157 B-1）。封筒を大きく出し、「LINE でログイン」は本文のすぐ下（画面の中ほど）に置く。
  * ★封を開け、便せんを画面いっぱいに広げてからログインを始める★ ボタンか封筒を押すと、封筒が開いて便せんが飛び出し
  *   （ENVELOPE_OPEN_MS）、便せんが広がって次の画面の地の色になる（PaperSheet の cover）。そこで onLogin。
- *   ログインの間は広げた紙で入口を覆ったまま（onPaperUp(true)。読み込み中・パスコードも同じ地の色で続く）。
+ *   ★LINE の画面へ移るときも、広げきってから移る★ ログインの間は広げた紙で入口を覆ったまま（onPaperUp(true)。
+ *   読み込み中・パスコードも同じ地の色で続く）。LINE の画面から戻ってきたあとは広げ直さない（これまでどおり進む）。
  *   ログインできずに入口に戻ったとき（busy が false に戻った）は、紙を外して、また押せるようにする。
- *   LINE の画面へ移ったときは、戻ってきたパスコードの画面で便せんを広げ直す（FlowSteps の paperUp）。
  *   動きを減らす設定では待たずに onLogin。
  * ★ここに新郎新婦の名前・日付・会場を出さない★（CLAUDE.md ルール 4a。上の★参照）
  */
@@ -404,7 +402,7 @@ function EntranceStep({ busy, message, onLogin, onPaperUp }: { busy: boolean; me
           <p className="mt-3 text-[length:calc(12px*var(--inv-scale))] leading-relaxed text-stone-500">ログインには、LINE のお名前とアイコンを使います。</p>
         </div>
       </div>
-      {(stage === "paper" || stage === "covered") && <PaperSheet mode="cover" from={paperFrom} onCovered={covered} />}
+      {(stage === "paper" || stage === "covered") && <PaperSheet from={paperFrom} onCovered={covered} />}
     </main>
   );
 }
