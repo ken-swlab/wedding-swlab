@@ -8,7 +8,11 @@ import { useVisualViewportFrame } from "@/hooks/useVisualViewportFrame";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
 import { publicName } from "@/lib/names";
 import { COMPOSER_ANCHOR_ID, COMPOSER_TOAST_MS, GUESTBOOK_PATHS } from "@/config/guestbook";
-import { Composer, type ComposerNotice } from "./Composer";
+import dynamic from "next/dynamic";
+import type { ComposerNotice } from "./Composer";
+
+/** ★投稿画面は開いたときに読む★（Issue #250。最初の JS を小さくする。「＋」を押した瞬間に読み込みを始める） */
+const Composer = dynamic(() => import("./Composer").then((m) => m.Composer), { ssr: false });
 import { AuthorNameProvider } from "./AuthorNameProvider";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { CameraIcon } from "@/components/icons";

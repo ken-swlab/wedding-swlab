@@ -28,6 +28,7 @@ paths:
 - サーバーは `captureConsoleIntegration({ levels: ["error"] })` で `console.error` をイベントにする。route-guard が付ける `route` / `request_id` タグで API とリクエストを特定できる。
 - 全イベントを `src/lib/sentry-scrub.ts` に通す（JWT・LINE の uid・`pre_` uid・メール・署名付き URL の署名・R2 キー内の uid を伏せ、リクエスト本文・Cookie・ユーザー情報を落とす）。このファイルはブラウザでも動く書き方を保つ。
 - `sendDefaultPii: false`、`Sentry.setUser` を呼ばない、Session Replay を入れない。
+- ページの読み込みの速さ（Web Vitals）はブラウザの `tracesSampleRate: 0.1` で集める（Issue #250）。`scrubEvent` がスパンの URL のクエリも落とす。`next.config.ts` の `bundleSizeOptimizations` で Replay とデバッグ用のコードを最初の JS から外している。
 - `@sentry/nextjs` の major を上げるときは、`sentryMajorIsSafe()` の判定と v11 以降の既定値の変化（何でも収集する）を確かめてから。
 
 ## next.config.ts

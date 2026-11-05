@@ -3,7 +3,11 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import type { Post } from "@/types";
-import { MediaLightbox, measureMedia, type MediaSize } from "./MediaLightbox";
+import dynamic from "next/dynamic";
+import { measureMedia, type MediaSize } from "./media-measure";
+
+/** ★ビューアは開いたときに読む★（Issue #250。最初の JS を小さくする） */
+const MediaLightbox = dynamic(() => import("./MediaLightbox").then((m) => m.MediaLightbox), { ssr: false });
 import { thumbSrc } from "@/lib/media-url";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";

@@ -65,7 +65,12 @@ type Evt = {
   breadcrumbs?: Crumb[];
   extra?: unknown;
   transaction?: string;
+  /** ページの読み込みの記録（Web Vitals。Issue #250）の中の、通信などのスパン */
+  spans?: { description?: string; data?: Record<string, unknown> }[];
 };
+
+/** スパンの data で URL が入るキー（Sentry の慣例の名前） */
+const SPAN_URL_KEYS = ["url", "http.url", "url.full", "http.query", "url.query"];
 
 /** 残してよいヘッダ。それ以外（Authorization・Cookie・x-forwarded-for など）は捨てる */
 const SAFE_HEADERS = new Set(["content-type", "content-length", "accept"]);
@@ -112,6 +117,22 @@ export function scrubEvent<T extends object>(event: T): T {
     if (typeof v.value === "string") v.value = redact(v.value);
   }
   if (typeof e.transaction === "string") e.transaction = stripQuery(e.transaction);
+  /**
+   * ★スパン（通信・読み込み）の URL からもクエリを落とす★（Issue #250。Web Vitals を 10% で集めるため）
+   *   クエリに名前や検索の言葉が入りうる。説明（"GET /api/…?q=…"）も、data の URL も削る。
+   */
+  if (Array.isArray(e.spans)) {
+    for (const span of e.spans) {
+      if (typeof span.description === "string") span.description = stripQuery(span.description);
+      if (span.data) {
+        for (const k of SPAN_URL_KEYS) {
+          const v = span.data[k];
+          if (k === "http.query" || k === "url.query") delete span.data[k];
+          else if (typeof v === "string") span.data[k] = stripQuery(v);
+        }
+      }
+    }
+  }
   if (Array.isArray(e.breadcrumbs)) {
     e.breadcrumbs = e.breadcrumbs.map((b) => scrubBreadcrumb(b)).filter((b): b is Crumb => b !== null);
   }

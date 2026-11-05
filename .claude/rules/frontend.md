@@ -17,6 +17,8 @@ paths:
 - `useLiffAuth`: LIFF → `liff.getIDToken()` → `POST /api/auth/line` → `signInWithCustomToken`。`@line/liff` は動的 import（SSR で読まない）。`/invitation` はページを開いただけではログインを始めない。
 - `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）・`textScale`（Issue #243）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
 - 管理者かどうかは `claims.admin === true` だけで決める。
+- 起動（Issue #250）: ゲストの画面は Firebase のログイン（端末に残ったもの）だけを見て出し、LINE の確認（`liff.init`）は待たない。LINE アプリの中では、最初の画面のあとに `useLineAccountCheck` が LINE のアカウントと uid を比べ、違えばサインアウトして招待状からログインし直させる。`useGuestSession` は前回のプロフィール（guests の公開して困らない値だけ）を端末に覚え、届くまではそれで行き先を決める（届いた値で上書きする）。
+- 最初の画面に要らない部品は `next/dynamic` で使うときに読む（投稿画面・写真のビューア・投稿の詳細・写真の選択・承認後の演出・投稿の編集・画像の圧縮のライブラリ）。重い部品を足すときも同じにする。Sentry は名前を付けて import する（`import * as Sentry` は使わない部品まで最初の JS に入る）。
 
 ## データと API
 - Firestore のクエリは Rules に合わせる（`.claude/rules/data.md`）。posts の購読は `usePosts` に1本化している。

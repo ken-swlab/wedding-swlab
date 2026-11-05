@@ -11,6 +11,7 @@ import { GUESTBOOK_PATHS, isGuestbookPath } from "@/config/guestbook";
 import { GUIDE_PATHS, isGuidePath } from "@/config/guide";
 import { recallInvitationKind } from "@/lib/invitation-kind-local";
 import { useTextScale } from "@/hooks/useTextScale";
+import { useLineAccountCheck } from "@/hooks/useLineAccountCheck";
 import { effectiveTextScale } from "@/config/text-scale";
 
 /**
@@ -39,6 +40,9 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
    *   この端末で最後に開いた招待状の種類で決める（親族用の招待状から来た人を、登録フォームでも大きくする）。
    *   guestPrivate を読み終えるまでは null（この端末で最後に使った大きさのまま）。
    */
+  // LINE のアカウントの確認は、最初の画面のあとに後ろで行う（Issue #250。hooks/useLineAccountCheck.ts の★）
+  useLineAccountCheck(ready ? user : null);
+
   const scaleKind = profile?.isRegistered ? session.invitationKind : recallInvitationKind();
   useTextScale(session.privateReady || (ready && !user) ? effectiveTextScale(session.textScale, scaleKind) : null);
 

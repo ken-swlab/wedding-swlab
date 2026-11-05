@@ -38,16 +38,9 @@ const ORIGINAL_NOTE: Record<NonNullable<MediaItem["originalStatus"]>, string | n
   unavailable: "高画質版は取得できませんでした",
 };
 
-export type MediaSize = { w: number; h: number };
-
-/** 一覧のマスに表示済みの写真・動画から、元の縦横の大きさを読む */
-export function measureMedia(cell: HTMLElement, m: MediaItem): MediaSize | null {
-  const img = cell.querySelector("img");
-  if (img?.naturalWidth) return { w: img.naturalWidth, h: img.naturalHeight };
-  const video = cell.querySelector("video");
-  if (video?.videoWidth) return { w: video.videoWidth, h: video.videoHeight };
-  return m.width && m.height ? { w: m.width, h: m.height } : null;
-}
+// マスの大きさを測る関数は media-measure.ts（一覧から使う。ビューアの本体は使うときに読む。Issue #250）
+import { type MediaSize } from "./media-measure";
+export { measureMedia, type MediaSize } from "./media-measure";
 
 type Box = { left: number; top: number; width: number; height: number };
 

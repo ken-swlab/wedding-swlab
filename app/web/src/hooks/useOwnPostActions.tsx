@@ -5,7 +5,10 @@ import type { User } from "firebase/auth";
 import type { Post } from "@/types";
 import { useGuestbookData, useGuestbookUpload } from "@/components/guestbook/GuestbookDataProvider";
 import { PostOwnerMenu } from "@/components/guestbook/PostOwnerMenu";
-import { PostEditor } from "@/components/guestbook/PostEditor";
+import dynamic from "next/dynamic";
+
+/** ★編集画面は開いたときに読む★（Issue #250。最初の JS を小さくする） */
+const PostEditor = dynamic(() => import("@/components/guestbook/PostEditor").then((m) => m.PostEditor), { ssr: false });
 
 /**
  * 自分の投稿の「⋯」（編集・削除）を、タイムラインと投稿の詳細に出す（Issue #202）。マイページと同じ動き。

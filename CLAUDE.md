@@ -50,6 +50,8 @@ python3 scripts/csp-verify.py    # 本番の CSP・ヘッダを外から確認�
 python3 scripts/media-referer-check.py <写真の URL>   # 公開バケットの Referer の制限を外から確認（読み取りのみ。Issue #123）
 cd app/web && npm run dev:emulator   # 開発用ログイン: Firebase エミュレーター + 初期データ + next dev
 cd app/web && npm run test:screens   # 小さい画面のスクショを一通り撮る（Issue #230。app/web/screenshots/ に出る）
+cd app/web && npm run perf:slow      # 遅い回線（遅い 4G・電車の悪い所）でゲストブックを開く速さを測る（Issue #250。開発サーバーで測る。screenshots/perf/ に出る）
+cd app/web && npx next analyze --output   # 本番の JS の大きさ（Turbopack の解析。.next/diagnostics/analyze に出る）
 ```
 
 - 画面を LINE なしで確かめるときは `npm run dev:emulator` で起動し、`/dev-login` からテスト用のゲスト・管理者で入る（Issue #83）。データはエミュレーター（プロジェクト `demo-wedding`）だけに入り、本番には届かない。写真のアップロード・顔検出・AI・音声合成は 503 で断る。Java 21 が要る（devcontainer に入れてある）。ふつうの `npm run dev` や本番では `/dev-login` は 404。

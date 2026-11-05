@@ -13,9 +13,7 @@ import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
 import { PersonFilter } from "@/components/guestbook/PersonFilter";
 import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
-import { PostLightbox } from "@/components/guestbook/PostLightbox";
-import { PostDetailSheet } from "@/components/guestbook/PostDetailSheet";
-import { PhotoPicker } from "@/components/guestbook/PhotoPicker";
+import dynamic from "next/dynamic";
 import {
   UploadStatusBar,
   type PendingOriginal,
@@ -32,7 +30,15 @@ import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 import { OPENING_TIMING } from "@/config/opening";
-import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
+
+/**
+ * ★最初の画面に要らない部品は、使うときに読む★（Issue #250。最初の JS を小さくする）
+ *   どれも開いたとき・出すときだけ描くので、読み込みは開いた瞬間に始まる（ssr: false。ゲストの画面はログインのあとにだけ描く）。
+ */
+const PostLightbox = dynamic(() => import("@/components/guestbook/PostLightbox").then((m) => m.PostLightbox), { ssr: false });
+const PostDetailSheet = dynamic(() => import("@/components/guestbook/PostDetailSheet").then((m) => m.PostDetailSheet), { ssr: false });
+const PhotoPicker = dynamic(() => import("@/components/guestbook/PhotoPicker").then((m) => m.PhotoPicker), { ssr: false });
+const WelcomeMoment = dynamic(() => import("@/components/guestbook/WelcomeMoment").then((m) => m.WelcomeMoment), { ssr: false });
 import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
 import { getJson, postJson } from "@/lib/api-client";
 import { likePost } from "@/lib/posts";

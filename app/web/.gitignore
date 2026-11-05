@@ -42,3 +42,6 @@ next-env.d.ts
 
 # 小さい画面のスクショ（npm run test:screens。Issue #230）
 /screenshots/
+
+# 遅い回線の測定（Issue #250）で作る見本の写真
+/public/perf-samples/
