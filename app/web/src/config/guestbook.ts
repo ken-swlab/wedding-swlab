@@ -217,3 +217,9 @@ export const GALLERY_PREFETCH_MARGIN = "0px 0px 100% 0px";
  * ★PlaceholderImage の Tailwind のクラス（duration-200）と同じ値にする★（クラスは定数から組み立てられない）
  */
 export const PLACEHOLDER_FADE_MS = 200;
+
+/**
+ * 送信中の投稿（Issue #254）を本物に入れ替える前に、本物の写真を読み込んで待つ時間の上限。
+ * 過ぎたら読めていなくても入れ替える（いつまでも「送信中」のままにしない）。
+ */
+export const OUTBOX_PRELOAD_TIMEOUT_MS = 10_000;

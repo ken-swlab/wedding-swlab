@@ -6,21 +6,14 @@ import type { User } from "firebase/auth";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
-import { compressForTimeline, makeImageVariants, makePosterPlaceholder, makeVideoPoster, type ImageVariants } from "@/lib/image";
-import {
-  MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
-} from "@/lib/media";
-import { createPost } from "@/lib/posts";
+import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
+import { MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, isStorageConfigured } from "@/lib/media";
+import { newPostId, type PostDraft } from "@/lib/post-draft";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
-import { postJson } from "@/lib/api-client";
-import type { EnqueueItem } from "@/hooks/useUpload";
 import { useMentionInput } from "@/hooks/useMentionInput";
-import { MENTION_NOTIFY_API } from "@/config/mentions";
 import { useAuthorName } from "./AuthorNameProvider";
 import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
-import type { MediaItem } from "@/types";
 import { TagChips } from "./TagChips";
 import { COMPOSER_HINT_MS } from "@/config/guestbook";
 import { CameraIcon } from "@/components/icons";
@@ -74,24 +67,24 @@ function withThemeHashtag(raw: string, themeId: string): string {
  *   （disabled にすると、押しても何も起きず理由が分からない）。
  * ★写真を主役にする★ 上から「写真・動画を選ぶ（大きな枠）」→「一言」→「公開範囲（1行）」→「思い出エピソード」。
  *   公開範囲のチップは、1行を押したときだけ下からのシートで出す（チップが一番目立っていた）。
- * ★投稿できたら onPosted を呼ぶ（呼び出し側が閉じる）★ エピソードの保存はそのあとも続き、結果は onNotice で知らせる。
+ * ★「投稿する」で onSubmitDraft に渡し、すぐ onPosted を呼ぶ（呼び出し側が閉じる）★（Issue #254）
+ *   送信とその知らせ（高画質版・エピソード・新郎新婦あて）は、送信の列（usePostOutbox）が受け持つ。
  */
 export function Composer({
   user,
   tags,
-  onUploadOriginals,
+  onSubmitDraft,
   onClose = () => {},
   onPosted = () => {},
-  onNotice = () => {},
 }: {
   user: User;
   tags: string[];
-  onUploadOriginals: (items: EnqueueItem[]) => void;
+  /** 「投稿する」。押した時点の投稿を渡す（送信は呼び出し側が続ける。Issue #254） */
+  onSubmitDraft: (draft: PostDraft) => void;
   /** 「キャンセル」。書きかけなら確認してから呼ぶ */
   onClose?: () => void;
   /** 投稿が成立した（フォームは片付け済み） */
   onPosted?: () => void;
-  onNotice?: (notice: ComposerNotice) => void;
 }) {
   const [text, setText] = useState("");
   const [picked, setPicked] = useState<Picked[]>([]);
@@ -256,158 +249,45 @@ export function Composer({
       ? scopeNames(selected)
       : "未選択";
 
-  async function onSubmit() {
+  /**
+   * 「投稿する」（Issue #254）。★送信は待たない★ 押した時点の投稿（PostDraft）を送信の列に渡し、すぐ閉じる。
+   *   送信（軽量版 → createPost → メンションの通知 → 顔検出 → 高画質版の列 → エピソード）は usePostOutbox が続ける。
+   *   処理の中身は今までと同じ（lib/post-send.ts に移しただけ）。
+   * ★端末の写真の URL（previewUrl）は解放しない★ 送信中の投稿の表示に使う。解放は列が入れ替えのあとに行う。
+   */
+  function onSubmit() {
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
     setHint(null);
+    // お題を選んでいればハッシュタグを付ける。投稿本文とエピソード本文で同じテキストを使う
+    const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
+    const draft: PostDraft = {
+      postId: newPostId(),
+      uid: user.uid,
+      displayName: name,
+      photoURL,
+      text: finalText,
+      visibleToTags: selected,
+      mentioned: mention.mentioned,
+      coupleOnly,
+      items: picked.map((p) => ({
+        id: p.id, file: p.file, previewUrl: p.previewUrl, isVideo: p.isVideo,
+        compressed: p.compressed, width: p.width, height: p.height, variants: p.variants, poster: p.poster,
+      })),
+      episode: episodeOn ? { theme } : null,
+    };
+    onSubmitDraft(draft);
 
-    try {
-      // お題を選んでいればハッシュタグを付ける。
-      // 投稿本文とエピソード本文で同じテキストを使う。
-      const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
-
-      // --- 第1段: 軽量版だけを先に上げる ---
-      const media: MediaItem[] = [];
-      const originals: EnqueueItem[] = [];
-      const photoUrls: string[] = [];
-
-      for (const p of picked) {
-        const ext = extOf(p.file);
-
-        if (p.isVideo) {
-          // 動画は圧縮せず1段階で公開バケットへ送る（従来どおり）
-          const v = await uploadVideo(p.file, ext);
-          // 一覧では動画本体を読まずに1枚目の画像を出す（Issue #251。作れなければ無し）
-          const poster = await (p.poster ?? Promise.resolve(null));
-          const extra = poster ? await uploadVariants(v.key, { poster }) : {};
-          // 下絵（Issue #253）はポスターから作る。★undefined を入れない★（Firestore は undefined の値を拒む）
-          const placeholder = poster ? await makePosterPlaceholder(poster) : null;
-          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name, ...extra, ...(placeholder ? { placeholder } : {}) });
-          continue;
-        }
-
-        // ★軽量版は必ず canvas で作り直したものだけを送る★
-        //   元の写真（p.file）は GPS 入りのことがあり、公開バケットは Worker を通らない。
-        //   圧縮できていない写真は、投稿の条件に関わらずここで止める（Issue #66）。
-        if (!p.compressed) {
-          throw new Error("写真の準備ができていません。写真を選び直してください");
-        }
-        // ★キーもバケットもサーバーが決める★ クライアントはパスを指定できない
-        const t = await uploadThumb(p.compressed);
-        // 原本は後日、非公開バケットへ送る。ここではキーだけ確保する
-        // （署名は寿命が短いので保存しない）
-        const originalKey = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
-        // 一覧用の小さい版（Issue #251）。送れなかった版は入らず、表示は軽量版に落ちる
-        const variants = p.variants ? await uploadVariants(t.key, p.variants) : {};
-
-        media.push({
-          type: "image",
-          url: t.url,
-          storagePath: t.key,
-          width: p.width,
-          height: p.height,
-          alt: p.file.name,
-          originalStatus: "pending",
-          ...variants,
-          // 写真の下絵（Issue #253。投稿のデータに data URL のまま入れる。作れなかったら入れない）
-          ...(p.variants?.placeholder ? { placeholder: p.variants.placeholder } : {}),
-        });
-        photoUrls.push(t.url);
-        originals.push({
-          postId: "",
-          thumbPath: t.key,
-          originalPath: originalKey,
-          fileName: p.file.name,
-          bytes: p.file.size,
-          file: p.file,
-        });
-      }
-
-      // --- 第2段: タイムラインへの投稿（これが本体）---
-      const mentioned = mention.mentioned;
-      const toCouple = coupleOnly;
-      const postRef = await createPost({
-        uid: user.uid,
-        displayName: name,
-        photoURL,
-        text: finalText,
-        media,
-        visibleToTags: selected,
-        mentioned,
-      });
-
-      // --- メンションの通知。★待たない★ 失敗しても投稿は成立している（/api/notifications/mention）---
-      //   相手に投稿が見えるか（公開範囲を変えたあとも）は、サーバーが保存済みの投稿で確かめる。
-      if (mentioned.length > 0) {
-        void postJson(MENTION_NOTIFY_API, { postId: postRef.id }).catch((e) => console.error(e));
-      }
-
-      // 新郎新婦あての投稿は、投稿者のタイムラインには出ない（所属タグと重ならない）。
-      // 消えたように見えないよう、届いたことと、見られる場所を知らせる
-      if (toCouple) onNotice({ kind: "couple", text: "新郎新婦にだけ届きました。マイページで確認できます。" });
-
-      // --- 顔検出の発火。★絶対に await しない★ ---
-      void (async () => {
-        try {
-          await fetch("/api/faces/detect", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${await user.getIdToken()}`,
-            },
-            body: JSON.stringify({ postId: postRef.id }),
-          });
-        } catch {
-          /* 失敗しても投稿体験には影響させない */
-        }
-      })();
-
-      // --- 原本はページ側のキューに委ねる ---
-      if (originals.length > 0) {
-        // ★端末に保存するだけ★ 送信の発火はゲストのボタン操作に委ねる
-        onUploadOriginals(originals.map((o) => ({ ...o, postId: postRef.id })));
-        onNotice({
-          kind: "upload",
-          text: `高画質版 ${originals.length} 枚をこの端末に保存しました。Wi-Fi に繋がったら、上の「本アップロードを開始」から送信をお願いします 📶`,
-        });
-      }
-
-      // フォームは先に片付ける（投稿は成立しているため）
-      picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-      const episodePayload = episodeOn
-        ? { theme, originalText: finalText, photoUrls, visibleToTags: selected }
-        : null;
-
-      setText("");
-      mention.reset();
-      setPicked([]);
-      setEpisodeOn(false);
-      setTheme("");
-      // 投稿は成立した。呼び出し側が画面を閉じ、タイムラインの一番上を見せる
-      onPosted();
-
-      // --- 第3段: エピソードの保存 ---
-      // ★投稿の後に行う★ ここが失敗しても投稿は取り消さない。
-      //   AI のデータが1件落ちるだけで、ゲストの体験は壊さない。
-      if (episodePayload) {
-        try {
-          await postJson("/api/episodes", episodePayload);
-          onNotice({ kind: "episode", text: "エピソードを受け付けました。新郎新婦の確認後に使われます 🌿" });
-        } catch (e) {
-          onNotice({
-            kind: "error",
-            text: `投稿は完了しました。エピソードの登録だけ失敗しました（${
-              e instanceof Error ? e.message : "不明なエラー"
-            }）`,
-          });
-        }
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "投稿に失敗しました");
-    } finally {
-      setBusy(false);
-    }
+    // フォームを片付ける（写真の URL は列に渡したので解放しない）
+    setText("");
+    mention.reset();
+    setPicked([]);
+    setEpisodeOn(false);
+    setTheme("");
+    setBusy(false);
+    // 呼び出し側が画面を閉じ、タイムラインの一番上（送信中の投稿）を見せる
+    onPosted();
   }
 
   const ready = blockedReason() === null && !busy;

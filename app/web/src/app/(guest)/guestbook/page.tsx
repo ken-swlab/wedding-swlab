@@ -29,6 +29,7 @@ import {
   postIdFromPath,
 } from "@/config/guestbook";
 import { useNearEnd } from "@/hooks/useNearEnd";
+import { usePostOutboxContext } from "@/components/guestbook/ComposerSheet";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
@@ -73,6 +74,7 @@ export default function GuestbookPage() {
   const posts = useMemo(() => filterPosts(allPosts, terms), [allPosts, terms]);
   // 送信キューも layout 側に1つだけ（GuestbookDataProvider の★参照）
   const upload = useGuestbookUpload();
+  const outbox = usePostOutboxContext();
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
@@ -219,6 +221,8 @@ export default function GuestbookPage() {
                     hasMore={hasMore && !searching}
                     loadingMore={loadingMore}
                     onNearEnd={loadMoreGallery}
+                    // 送信中の自分の投稿を一番上に出す（Issue #254）。検索中は出さない
+                    outbox={searching ? null : outbox}
                   />
                 )}
                 {!searching && hasMore && posts.length > 0 && (

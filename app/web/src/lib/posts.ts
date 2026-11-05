@@ -1,5 +1,5 @@
 import {
-  addDoc, collection, doc, getDoc, increment, runTransaction,
+  addDoc, collection, doc, getDoc, increment, runTransaction, setDoc,
   serverTimestamp, type DocumentData, type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -37,6 +37,11 @@ export function toPost(snap: QueryDocumentSnapshot<DocumentData>): Post {
 
 /** ★ここのキー構成は Rules の validPost() と必ず一致させること★ */
 export async function createPost(params: {
+  /**
+   * 投稿の ID（Issue #254）。送信中の投稿を先にタイムラインに出すため、送る前に決めておく（lib/post-send.ts の newPostId）。
+   * ★新しい ID でだけ使う★ 既にある ID に書くと上書き（更新）になり、Rules が断る。無ければ addDoc（今までどおり）
+   */
+  id?: string;
   uid: string;
   displayName: string;
   photoURL?: string | null;
@@ -57,7 +62,7 @@ export async function createPost(params: {
   // 本文から #タグ と @メンションを抽出して保存する
   const { hashtags, mentions } = extractTags(text, mentioned.map((m) => m.name));
 
-  return addDoc(collection(db, "posts"), {
+  const data = {
     authorUid: uid,
     authorName: displayName,
     ...(photoURL ? { authorPhotoURL: photoURL } : {}),
@@ -72,7 +77,11 @@ export async function createPost(params: {
     reactionCount: 0,
     commentCount: 0,
     createdAt: serverTimestamp(),
-  });
+  };
+  if (!params.id) return addDoc(collection(db, "posts"), data);
+  const ref = doc(db, "posts", params.id);
+  await setDoc(ref, data);
+  return ref;
 }
 
 /**
