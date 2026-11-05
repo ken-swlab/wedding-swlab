@@ -6,7 +6,7 @@ import type { User } from "firebase/auth";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
-import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
+import { compressForTimeline, makeImageVariants, makePosterPlaceholder, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
   reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
@@ -281,7 +281,9 @@ export function Composer({
           // 一覧では動画本体を読まずに1枚目の画像を出す（Issue #251。作れなければ無し）
           const poster = await (p.poster ?? Promise.resolve(null));
           const extra = poster ? await uploadVariants(v.key, { poster }) : {};
-          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name, ...extra });
+          // 下絵（Issue #253）はポスターから作る。★undefined を入れない★（Firestore は undefined の値を拒む）
+          const placeholder = poster ? await makePosterPlaceholder(poster) : null;
+          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name, ...extra, ...(placeholder ? { placeholder } : {}) });
           continue;
         }
 
@@ -308,6 +310,8 @@ export function Composer({
           alt: p.file.name,
           originalStatus: "pending",
           ...variants,
+          // 写真の下絵（Issue #253。投稿のデータに data URL のまま入れる。作れなかったら入れない）
+          ...(p.variants?.placeholder ? { placeholder: p.variants.placeholder } : {}),
         });
         photoUrls.push(t.url);
         originals.push({

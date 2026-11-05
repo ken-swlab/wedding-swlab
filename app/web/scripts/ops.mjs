@@ -35,7 +35,7 @@
  *   node scripts/ops.mjs payment status           会費の金額（config/payment）を出す
  *   node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000
  *                                                 会費の金額を変える（指定しない項目は今の値のまま。監査ログに残す）
- *   node scripts/ops.mjs media backfill-variants  一覧用の小さい版（feed・grid）が無い写真の数を数える（書き込まない。Issue #251）
+ *   node scripts/ops.mjs media backfill-variants  一覧用の小さい版（feed・grid）か下絵（placeholder。Issue #253）が無い写真の数を数える（書き込まない。Issue #251）
  *   node scripts/ops.mjs media backfill-variants --apply [--limit 投稿数]
  *                                                 軽量版を読み、sharp で feed（828px）・grid（400px）を作って公開バケットに置き、
  *                                                 投稿の feedPath・gridPath を書く。済んだ写真は飛ばすので、途中で止めても続きから再開できる。
@@ -534,11 +534,13 @@ if (cmd === "payment") {
 
 // ---- media backfill-variants（Issue #251）---------------------------------------
 /**
- * 今ある投稿の写真に、一覧用の小さい版（feed・grid）を作る。
+ * 今ある投稿の写真に、一覧用の小さい版（feed・grid）と下絵（placeholder。長辺 16px の data URL。Issue #253）を作る。
+ * すでに feed・grid がある写真には下絵だけを足す（R2 には置かない。投稿のデータに書くだけ）。
  * ★キー・大きさ・画質は投稿のときと同じもの★（src/lib/media-variants.ts を読む。片方だけ変えない）
  * ★作るのは軽量版（公開バケットの t/、EXIF なし）から★ 原本は読まない。sharp も EXIF を書かない（withMetadata を呼ばない）。
  * ★済んだ写真は飛ばす★ 投稿ごとに、置けたぶんだけをトランザクションで書く。止めても、もう一度実行すれば続きからになる。
- * ★動画は対象外★ 1枚目の画像は sharp では作れない（古い動画は、今までどおり一覧で動画の最初の部分を読む）。
+ * ★動画は、1枚目の画像（poster）があるものだけ下絵を作る★ 1枚目の画像そのものは sharp では作れない
+ *   （ポスターの無い古い動画は、今までどおり一覧で動画の最初の部分を読む）。
  * ★キー（uid が入る）は画面に出さない★ 出すのは投稿 ID と件数だけ。
  */
 if (cmd === "media") {
@@ -548,7 +550,7 @@ if (cmd === "media") {
   }
   const apply = has("--apply");
   const limitPosts = Number(flag("--limit") ?? Infinity);
-  const { MEDIA_VARIANTS, variantKey } = await import("../src/lib/media-variants.ts");
+  const { MEDIA_VARIANTS, PLACEHOLDER, PLACEHOLDER_PREFIX, isPlaceholder, variantKey } = await import("../src/lib/media-variants.ts");
   const { MEDIA_FETCH_REFERER } = await import("../src/config/media-access.ts");
   const base = (process.env.NEXT_PUBLIC_MEDIA_BASE ?? "").replace(/\/+$/, "");
   if (!/^https:\/\//.test(base)) {
@@ -557,8 +559,29 @@ if (cmd === "media") {
   }
   const bucket = process.env.R2_BUCKET_PUBLIC || "wedding-media";
   /** 小さい版が足りない写真か（キーの形が違うもの＝ごく初期の投稿は作れないので数えない） */
-  const needs = (m) => m?.type === "image" && typeof m.storagePath === "string" && variantKey(m.storagePath, "feed")
-    && (!m.feedPath || !m.gridPath);
+  const needs = (m) =>
+    (m?.type === "image" && typeof m.storagePath === "string" && variantKey(m.storagePath, "feed")
+      && (!m.feedPath || !m.gridPath || !m.placeholder))
+    // 動画は、ポスターがあって下絵が無いものだけ（Issue #253）
+    || (m?.type === "video" && typeof m.posterPath === "string" && variantKey(m.storagePath ?? "", "poster") === m.posterPath
+      && !m.placeholder);
+
+  /**
+   * 下絵（Issue #253）: 長辺 16px の JPEG を data URL にする。端末で作るものと同じ大きさ・品質の順。
+   * ★収まらなければ書かない★（Rules・API と同じ isPlaceholder で確かめる）
+   */
+  async function placeholderOf(src) {
+    for (const q of PLACEHOLDER.qualities) {
+      const bytes = await sharp(src, { failOn: "error" })
+        .rotate()
+        .resize({ width: PLACEHOLDER.maxEdge, height: PLACEHOLDER.maxEdge, fit: "inside" })
+        .jpeg({ quality: Math.round(q * 100) })
+        .toBuffer();
+      const url = `${PLACEHOLDER_PREFIX}${bytes.toString("base64")}`;
+      if (isPlaceholder(url)) return url;
+    }
+    return null;
+  }
 
   const sharp = apply ? (await import("sharp")).default : null;
   const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
@@ -583,10 +606,17 @@ if (cmd === "media") {
 
   /** 1枚ぶん: 軽量版を読み、feed・grid を作って置く。置けたフィールドを返す */
   async function makeFor(m) {
-    const res = await fetch(`${base}/${m.storagePath}`, { headers: { Referer: MEDIA_FETCH_REFERER }, redirect: "error" });
-    if (!res.ok) throw new Error(`軽量版を読めませんでした（${res.status}）`);
+    // 動画はポスターから、写真は軽量版から作る
+    const from = m.type === "video" ? m.posterPath : m.storagePath;
+    const res = await fetch(`${base}/${from}`, { headers: { Referer: MEDIA_FETCH_REFERER }, redirect: "error" });
+    if (!res.ok) throw new Error(`${m.type === "video" ? "ポスター" : "軽量版"}を読めませんでした（${res.status}）`);
     const src = Buffer.from(await res.arrayBuffer());
     const out = {};
+    if (!m.placeholder) {
+      const placeholder = await placeholderOf(src);
+      if (placeholder) out.placeholder = placeholder;
+    }
+    if (m.type === "video") return out;
     for (const name of ["feed", "grid"]) {
       if (m[`${name}Path`]) continue;
       const { maxEdge, quality } = MEDIA_VARIANTS[name];
@@ -630,7 +660,10 @@ if (cmd === "media") {
         const made = new Map();
         for (const m of todo) {
           try {
-            made.set(m.storagePath, await makeFor(m));
+            const fields = await makeFor(m);
+            // 何も作れなかった（下絵が 1024 文字に収まらないなど）ものは書かない。次の実行でもう一度試す
+            if (Object.keys(fields).length === 0) throw new Error("作れませんでした");
+            made.set(m.storagePath, fields);
           } catch (e) {
             failedPhotos += 1;
             console.warn(`  投稿 ${d.id}: ${e instanceof Error ? e.message : "作れませんでした"}`);
@@ -661,7 +694,7 @@ if (cmd === "media") {
   }
 
   if (!apply) {
-    console.log(`小さい版の無い写真: ${targetPhotos} 枚（投稿 ${targetPosts} 件）\n`);
+    console.log(`小さい版か下絵の無い写真・動画: ${targetPhotos} 枚（投稿 ${targetPosts} 件）\n`);
     process.exit(0);
   }
   // ★監査ログに残す★（形は src/lib/audit.ts と同じ。件数だけ）
@@ -669,21 +702,21 @@ if (cmd === "media") {
   const expiresAt = Timestamp.fromMillis(Date.now() + 400 * 86_400_000);
   await db.collection("auditLogs").doc(`${requestId}-b`).create({
     requestId, route: "ops.media.backfill-variants", method: "CLI", action: "media.backfill-variants", actorUid: "ops-cli",
-    actorRole: "admin", targetId: "posts", fields: ["media.feedPath", "media.gridPath"], ipHash: null, userAgent: "scripts/ops.mjs",
+    actorRole: "admin", targetId: "posts", fields: ["media.feedPath", "media.gridPath", "media.placeholder"], ipHash: null, userAgent: "scripts/ops.mjs",
     phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
   });
   await db.collection("auditLogs").doc(`${requestId}-e`).create({
     requestId, route: "ops.media.backfill-variants", phase: "end", result: failedPhotos ? "partial" : "success", status: 200,
     durationMs: 0, counts: { photos: donePhotos, failed: failedPhotos }, at: FieldValue.serverTimestamp(), expiresAt,
   });
-  console.log(`\n${failedPhotos ? "⚠️" : "✅"} ${donePhotos} 枚に小さい版を作りました（失敗 ${failedPhotos} 枚${stopped ? "。アップロードできないため途中で止めました" : ""}。もう一度実行すると、残りだけを作ります）\n`);
+  console.log(`\n${failedPhotos ? "⚠️" : "✅"} ${donePhotos} 枚に小さい版・下絵を作りました（失敗 ${failedPhotos} 枚${stopped ? "。アップロードできないため途中で止めました" : ""}。もう一度実行すると、残りだけを作ります）\n`);
   process.exit(failedPhotos ? 1 : 0);
 }
 
-/** 実行中に投稿の画面から付いた小さい版があれば、そちらを残す */
+/** 実行中に投稿の画面から付いた小さい版・下絵があれば、そちらを残す */
 function pickExisting(m) {
   const out = {};
-  for (const k of ["feedPath", "feedUrl", "gridPath", "gridUrl"]) if (m?.[k]) out[k] = m[k];
+  for (const k of ["feedPath", "feedUrl", "gridPath", "gridUrl", "placeholder"]) if (m?.[k]) out[k] = m[k];
   return out;
 }
 

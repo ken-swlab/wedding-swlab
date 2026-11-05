@@ -17,6 +17,7 @@
  *   - 通信量（MB）と JS の量（KB）: 最初の投稿が見えるまでに受け取った分（圧縮後の量）
  *   - 開いて落ち着くまでの通信量（回線を絞らずに測る）: 通信が 3 秒止まるまでに受け取った分と、そのうち写真の分（Issue #251）
  * 投稿は --posts 件（既定 40 件）の写真付きの投稿を足す（タイムラインの読み込みの件数・写真の大きさの違いが出るように）。
+ * 写真には下絵（Issue #253）も入れる。`--no-placeholder` を付けると入れない（下絵が無い、直す前の見え方と比べるとき）。
  * 見本の投稿には一覧用の小さい版（feed・grid。Issue #251）も付ける。小さい版を知らないコードは軽量版を読む（前後で同じデータを比べる）。
  * ★開発サーバーなので、JS は本番より大きい★ 直す前と後を同じ条件で比べるためのもの（perf-slow.mjs の★参照）。
  */
@@ -46,6 +47,8 @@ function arg(name, fallback) {
 const RUNS = Number(arg("runs", "3"));
 const EXTRA_POSTS = Number(arg("posts", "40"));
 const LABEL = arg("label", "result");
+/** 写真の下絵（Issue #253）を見本の投稿に入れない（直す前と比べるとき） */
+const NO_PLACEHOLDER = process.argv.includes("--no-placeholder");
 const TIMEOUT_MS = 180_000;
 
 let chromium;
@@ -90,7 +93,13 @@ async function makeSamples() {
       const vinfo = await img.clone().resize({ width: edge, height: edge, fit: "inside" }).jpeg({ quality: q }).toFile(vfile);
       variants[name] = { url: `/perf-samples/photo-${i + 1}__${name}.jpg`, bytes: vinfo.size };
     }
-    out.push({ url: `/perf-samples/photo-${i + 1}.jpg`, width: w, height: h, bytes: info.size, variants });
+    // 写真の下絵（Issue #253。lib/media-variants.ts の PLACEHOLDER と同じ長辺 16px・品質 0.5）。
+    // ノイズの見本だと灰色になるので、写真らしい色の付いたグラデーションから作る（下絵の効き目が見えるように）
+    const tint = [[196, 120, 92], [92, 136, 176], [120, 160, 96], [200, 170, 110]][i];
+    const ph = await sharp({ create: { width: 16, height: Math.max(1, Math.round((16 * h) / w)), channels: 3, background: { r: tint[0], g: tint[1], b: tint[2] } } })
+      .jpeg({ quality: 50 }).toBuffer();
+    const placeholder = `data:image/jpeg;base64,${ph.toString("base64")}`;
+    out.push({ url: `/perf-samples/photo-${i + 1}.jpg`, width: w, height: h, bytes: info.size, variants, placeholder });
   }
   return out;
 }
@@ -100,6 +109,7 @@ function sampleMedia(s) {
   return {
     type: "image", url: s.url, storagePath: "", width: s.width, height: s.height, alt: "（見本）写真",
     feedPath: "", feedUrl: s.variants.feed.url, gridPath: "", gridUrl: s.variants.grid.url,
+    ...(NO_PLACEHOLDER ? {} : { placeholder: s.placeholder }),
   };
 }
 
@@ -204,15 +214,23 @@ async function measure(ctx, profile) {
     return card && card.textContent.trim().length > 0 && card.getBoundingClientRect().height > 0 && performance.now();
   }, null, { timeout: TIMEOUT_MS, polling: "raf" }).then((h) => h.jsonValue());
   const atPost = total();
-  const photo = await page.waitForFunction(() => {
-    const img = [...document.querySelectorAll("[data-post-card] img")].find((i) => i.getBoundingClientRect().height > 0);
-    return img && img.complete && img.naturalWidth > 0 && performance.now();
-  }, null, { timeout: TIMEOUT_MS, polling: "raf" }).then((h) => h.jsonValue());
+  // 下絵（data URL の画像。Issue #253）と本物の写真を分けて測る。下絵の無い投稿では、下絵の時刻は写真と同じになる
+  const shown = (wantData) => {
+    const img = [...document.querySelectorAll("[data-post-card] img")]
+      .find((i) => i.getBoundingClientRect().height > 0 && i.src.startsWith("data:") === wantData && i.complete && i.naturalWidth > 0);
+    return !!img;
+  };
+  const blurP = page.waitForFunction(`(${shown})(true) && performance.now()`, null, { timeout: TIMEOUT_MS, polling: "raf" })
+    .then((h) => h.jsonValue(), () => null);
+  const photo = await page.waitForFunction(`(${shown})(false) && performance.now()`, null, { timeout: TIMEOUT_MS, polling: "raf" })
+    .then((h) => h.jsonValue());
+  // 写真が先に出た（下絵が無い）ときは、下絵を待たない
+  const blur = await Promise.race([blurP, new Promise((ok) => setTimeout(() => ok(null), 50))]) ?? photo;
   const atPhoto = total();
   frozen = true;
   const fcp = await page.evaluate(() => performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null);
   await page.close();
-  return { fcp, shell, post, photo, bytesAtPost: atPost.all, jsAtPost: atPost.js, bytesAtPhoto: atPhoto.all };
+  return { fcp, shell, post, blur: Math.min(blur, photo), photo, bytesAtPost: atPost.all, jsAtPost: atPost.js, bytesAtPhoto: atPhoto.all };
 }
 
 /** 回線を絞らずに /guestbook を開き、通信が 3 秒止まるまでの通信量（全体と写真）と、読み込んだ投稿の数を測る */
@@ -280,17 +298,17 @@ async function main() {
     for (let i = 0; i < RUNS; i++) {
       const r = await measure(ctx, profile);
       runs.push(r);
-      console.log(`  ${profile.key} #${i + 1}: 投稿 ${sec(r.post)}s・写真 ${sec(r.photo)}s・${mb(r.bytesAtPost)}MB`);
+      console.log(`  ${profile.key} #${i + 1}: 投稿 ${sec(r.post)}s・下絵 ${sec(r.blur)}s・写真 ${sec(r.photo)}s・${mb(r.bytesAtPost)}MB`);
     }
     const m = (k) => median(runs.map((r) => r[k]));
-    rows.push({ profile: profile.label, fcp: m("fcp"), shell: m("shell"), post: m("post"), photo: m("photo"), bytesAtPost: m("bytesAtPost"), jsAtPost: m("jsAtPost"), bytesAtPhoto: m("bytesAtPhoto"), runs });
+    rows.push({ profile: profile.label, fcp: m("fcp"), shell: m("shell"), post: m("post"), blur: m("blur"), photo: m("photo"), bytesAtPost: m("bytesAtPost"), jsAtPost: m("jsAtPost"), bytesAtPhoto: m("bytesAtPhoto"), runs });
   }
   await browser.close();
 
   const md = [
-    `| 回線 | 最初の描画 | 枠が出るまで | 最初の投稿が見えるまで | 最初の写真が見えるまで | 通信量（投稿まで） | うち JS | 通信量（写真まで） |`,
-    `|---|---|---|---|---|---|---|---|`,
-    ...rows.map((r) => `| ${r.profile} | ${sec(r.fcp)}s | ${sec(r.shell)}s | ${sec(r.post)}s | ${sec(r.photo)}s | ${mb(r.bytesAtPost)}MB | ${kb(r.jsAtPost)}KB | ${mb(r.bytesAtPhoto)}MB |`),
+    `| 回線 | 最初の描画 | 枠が出るまで | 最初の投稿が見えるまで | 写真の枠に色が出るまで（下絵） | 最初の写真が見えるまで | 通信量（投稿まで） | うち JS | 通信量（写真まで） |`,
+    `|---|---|---|---|---|---|---|---|---|`,
+    ...rows.map((r) => `| ${r.profile} | ${sec(r.fcp)}s | ${sec(r.shell)}s | ${sec(r.post)}s | ${sec(r.blur)}s | ${sec(r.photo)}s | ${mb(r.bytesAtPost)}MB | ${kb(r.jsAtPost)}KB | ${mb(r.bytesAtPhoto)}MB |`),
   ].join("\n");
   mkdirSync(OUT, { recursive: true });
   const settledMd = `\n開いて落ち着くまで（回線を絞らない・キャッシュなし）: 通信量 ${mb(settled.all)}MB（うち写真 ${mb(settled.img)}MB）・描画した投稿 ${settled.cards} 件（見本の投稿 ${EXTRA_POSTS} 件を足した状態）`;

@@ -211,3 +211,9 @@ export const TIMELINE_PREFETCH_POSTS = 3;
 export const GALLERY_FIRST_TILES = 30;
 /** ギャラリーの格子で、下の端の手前どれだけで先に読むか（画面の高さに対する割合） */
 export const GALLERY_PREFETCH_MARGIN = "0px 0px 100% 0px";
+
+/**
+ * 写真の下絵（Issue #253）から本物の写真へ重ねるフェードの長さ。
+ * ★PlaceholderImage の Tailwind のクラス（duration-200）と同じ値にする★（クラスは定数から組み立てられない）
+ */
+export const PLACEHOLDER_FADE_MS = 200;

@@ -40,3 +40,20 @@ export function fitWithin(width: number, height: number, maxEdge: number): { wid
   const r = maxEdge / long;
   return { width: Math.max(1, Math.round(width * r)), height: Math.max(1, Math.round(height * r)) };
 }
+
+/**
+ * 写真の「下絵」（Issue #253）。投稿のデータ（MediaItem.placeholder）に data URL のまま入れる、長辺 16px の JPEG。
+ * 写真が届く前に、ぼかして敷く（色と形がぼんやり見える）。目安 300〜600 文字。
+ * ★形と長さは Firestore の Rules（okPlaceholder）と同じ★ 片方だけ変えない。
+ *   投稿のデータはゲスト全員が読むので、任意の文字列を入れさせない。
+ * QUALITIES の順に作り、PLACEHOLDER_MAX_CHARS 以下になったものを使う。どれも超えたら保存しない（下絵なし）。
+ */
+export const PLACEHOLDER = { maxEdge: 16, qualities: [0.5, 0.3, 0.15] } as const;
+export const PLACEHOLDER_PREFIX = "data:image/jpeg;base64,";
+export const PLACEHOLDER_MAX_CHARS = 1024;
+const PLACEHOLDER_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/;
+
+/** 下絵として保存してよい文字列か（Rules の okPlaceholder と同じ条件） */
+export function isPlaceholder(v: unknown): v is string {
+  return typeof v === "string" && v.length <= PLACEHOLDER_MAX_CHARS && PLACEHOLDER_RE.test(v);
+}

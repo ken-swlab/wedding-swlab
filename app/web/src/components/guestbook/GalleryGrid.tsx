@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import { useMemo } from "react";
 import type { Post } from "@/types";
 import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { HeartIcon } from "./HeartIcon";
 import { PlayIcon } from "@/components/icons";
+import { PlaceholderImage } from "./PlaceholderImage";
 
 export type GalleryEntry = {
   post: Post;
@@ -13,6 +13,8 @@ export type GalleryEntry = {
   isVideo: boolean;
   /** 動画の1枚目の画像があるか（あれば coverUrl はその画像で、動画本体は読まない。Issue #251） */
   videoHasPoster: boolean;
+  /** 1枚目の下絵（Issue #253）。無ければ灰色の枠のまま */
+  placeholder?: string;
   count: number;
 };
 
@@ -31,6 +33,7 @@ export function buildEntries(posts: Post[]): GalleryEntry[] {
       coverUrl: p.media[0].type === "video" ? posterSrc(p.media[0]) ?? thumbSrc(p.media[0]) : gridSrc(p.media[0]),
       videoHasPoster: p.media[0].type === "video" && posterSrc(p.media[0]) !== null,
       isVideo: p.media[0].type === "video",
+      placeholder: p.media[0].placeholder,
       count: p.media.length,
     }));
 }
@@ -57,7 +60,7 @@ export function GalleryGrid({
   return (
     <div>
       <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
-        {entries.map(({ post, coverUrl, isVideo, videoHasPoster, count }) => (
+        {entries.map(({ post, coverUrl, isVideo, videoHasPoster, placeholder, count }) => (
           <button
             key={post.id}
             type="button"
@@ -68,10 +71,10 @@ export function GalleryGrid({
               <video src={coverUrl} muted playsInline preload="metadata"
                 className="h-full w-full object-cover" />
             ) : (
-              <Image
+              <PlaceholderImage
                 src={coverUrl}
+                placeholder={placeholder}
                 alt=""
-                fill
                 sizes="33vw"
                 className="object-cover transition duration-200 group-active:brightness-90"
               />

@@ -28,6 +28,12 @@ paths:
 - 大きさ・画質は `MEDIA_VARIANTS` の1か所（`ops.mjs media backfill-variants` も同じものを読む）。投稿の削除・写真を外す編集で、小さい版も消す（`media-delete-server.ts`）。
 - `Cache-Control: public, max-age=31536000, immutable` は Cloudflare のルール（レスポンスヘッダーの変換）で公開バケットのドメインに付ける（オーナー。ブラウザのアップロードでは付けない）。backfill と Worker は自分で付ける。
 
+## 写真の下絵（Issue #253）
+- 投稿・編集のとき、端末で写真（作り直した軽量版）・動画（ポスター）から長辺 16px の JPEG を作り、data URL のまま `MediaItem.placeholder` に入れる（`image.ts` の `placeholderFrom`・`makePosterPlaceholder`）。品質 0.5 → 0.3 → 0.15 と下げ、1024 文字を超えたら入れない。
+- **形と長さは3か所で同じ**: `media-variants.ts` の `isPlaceholder`（`PLACEHOLDER_MAX_CHARS`）・投稿の編集の API・Rules の `okPlaceholder`（`data:image/jpeg;base64,` で始まる 1024 文字以下）。片方だけ変えない。
+- 表示は `PlaceholderImage`（タイムライン・投稿の詳細の `MediaGrid`、ギャラリーの格子）: 下絵を `blur(16px)`・`scale(1.1)` で敷き、本物が読めたら 200ms（`PLACEHOLDER_FADE_MS` ⇔ クラスの `duration-200`）で重ね、そのあと下絵を外す。下絵の無い投稿は今までどおり。
+- 今ある投稿は `ops.mjs media backfill-variants` が下絵も作る（feed・grid があるものは下絵だけ。動画はポスターがあるものだけ）。
+
 ## キーとバケット
 - 軽量版 `u/{uid}/t/{uuid}.{ext}`（公開バケット `wedding-media`）、原本 `u/{uid}/o/{uuid}.{ext}`（非公開バケット `wedding-originals`）。バケットはサーバーが `kind` から決め、クライアントには選ばせない。
 - 原本と Worker のマーカー（`_linked/`・`_pending/`・`_failed/`・`_skipped/`）を消さない。Worker は原本を移動も削除もしない（原本の削除は Issue #159 で、運用が始まってから決める）。

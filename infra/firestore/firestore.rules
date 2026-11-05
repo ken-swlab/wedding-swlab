@@ -66,8 +66,24 @@ service cloud.firestore {
     function validMentionUids(d) {
       return !('mentionUids' in d) || (d.mentionUids is list && d.mentionUids.size() <= 10);
     }
+    // 写真の「下絵」（Issue #253）。★data:image/jpeg;base64, で始まる 1024 文字以下の文字列だけ★
+    //   投稿のデータはゲスト全員が読むので、任意の文字列（長い文章・別の形式の data URL）を入れさせない。
+    //   キーが無い（下絵なし）・media の要素がマップでないものは、今までどおり通す（要素の中身はほかには見ていない）。
+    //   長さの上限は app/web/src/lib/media-variants.ts の PLACEHOLDER_MAX_CHARS と同じ。片方だけ変えない。
+    function okPlaceholder(m) {
+      return !(m is map) || !('placeholder' in m)
+        || (m.placeholder is string && m.placeholder.size() <= 1024
+            && m.placeholder.matches('^data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}$'));
+    }
+    // media は最大 4 件（validPost・本人の更新で確かめている）。Rules にはループが無いので1件ずつ見る
+    function validPlaceholders(media) {
+      return (media.size() < 1 || okPlaceholder(media[0]))
+        && (media.size() < 2 || okPlaceholder(media[1]))
+        && (media.size() < 3 || okPlaceholder(media[2]))
+        && (media.size() < 4 || okPlaceholder(media[3]));
+    }
     function validPost(d) {
-      return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','mentionUids','status','reactionCount','commentCount','createdAt','updatedAt']) && validMentionUids(d) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
+      return validAuthor(d) && d.keys().hasAll(['authorUid','authorName','text','media','visibleToTags','hashtags','mentions','status','reactionCount','commentCount','createdAt']) && d.keys().hasOnly(['authorUid','authorName','authorPhotoURL','text','media','visibleToTags','hashtags','mentions','mentionUids','status','reactionCount','commentCount','createdAt','updatedAt']) && validMentionUids(d) && d.text is string && d.text.size() <= 4000 && d.media is list && d.media.size() <= 4 && validPlaceholders(d.media) && d.hashtags is list && d.hashtags.size() <= 10 && d.mentions is list && d.mentions.size() <= 10 && d.status == 'visible' && d.reactionCount == 0 && d.commentCount == 0 && d.createdAt == request.time;
     }
     // updatedAt を変えるならサーバー時刻（serverTimestamp()）だけ。変えない更新はそのまま通す
     function updatedAtIsNow() {
@@ -106,6 +122,7 @@ service cloud.firestore {
         || (signedIn() && resource.data.authorUid == myUid()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['media','updatedAt'])
             && request.resource.data.media is list && request.resource.data.media.size() <= 4
+            && validPlaceholders(request.resource.data.media)
             && updatedAtIsNow())
         || (signedIn() && canRead(resource.data) && counterStep('reactionCount', 1) && reactionAdded(postId))
         || (signedIn() && canRead(resource.data) && counterStep('reactionCount', -1) && reactionRemoved(postId))

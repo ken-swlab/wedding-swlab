@@ -17,7 +17,7 @@ paths:
 | `guests/{uid}` | 本人・管理者・タグを1つ以上持つ人 | サーバー（本人のプロフィールは `/api/guest/profile` 経由。本人の直接の書き込みは不可） |
 | `guestPrivate/{uid}` | 本人・管理者 | サーバー |
 | `guestAdmin/{uid}` | 管理者 | サーバー |
-| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の直接の更新は `media`・`updatedAt` だけ（本文の編集は `/api/posts/[id]`）。カウンタは ±1（`reactionCount` は自分のいいねの作成・削除と同じ書き込みのときだけ） |
+| `posts/{id}` | `canSee`（管理者、または `visibleToTags` と自分の `tags` が重なる）。投稿者本人は常に読める | 作成は本人（`validPost()` かつ、自分のタグの範囲か `['couple']` ちょうど）。本人の直接の更新は `media`・`updatedAt` だけ（本文の編集は `/api/posts/[id]`）。media の要素の `placeholder`（写真の下絵。Issue #253）は `data:image/jpeg;base64,` で始まる 1024 文字以下だけ（作成・本人の更新とも。`okPlaceholder`）。カウンタは ±1（`reactionCount` は自分のいいねの作成・削除と同じ書き込みのときだけ） |
 | `posts/{id}/comments` | 親の `canSee`（横断購読と get はコメント自身の `visibleToTags`。書いた本人は常に読める） | 本人が作成（表示中の投稿だけ。`visibleToTags` は親と完全一致）。更新不可 |
 | `posts/{id}/reactions/{uid}` | 本人の分だけ（管理者は1件ずつ読める）。自分のいいねの一覧は `collectionGroup("reactions")` を `uid == 自分` と `limit(500)` 以下で絞ったときだけ（管理者も同じ。Issue #212） | 本人の1件だけ（その投稿が読める人）。`uid`（自分の uid）は必須 |
 | `notifications/{uid}/items/{id}` | 本人 | 作成はサーバー（`/api/notifications/mention`）。本人の更新は `read` を `true` にするだけ |

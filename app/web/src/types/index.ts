@@ -45,6 +45,12 @@ export type MediaItem = {
   /** 動画の1枚目の画像（長辺 400px）。一覧では動画本体を読まずにこれを出す */
   posterPath?: string;
   posterUrl?: string;
+  /**
+   * 写真の「下絵」（Issue #253）。長辺 16px の JPEG の data URL（1024 文字以下。lib/media-variants.ts の isPlaceholder）。
+   * 写真が届く前に、ぼかして枠に敷く。動画はポスターから作る。無い古い投稿は灰色の枠のまま。
+   * ★Rules も形を確かめる★（okPlaceholder）。投稿のデータはゲスト全員が読む
+   */
+  placeholder?: string;
 
   // --- 二段階アップロードの原本 ---
   originalUrl?: string;
