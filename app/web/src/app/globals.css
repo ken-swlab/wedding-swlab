@@ -568,3 +568,16 @@ body {
   --text-2xl: calc(1.5rem * var(--inv-scale));
   --text-3xl: calc(1.875rem * var(--inv-scale));
 }
+
+/*
+ * 入口の封筒のふた（Issue #267。components/guestbook/Envelope.tsx）。待っている間、1.2 秒後から 3.2 秒ごとに、
+ * ふたが少しだけ（16°）浮いて戻る（押せることの合図）。シールも同じ軸で一緒に浮く。
+ */
+@keyframes envelope-flap-idle {
+  0%, 16%, 100% { transform: rotateX(0deg); }
+  8% { transform: rotateX(16deg); }
+}
+.envelope-flap-idle { animation: envelope-flap-idle 3.2s ease-in-out 1.2s infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .envelope-flap-idle { animation: none; }
+}

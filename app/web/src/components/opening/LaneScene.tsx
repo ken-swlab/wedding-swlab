@@ -72,40 +72,55 @@ export function LaneScene({ couple, guestName, onDone }: { couple: readonly [str
         return;
       }
 
-      // 飛ぶ名前を、収まる先（レーンの名前の位置）に同じ大きさで重ねる
+      /*
+        ★飛ぶ名前は、最初から大きい文字で描き、縮めるだけにする★（Issue #267）
+          以前はレーンの文字と同じ大きさで描いて scale で拡大し、それを scale(1) へ縮めていた。途中で文字が毎フレーム
+          描き直され、字の位置が細かく揺れて「ずずっと」ずれて見えた。大きい文字（fontPx × 倍率）を1枚の層に固定し
+          （will-change・backface-visibility）、scale(1 / 倍率) へ縮める動きだけにすると、描き直しが起きない。
+        ★縮みきった姿をレーンの文字に合わせる★ 大きさはレーンの文字（fit() で決めた Math.floor の値）から計算し、
+          書体・太さ（font-bold）・字間（指定なし）を同じにする。左上を軸に縮めるので、縮みきると左上がレーンの文字の位置に来る。
+      */
       const target = slot.getBoundingClientRect();
       const fontPx = parseFloat(getComputedStyle(slot).fontSize) || LANE_FONT_PX;
       const h = fontPx * LINE;
       const left = target.left - st.left;
       const top = target.top - st.top + (target.height - h) / 2;
       el.textContent = names[lane];
-      el.style.fontSize = `${fontPx}px`;
       el.style.lineHeight = String(LINE);
       el.style.color = isGuest ? OPENING_COLORS.led : OPENING_COLORS.ink;
       el.style.left = `${left}px`;
       el.style.top = `${top}px`;
       el.style.transform = "none";
-
-      // 表の上の空きの中央に、画面の幅に収まる倍率で大きく出す
+      // まずレーンと同じ大きさで幅を測り、画面の幅に収まる倍率を決める
+      el.style.fontSize = `${fontPx}px`;
       const w = el.getBoundingClientRect().width || 1;
       const scale = Math.min(NAME_SCALE_MAX, (st.width - NAME_SIDE_MARGIN_PX * 2) / w);
-      const cx = st.width / 2 - left - (w * scale) / 2;
-      const cy = centerY - top - (h * scale) / 2;
-      const big = `translate(${cx}px, ${cy}px) scale(${scale})`;
+      // 大きい文字で描き直す（ここから先は大きさを変えない）
+      el.style.fontSize = `${fontPx * scale}px`;
+      const bigW = el.getBoundingClientRect().width || w * scale;
+      const bigH = h * scale;
 
-      setAnnounce({ lane, top: centerY - (h * scale) / 2 - 30 });
+      // 表の上の空きの中央に大きく出す（縮めない＝等倍）。縮みきった姿は scale(1 / 倍率)
+      const cx = st.width / 2 - left - bigW / 2;
+      const cy = centerY - top - bigH / 2;
+      const big = `translate(${cx}px, ${cy}px) scale(1)`;
+      const small = `translate(0px, 0px) scale(${1 / scale})`;
+
+      setAnnounce({ lane, top: centerY - bigH / 2 - 30 });
       setDim(true);
       el.style.opacity = "1";
       await t.play(el, [{ transform: big, opacity: 0 }, { transform: big, opacity: 1 }], { duration: OPENING_TIMING.nameFadeIn, fill: "forwards" });
       await t.sleep(hold);
       setAnnounce(null);
       setDim(false);
-      await t.play(el, [{ transform: big }, { transform: "translate(0px, 0px) scale(1)" }], {
+      await t.play(el, [{ transform: big }, { transform: small }], {
         duration: OPENING_TIMING.nameSettle,
         easing: "cubic-bezier(.5,0,.2,1)",
         fill: "forwards",
       });
+      // ★入れ替えは、レーンの文字を出してから★ 描かれたのを確かめて（2フレーム待って）飛ぶ名前を消す（一瞬の空白を出さない）
       setLit((l) => [...l, lane]);
+      await nextPaint();
       el.style.opacity = "0";
       el.getAnimations().forEach((a) => a.cancel());
       await t.sleep(isGuest ? 0 : OPENING_TIMING.afterSettleCouple);
@@ -176,7 +191,18 @@ export function LaneScene({ couple, guestName, onDone }: { couple: readonly [str
       >
         {announce ? `${announce.lane} レーン` : ""}
       </div>
-      <div ref={fly} aria-hidden className="pointer-events-none absolute origin-top-left whitespace-nowrap font-extrabold opacity-0" />
+      {/* ★太さはレーンの文字と同じ font-bold★（以前は font-extrabold で、収まる瞬間に字の幅が変わってずれた） */}
+      <div
+        ref={fly}
+        aria-hidden
+        className="pointer-events-none absolute origin-top-left whitespace-nowrap font-bold opacity-0"
+        style={{ willChange: "transform", backfaceVisibility: "hidden" }}
+      />
     </section>
   );
+}
+
+/** 次の描画が済むまで待つ（React の更新が画面に出てから次へ進むため。2フレーム） */
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }

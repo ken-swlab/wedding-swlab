@@ -10,6 +10,7 @@ import { openingCast } from "@/lib/opening-names";
 import { prefersReducedMotion } from "@/components/opening/timeline";
 import { ScreenFade } from "@/components/ScreenFade";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
+import { Envelope } from "@/components/guestbook/Envelope";
 import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
 import { hasReadInvitation, markInvitationRead } from "@/lib/invitation-read";
 import { useSeenOnce } from "@/hooks/useSeenOnce";
@@ -314,12 +315,16 @@ function InvitationUnderWater({ invitation, opening }: { invitation: InvitationC
   );
 }
 
-/** 封を開ける動きの長さ (ms)。ログインを始める前に見せきる（Issue #157 B-1） */
-const ENVELOPE_OPEN_MS = 450;
+/**
+ * 封を開ける動きの長さ (ms)。ログインを始める前に見せきる（Issue #157 B-1）。
+ * Issue #267 の封筒（シールが消える → ふたが開く → 便せんが飛び出す）が出きるまで約 1.5 秒（Envelope.tsx の時間割）
+ */
+const ENVELOPE_OPEN_MS = 1500;
 
 /**
  * 入り口（Issue #157 B-1）。封筒を大きく出し、「LINE でログイン」は本文のすぐ下（画面の中ほど）に置く。
- * ★封を開けてからログインを始める★ ボタンか封筒を押すと、封筒のふたが開き（ENVELOPE_OPEN_MS）、そのあと onLogin。
+ * ★封を開けてからログインを始める★ ボタンか封筒を押すと、封筒が開いて便せんが飛び出し（ENVELOPE_OPEN_MS）、そのあと onLogin。
+ *   便せんを画面いっぱいに広げる演出はしない（Issue #267）。LINE の画面から戻ったあとも、この画面から始める。
  *   動きを減らす設定では待たずに onLogin。
  * ★ここに新郎新婦の名前・日付・会場を出さない★（CLAUDE.md ルール 4a。上の★参照）
  */
@@ -372,26 +377,3 @@ function EntranceStep({ busy, message, onLogin }: { busy: boolean; message: stri
   );
 }
 
-/**
- * 封筒の絵。open でふたが上へ開く。
- * ★ふたは scaleY で裏返す★ SVG の 3D 回転（rotateX）は iOS の Safari で崩れることがあるため。
- *   transform-box: fill-box で、ふたの上端（封筒の縁）を軸にする。
- */
-function Envelope({ open }: { open: boolean }) {
-  return (
-    <svg viewBox="0 0 64 56" className="h-24 w-24 overflow-visible text-stone-400" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" aria-hidden="true">
-      <rect x="6" y="18" width="52" height="34" rx="3" className="fill-white" />
-      <path d="M7 50l19-16M57 50L38 34" opacity="0.6" />
-      <path
-        d="M6 19 L32 38 L58 19 Z"
-        className="fill-stone-100 transition-transform ease-out motion-reduce:transition-none"
-        style={{
-          transformBox: "fill-box",
-          transformOrigin: "50% 0%",
-          transform: open ? "scaleY(-1)" : "scaleY(1)",
-          transitionDuration: `${ENVELOPE_OPEN_MS}ms`,
-        }}
-      />
-    </svg>
-  );
-}
