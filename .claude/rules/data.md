@@ -24,6 +24,8 @@ paths:
 | `faces` | 管理者 | サーバー |
 | `episodes` | 管理者、または `approved` かつ `canSee` | サーバー |
 | `tags` | サインイン済み | サーバー |
+| `venueTests`（会場の電波テストの結果。Issue #256）・`venueTestLive` | 管理者（一覧は `limit(500)` まで） | サーバー（`/api/admin/venue-test/*`） |
+| `venueProbe/{uid}`（電波テストの試し書き） | 管理者の本人だけ | 管理者の本人だけ（`n`・`at` だけ。`at` はサーバー時刻） |
 | `config/runtime`・`rateLimits`・`auditLogs`・`redeemAttempts`・`deletedMedia` | なし | サーバー |
 
 - `reactionTimes/{uid}`（オープニングのリアクションタイム。Issue #131）と `config/invitation`・`config/invitation_family`（新郎新婦の名前・会場。親族用は Issue #240）は Rules に書かない = クライアントからは管理者も読み書きできない。読み書きはサーバーの `/api/guest/reaction`・`/api/guest/invitation` だけ。`reactionTimes` は最初の 1 回だけ作り、上書きしない。名前を入れない。ランキング（`/api/guest/reaction/ranking?tag=`）は、呼び出した人が Custom Claims でそのタグを持つときだけ返す（承認前は 403）。返すのは順位・ニックネーム・アイコン・タイムだけで、uid・本名・LINE の情報は返さない。「全員」（`all`）のときは本人以外のニックネーム・アイコンを空にする（Issue #174）。

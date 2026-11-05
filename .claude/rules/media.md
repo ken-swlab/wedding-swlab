@@ -34,6 +34,9 @@ paths:
 - 表示は `PlaceholderImage`（タイムライン・投稿の詳細の `MediaGrid`、ギャラリーの格子）: 下絵を `blur(16px)`・`scale(1.1)` で敷き、本物が読めたら 200ms（`PLACEHOLDER_FADE_MS` ⇔ クラスの `duration-200`）で重ね、そのあと下絵を外す。下絵の無い投稿は今までどおり。
 - 今ある投稿は `ops.mjs media backfill-variants` が下絵も作る（feed・grid があるものは下絵だけ。動画はポスターがあるものだけ）。
 
+## 会場の電波テスト（Issue #256。管理者用 /admin/venue-test）
+- 読む写真は公開バケットの `test/venue/fixtures/`（`ops.mjs venue-test fixtures` が置く。大きさは `config/venue-test.ts` とぴったり同じ）。送るダミーは公開バケットの `test/venue/up/{uuid}.jpg`（`/api/admin/venue-test/upload` がキーを決めて署名し、測り終わったら同じ API の DELETE で消す。`VENUE_UPLOAD_KEY_RE` に合うキーしか消さない）。**本番の投稿の `u/` には触れない。** 消し忘れはバケットのライフサイクル（`test/venue/up/` を1日で消す。オーナーが設定）で消える。
+
 ## キーとバケット
 - 軽量版 `u/{uid}/t/{uuid}.{ext}`（公開バケット `wedding-media`）、原本 `u/{uid}/o/{uuid}.{ext}`（非公開バケット `wedding-originals`）。バケットはサーバーが `kind` から決め、クライアントには選ばせない。
 - 原本と Worker のマーカー（`_linked/`・`_pending/`・`_failed/`・`_skipped/`）を消さない。Worker は原本を移動も削除もしない（原本の削除は Issue #159 で、運用が始まってから決める）。

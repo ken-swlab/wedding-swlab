@@ -40,6 +40,10 @@
  *                                                 軽量版を読み、sharp で feed（828px）・grid（400px）を作って公開バケットに置き、
  *                                                 投稿の feedPath・gridPath を書く。済んだ写真は飛ばすので、途中で止めても続きから再開できる。
  *                                                 アップロードは wrangler（オーナーの Cloudflare ログイン）。Codespaces で実行する
+ *   node scripts/ops.mjs venue-test fixtures [--out <dir>]
+ *                                                 会場の電波テスト（Issue #256）で読むテスト用の写真を作り、公開バケットの test/venue/fixtures/ に置く
+ *                                                 （feed 相当 100KB ×10・1.5MB ×3。大きさは設定 config/venue-test.ts とぴったり同じ）。
+ *                                                 --out を付けると、置かずにそのフォルダへ書き出すだけ。アップロードは wrangler
  *     ★本物の名前・日付・会場を入れた JSON はリポジトリの外に置く★（公開リポジトリ。コミットしない）
  *     ★このコマンドは値を画面に出さない★ 出すのは項目の名前と件数だけ。
  *
@@ -98,7 +102,8 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]
   node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
   node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry
-  node scripts/ops.mjs media backfill-variants [--apply] [--limit 投稿数]`);
+  node scripts/ops.mjs media backfill-variants [--apply] [--limit 投稿数]
+  node scripts/ops.mjs venue-test fixtures [--out <dir>]`);
   process.exit(0);
 }
 
@@ -529,6 +534,80 @@ if (cmd === "payment") {
   console.log(`2次会       : ${yen(v.secondYen)}`);
   console.log(`お車代      : ${yen(v.carFareYen)}（差し引く額。招待状には出さない）`);
   console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
+  process.exit(0);
+}
+
+// ---- venue-test fixtures（Issue #256）---------------------------------------
+/**
+ * 会場の電波テストで読むテスト用の写真を作って置く。
+ * ★中身はランダムな模様だけ★（人や場所は写っていない。EXIF も書かない）。
+ * ★大きさは設定とぴったり同じにする★ 測る側は、この大きさで下りの速さを計算する（別のドメインなので、読んだ量を数えられない）。
+ *   JPEG の終わり（EOI）のあとに 0 を足してそろえる（ブラウザは終わりのあとを読まずに表示する）。
+ * ★置くのは公開バケットの test/venue/fixtures/ だけ★ 本番の投稿（u/…）には触れない。
+ */
+if (cmd === "venue-test") {
+  if (rest[0] !== "fixtures") {
+    console.error("使い方: node scripts/ops.mjs venue-test fixtures [--out <dir>]");
+    process.exit(1);
+  }
+  const { VENUE_TEST, fixtureKeys } = await import("../src/config/venue-test.ts");
+  const sharp = (await import("sharp")).default;
+  const { mkdtempSync, writeFileSync, rmSync, mkdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const outDir = flag("--out");
+
+  /** ランダムな模様の JPEG を、target バイトちょうどにする */
+  async function make(target, seed) {
+    let w = Math.round(Math.sqrt(target / 0.35)); // ノイズの JPEG は 1 画素あたりおよそ 0.35〜0.5 バイト
+    for (let tries = 0; tries < 12; tries++) {
+      const h = Math.round(w * 0.75);
+      const raw = Buffer.alloc(w * h * 3);
+      let x = seed;
+      for (let i = 0; i < raw.length; i++) {
+        x = (x * 1103515245 + 12345) & 0x7fffffff;
+        raw[i] = (x >> 16) & 0xff;
+      }
+      const jpg = await sharp(raw, { raw: { width: w, height: h, channels: 3 } }).blur(0.8).jpeg({ quality: 80 }).toBuffer();
+      if (jpg.length <= target && jpg.length > target * 0.6) return Buffer.concat([jpg, Buffer.alloc(target - jpg.length)]);
+      w = Math.round(w * Math.sqrt((target * 0.85) / jpg.length));
+    }
+    throw new Error(`${target} バイトの写真を作れませんでした`);
+  }
+
+  const keys = fixtureKeys(VENUE_TEST);
+  const files = [
+    ...keys.feed.map((key, i) => ({ key, bytes: VENUE_TEST.download.feedBytes, seed: 100 + i })),
+    ...keys.big.map((key, i) => ({ key, bytes: VENUE_TEST.download.bigBytes, seed: 200 + i })),
+  ];
+  const dir = outDir ? resolve(outDir) : mkdtempSync(resolve(tmpdir(), "venue-fixtures-"));
+  if (outDir) mkdirSync(dir, { recursive: true });
+  const bucket = process.env.R2_BUCKET_PUBLIC || "wedding-media";
+  try {
+    for (const f of files) {
+      const buf = await make(f.bytes, f.seed);
+      const local = resolve(dir, f.key.split("/").pop());
+      writeFileSync(local, buf);
+      if (outDir) {
+        console.log(`書き出しました: ${local}（${buf.length} バイト）`);
+        continue;
+      }
+      const r = spawnSync(
+        "npx",
+        ["--no-install", "wrangler", "r2", "object", "put", `${bucket}/${f.key}`, "--file", local, "--content-type", "image/jpeg",
+          "--cache-control", "public, max-age=300", "--remote"],
+        { cwd: resolve(HERE, "..", "..", "..", "infra", "workers", "exif-stripper"), stdio: ["ignore", "ignore", "inherit"] },
+      );
+      if (r.status !== 0) {
+        console.error("アップロードに失敗しました（npx wrangler login でログインしてから、やり直してください）");
+        process.exit(1);
+      }
+      console.log(`置きました: ${f.key}（${buf.length} バイト）`);
+    }
+  } finally {
+    if (!outDir) rmSync(dir, { recursive: true, force: true });
+  }
+  console.log(`\n✅ テスト用の写真 ${files.length} 枚${outDir ? "を書き出しました" : "を公開バケットに置きました"}\n`);
   process.exit(0);
 }
 

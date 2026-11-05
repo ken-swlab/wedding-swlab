@@ -31,7 +31,7 @@ paths:
 | 種類 | スクリプト |
 |---|---|
 | 読み取りだけ | `scripts/csp-verify.py`、`scripts/csp-reports.py`（Sentry の読み取りトークンが要る）、`scripts/pii-access-report.py`（gcloud）、`scripts/infra-verify.sh`（Vercel・Cloudflare のログインが要る）、`scripts/inspect-markers.mjs`、`app/web/scripts/ops.mjs audit` / `ratelimit` / `maintenance status`、`app/web/scripts/scan-published-metadata.mjs`（`--apply` なし）、`app/web/scripts/backfill-reaction-uid.mjs`（`--apply` なし） |
-| 本番を変える（オーナーの指示があるときだけ） | `ops.mjs maintenance on` / `off`（約10秒で全ゲストに反映）、`make-admin.mjs`、`migrate-pii.mjs --copy --apply` / `--purge --apply`（`--purge` は取り消し不可で、本名入りのバックアップ JSON を書き出す）、`migrate-posts-face-status.mjs`（既定で書き込む）、`scan-published-metadata.mjs --apply`（公開バケットの上書き。取り消せない。あとで Cloudflare の Purge が要る）、`backfill-reaction-uid.mjs --apply`（uid の無いいいねに uid を足すだけ。Issue #212）、`ops.mjs media backfill-variants --apply`（今ある写真に一覧用の小さい版を作って置き、投稿の `feedPath`・`gridPath` を書く。済んだ写真は飛ばすので再開できる。wrangler のログインが要る。Issue #251。`--apply` なしは数えるだけ） |
+| 本番を変える（オーナーの指示があるときだけ） | `ops.mjs maintenance on` / `off`（約10秒で全ゲストに反映）、`make-admin.mjs`、`migrate-pii.mjs --copy --apply` / `--purge --apply`（`--purge` は取り消し不可で、本名入りのバックアップ JSON を書き出す）、`migrate-posts-face-status.mjs`（既定で書き込む）、`scan-published-metadata.mjs --apply`（公開バケットの上書き。取り消せない。あとで Cloudflare の Purge が要る）、`backfill-reaction-uid.mjs --apply`（uid の無いいいねに uid を足すだけ。Issue #212）、`ops.mjs venue-test fixtures`（会場の電波テストの写真を公開バケットの `test/venue/fixtures/` に置く。Issue #256。`--out` は書き出すだけ）、`ops.mjs media backfill-variants --apply`（今ある写真に一覧用の小さい版を作って置き、投稿の `feedPath`・`gridPath` を書く。済んだ写真は飛ばすので再開できる。wrangler のログインが要る。Issue #251。`--apply` なしは数えるだけ） |
 | 課金が発生する | `app/web/test-rekognition.mjs`（AWS Rekognition を呼ぶ） |
 
 - `app/web/scripts/*.mjs` は `app/web` で実行する（`.env.local` の鍵、無ければ ADC を使う）。
