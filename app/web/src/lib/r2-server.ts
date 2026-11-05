@@ -167,3 +167,38 @@ export async function deletePublicObjects(
   }
   return { deleted, failed, refused };
 }
+
+/**
+ * 会場の電波テスト（Issue #256）で送るダミー画像のキー。★公開バケットの test/venue/up/ の下だけ★
+ * 本番の投稿（u/{uid}/…）とは置き場所を分け、消すときもこの形のキーしか受け付けない。
+ */
+export const VENUE_UPLOAD_KEY_RE = /^test\/venue\/up\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.jpg$/;
+
+export function newVenueUploadKey(prefix: string): string {
+  return `${prefix}${randomUUID()}.jpg`;
+}
+
+/**
+ * 電波テストのダミー画像を消す（Issue #256）。★キーは VENUE_UPLOAD_KEY_RE に合うものだけ★（本番の写真には触れない）
+ * 消し忘れても、公開バケットのライフサイクル（test/venue/up/ を1日で消す。オーナーが設定）で消える。
+ */
+export async function deleteVenueUploads(keys: string[]): Promise<{ deleted: number; refused: number; failed: number }> {
+  const bucket = env("R2_BUCKET_PUBLIC");
+  let deleted = 0;
+  let refused = 0;
+  let failed = 0;
+  for (const key of keys) {
+    if (!VENUE_UPLOAD_KEY_RE.test(key)) {
+      refused += 1;
+      continue;
+    }
+    try {
+      await r2().send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+      deleted += 1;
+    } catch (e) {
+      console.error("[r2] 電波テストのダミー画像を消せませんでした", e);
+      failed += 1;
+    }
+  }
+  return { deleted, refused, failed };
+}

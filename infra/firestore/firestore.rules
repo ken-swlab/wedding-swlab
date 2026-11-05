@@ -265,6 +265,27 @@ service cloud.firestore {
         && request.resource.data.read == true;
     }
 
+    // ---- 会場の電波テスト（Issue #256。管理者用 /admin/venue-test）----
+    // データの読み書きの速さを測る、試し書きの1件。★管理者が自分の uid の1件だけ★ 中身は回数と時刻だけ
+    match /venueProbe/{uid} {
+      allow get: if isAdmin() && uid == myUid();
+      allow create, update: if isAdmin() && uid == myUid()
+        && request.resource.data.keys().hasOnly(['n', 'at'])
+        && request.resource.data.n is int && request.resource.data.at == request.time;
+      allow delete: if isAdmin() && uid == myUid();
+    }
+    // 測定の結果（数字・場所・携帯会社・メモ・端末の種類だけ。位置情報・IP は保存しない）。読むのは管理者だけ、書くのはサーバー（/api/admin/venue-test/results）
+    match /venueTests/{testId} {
+      allow get: if isAdmin();
+      allow list: if isAdmin() && request.query.limit <= 500;
+      allow write: if false;
+    }
+    // 同時測定の開始時刻（/api/admin/venue-test/live が書く）。同じ画面を開いている管理者の端末が購読する
+    match /venueTestLive/{docId} {
+      allow get: if isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} { allow read, write: if false; }
     // =====================================================
     // collectionGroup("comments") 用のルール

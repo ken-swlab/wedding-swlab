@@ -539,6 +539,31 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ["anon", DENY, "lineOutbox: 未ログインは読めない", get("lineOutbox/approved:u_guest")],
 ]);
 
+// 会場の電波テスト（Issue #256）
+const probe = (uid, data) => set(`venueProbe/${uid}`, data);
+table("venueProbe・venueTests・venueTestLive（会場の電波テスト。管理者だけ）", [
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを作れる", probe("u_admin", { n: 1, at: serverTimestamp() })],
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを読める", get("venueProbe/u_admin")],
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを消せる", del("venueProbe/u_admin")],
+  ["admin", DENY, "venueProbe: ほかの人の uid には書けない", probe("u_guest", { n: 1, at: serverTimestamp() })],
+  ["admin", DENY, "venueProbe: 余計なキーは書けない", probe("u_admin", { n: 1, at: serverTimestamp(), note: "x" })],
+  ["admin", DENY, "venueProbe: 時刻はサーバー時刻だけ", probe("u_admin", { n: 1, at: FIXED_DATE })],
+  ["admin", DENY, "venueProbe: 回数は整数だけ", probe("u_admin", { n: "1", at: serverTimestamp() })],
+  ["guest", DENY, "venueProbe: 管理者でなければ書けない", probe("u_guest", { n: 1, at: serverTimestamp() })],
+  ["couple", DENY, "venueProbe: couple タグでも管理者でなければ書けない", probe("u_couple", { n: 1, at: serverTimestamp() })],
+  ["guest", DENY, "venueProbe: 管理者でなければ読めない", get("venueProbe/u_guest")],
+  ["admin", ALLOW, "venueTests: 管理者は1件読める", get("venueTests/t1")],
+  ["admin", ALLOW, "venueTests: 管理者は 500 件まで一覧できる", list("venueTests", limit(500))],
+  ["admin", DENY, "venueTests: 501 件以上の一覧は拒否", list("venueTests", limit(501))],
+  ["admin", DENY, "venueTests: 管理者もクライアントからは書けない（サーバーだけ）", set("venueTests/t1", { place: "窓側" })],
+  ["guest", DENY, "venueTests: ゲストは読めない", get("venueTests/t1")],
+  ["guest", DENY, "venueTests: ゲストは一覧できない", list("venueTests", limit(10))],
+  ["anon", DENY, "venueTests: 未ログインは読めない", get("venueTests/t1")],
+  ["admin", ALLOW, "venueTestLive: 管理者は開始時刻を読める", get("venueTestLive/current")],
+  ["admin", DENY, "venueTestLive: 管理者もクライアントからは書けない", set("venueTestLive/current", { startAt: FIXED_DATE })],
+  ["guest", DENY, "venueTestLive: ゲストは読めない", get("venueTestLive/current")],
+]);
+
 table("Rules に書かれていないパス（既定拒否）", [
   ...lockedDown("知らないコレクション", "unknown/x1"),
   ...lockedDown("guests の下の知らないサブコレクション", "guests/u_guest/secret/x1"),
