@@ -11,6 +11,7 @@ import { prefersReducedMotion } from "@/components/opening/timeline";
 import { ScreenFade } from "@/components/ScreenFade";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
 import { Envelope } from "@/components/guestbook/Envelope";
+import { PaperSheet, type PaperRect } from "@/components/guestbook/PaperSheet";
 import { ENTRY_BAR_DELAY_MS, INVITATION_COLORS } from "@/config/invitation";
 import { hasReadInvitation, markInvitationRead } from "@/lib/invitation-read";
 import { useSeenOnce } from "@/hooks/useSeenOnce";
@@ -100,6 +101,9 @@ function FlowSteps({ step, onLogin, onPasscodeSubmit, onPasscodeCleared, onOpeni
   const [prev, setPrev] = useState({ kind: step.kind, from: step.kind });
   if (prev.kind !== step.kind) setPrev({ kind: step.kind, from: prev.kind });
   const [openingSkipped, setOpeningSkipped] = useState(false);
+  // 入口で紙を画面いっぱいに広げたか（このページの中でログインした）。広げたなら、そのあとの読み込み中は
+  // 広げた紙と同じ地の色のまま出す。LINE の画面から戻ってきたとき（読み込み直し）は false で、これまでどおり
+  const [paperUp, setPaperUp] = useState(false);
   const reveal: InvitationReveal = step.kind === "open" && prev.from === "opening" ? (openingSkipped ? "skipped" : "dive") : null;
 
   // 回答を送った端末には、次から画面下の「エントリーする」を最初から出す（Issue #178）
@@ -109,12 +113,14 @@ function FlowSteps({ step, onLogin, onPasscodeSubmit, onPasscodeCleared, onOpeni
 
   switch (step.kind) {
     case "loading":
+      // ★紙を広げたあとは、読み込み中も広げた紙と同じ地の色のまま★ 白いスプラッシュを挟むと、紙が消えて見える
+      if (paperUp) return <main className="min-h-dvh" style={{ background: OPENING_COLORS.calm }} />;
       return <SplashScreen phase="booting" />;
     case "entrance":
-      return <EntranceStep busy={step.busy} message={step.message} onLogin={onLogin} />;
+      return <EntranceStep busy={step.busy} message={step.message} onLogin={onLogin} onPaperUp={setPaperUp} />;
     case "passcode":
       return (
-        // ★地の色は招集と同じ★（Issue #165。パスコード → 招集で地の色を変えない）
+        // ★地の色は招集と同じ★（Issue #165。パスコード → 招集で地の色を変えない）。広げた紙も最後はこの色になる
         <main className="min-h-dvh text-stone-800" style={{ background: OPENING_COLORS.calm }}>
           <div className="mx-auto flex min-h-dvh w-full max-w-[26rem] flex-col justify-center px-6 py-10">
             <PasscodeStep onSubmit={onPasscodeSubmit} onCleared={onPasscodeCleared} />
@@ -316,45 +322,68 @@ function InvitationUnderWater({ invitation, opening }: { invitation: InvitationC
 }
 
 /**
- * 封を開ける動きの長さ (ms)。ログインを始める前に見せきる（Issue #157 B-1）。
- * Issue #267 の封筒（シールが消える → ふたが開く → 便せんが飛び出す）が出きるまで約 1.5 秒（Envelope.tsx の時間割）
+ * 封を開けて便せんが出きるまでの長さ (ms)。Issue #267 の封筒（シールが消える → ふたが開く → 便せんが飛び出す）の
+ * 時間割（Envelope.tsx。便せんは 350 + 700 = 1050ms で出きる）。そのあと便せんを画面いっぱいに広げる（PaperSheet）
  */
-const ENVELOPE_OPEN_MS = 1500;
+const ENVELOPE_OPEN_MS = 1050;
 
 /**
  * 入り口（Issue #157 B-1）。封筒を大きく出し、「LINE でログイン」は本文のすぐ下（画面の中ほど）に置く。
- * ★封を開けてからログインを始める★ ボタンか封筒を押すと、封筒が開いて便せんが飛び出し（ENVELOPE_OPEN_MS）、そのあと onLogin。
- *   便せんを画面いっぱいに広げる演出はしない（Issue #267）。LINE の画面から戻ったあとも、この画面から始める。
+ * ★封を開け、便せんを画面いっぱいに広げてからログインを始める★ ボタンか封筒を押すと、封筒が開いて便せんが飛び出し
+ *   （ENVELOPE_OPEN_MS）、便せんが広がって次の画面の地の色になる（PaperSheet の cover）。そこで onLogin。
+ *   ★LINE の画面へ移るときも、広げきってから移る★ ログインの間は広げた紙で入口を覆ったまま（onPaperUp(true)。
+ *   読み込み中・パスコードも同じ地の色で続く）。LINE の画面から戻ってきたあとは広げ直さない（これまでどおり進む）。
+ *   ログインできずに入口に戻ったとき（busy が false に戻った）は、紙を外して、また押せるようにする。
  *   動きを減らす設定では待たずに onLogin。
  * ★ここに新郎新婦の名前・日付・会場を出さない★（CLAUDE.md ルール 4a。上の★参照）
  */
-function EntranceStep({ busy, message, onLogin }: { busy: boolean; message: string | null; onLogin: () => void }) {
-  const [opening, setOpening] = useState(false);
+function EntranceStep({ busy, message, onLogin, onPaperUp }: { busy: boolean; message: string | null; onLogin: () => void; onPaperUp: (up: boolean) => void }) {
+  const [stage, setStage] = useState<"idle" | "opening" | "paper" | "covered">("idle");
+  const [paperFrom, setPaperFrom] = useState<PaperRect | null>(null);
+  const letterRef = useRef<HTMLSpanElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
+  // ログインできずに入口へ戻った（busy が false に戻った）ら、紙を外して、また押せるようにする
+  //   ★少し待ってから確かめる★ onLogin のあと busy が true になるまでの間に外さないように。ログインが始まらなかった
+  //   （busy にならなかった）ときも、ここで外れる（覆ったまま止まらない）
+  useEffect(() => {
+    if (stage !== "covered" || busy) return;
+    const t = setTimeout(() => {
+      setStage("idle");
+      setPaperFrom(null);
+      onPaperUp(false);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [stage, busy, onPaperUp]);
+
   const open = () => {
-    if (busy || opening) return;
-    setOpening(true);
+    if (busy || stage !== "idle") return;
     if (prefersReducedMotion()) {
       onLogin();
       return;
     }
+    setStage("opening");
     timer.current = setTimeout(() => {
-      onLogin();
-      // 戻ってきたとき（ログインを取りやめた・失敗した）は、また押せるようにする
-      setOpening(false);
+      const r = letterRef.current?.getBoundingClientRect();
+      setPaperFrom(r ? { left: r.left, top: r.top, width: r.width, height: r.height } : null);
+      setStage("paper");
     }, ENVELOPE_OPEN_MS);
   };
-  const isOpen = opening || busy;
+  const covered = useCallback(() => {
+    setStage("covered");
+    onPaperUp(true);
+    onLogin();
+  }, [onLogin, onPaperUp]);
+  const isOpen = stage !== "idle" || busy;
 
   return (
     <main className="flex min-h-dvh flex-col justify-center px-6 text-stone-800" style={{ background: OPENING_COLORS.calm, paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
       <div className="invitation-rise mx-auto flex w-full max-w-[24rem] flex-col items-center text-center">
         <button type="button" onClick={open} disabled={busy} aria-label="招待状を開く（LINE でログイン）" className="touch-manipulation rounded-2xl p-2">
-          <Envelope open={isOpen} />
+          <Envelope open={isOpen} letterRef={letterRef} />
         </button>
         <p className="mt-6 text-[length:calc(11px*var(--inv-scale))] tracking-[0.35em] text-stone-500">INVITATION</p>
         <h1 className="mt-3 font-serif text-xl text-stone-800">招待状が届いています</h1>
@@ -373,6 +402,7 @@ function EntranceStep({ busy, message, onLogin }: { busy: boolean; message: stri
           <p className="mt-3 text-[length:calc(12px*var(--inv-scale))] leading-relaxed text-stone-500">ログインには、LINE のお名前とアイコンを使います。</p>
         </div>
       </div>
+      {(stage === "paper" || stage === "covered") && <PaperSheet from={paperFrom} onCovered={covered} />}
     </main>
   );
 }
