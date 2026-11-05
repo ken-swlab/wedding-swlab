@@ -16,10 +16,13 @@ const Composer = dynamic(() => import("./Composer").then((m) => m.Composer), { s
 import { AuthorNameProvider } from "./AuthorNameProvider";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { CameraIcon } from "@/components/icons";
+import { usePostOutbox, type PostOutbox } from "@/hooks/usePostOutbox";
 
 type ComposerSheetApi = { open: () => void };
 
 const ComposerSheetContext = createContext<ComposerSheetApi | null>(null);
+/** 送信中の投稿の列（Issue #254。usePostOutbox）。タイムラインが一番上に出す */
+const PostOutboxContext = createContext<PostOutbox | null>(null);
 
 type Toast = ComposerNotice & { id: number };
 
@@ -31,7 +34,9 @@ type Toast = ComposerNotice & { id: number };
  *   URL で来たときは開いたあと #composer を URL から消す（戻る・再読み込みで何度も開かないように）。
  * ★閉じても元のスクロール位置のまま★ シートはページの上に重ねるだけで、ページは動かさない。
  * ★投稿したら閉じて、タイムラインの一番上を見せる★ タイムライン以外のページ・ギャラリー・検索中なら
- *   /guestbook へ移る（移ると一番上から出る）。投稿は usePosts の購読で一番上に届く。
+ *   /guestbook へ移る（移ると一番上から出る）。
+ * ★送信は待たない★（Issue #254）「投稿する」で送信の列（usePostOutbox）に渡してすぐ閉じ、タイムラインの一番上に
+ *   送信中の投稿（端末の中の写真と本文）を出す。書けたら、購読で届いた本物に入れ替える。
  * ★知らせはトーストで出す★ 投稿画面は閉じるので、高画質版の送信・エピソード・新郎新婦あての知らせは
  *   ここで受け取って出す。エピソードの保存は閉じたあとも続き、終わったら届く。
  */
@@ -68,6 +73,9 @@ export function ComposerSheetProvider({
     setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), COMPOSER_TOAST_MS);
   }, []);
 
+  // ★送信は投稿画面を閉じても続く★（Issue #254）列はここ（ゲストブックの間ずっとある所）に1つだけ持つ
+  const outbox = usePostOutbox({ enqueue, notify });
+
   const onPosted = useCallback(() => {
     setOpen(false);
     const onTimeline = window.location.pathname === GUESTBOOK_PATHS.home && window.location.search === "";
@@ -77,17 +85,16 @@ export function ComposerSheetProvider({
 
   return (
     <ComposerSheetContext.Provider value={api}>
-      {children}
+      <PostOutboxContext.Provider value={outbox}>{children}</PostOutboxContext.Provider>
       {open && user && (
         <AuthorNameProvider value={profile ? publicName(profile) : "ゲスト"}>
           <SheetFrame>
             <Composer
               user={user}
               tags={tags}
-              onUploadOriginals={enqueue}
+              onSubmitDraft={outbox.submit}
               onClose={() => setOpen(false)}
               onPosted={onPosted}
-              onNotice={notify}
             />
           </SheetFrame>
         </AuthorNameProvider>
@@ -95,6 +102,11 @@ export function ComposerSheetProvider({
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((list) => list.filter((t) => t.id !== id))} />
     </ComposerSheetContext.Provider>
   );
+}
+
+/** 送信中の投稿の列（Issue #254）。Provider の外では null */
+export function usePostOutboxContext(): PostOutbox | null {
+  return useContext(PostOutboxContext);
 }
 
 /** 投稿画面を開く（「＋」・タイムラインの帯）。Provider の外（管理画面の見本など）では何もしない */
