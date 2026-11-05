@@ -8,7 +8,7 @@ import { measureMedia, type MediaSize } from "./media-measure";
 
 /** ★ビューアは開いたときに読む★（Issue #250。最初の JS を小さくする） */
 const MediaLightbox = dynamic(() => import("./MediaLightbox").then((m) => m.MediaLightbox), { ssr: false });
-import { thumbSrc } from "@/lib/media-url";
+import { feedSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";
 import { PlayIcon } from "@/components/icons";
@@ -76,15 +76,21 @@ export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise
           >
             {m.type === "video" ? (
               <>
-                <video src={thumbSrc(m)} muted playsInline preload="metadata"
-                  className="h-full w-full object-cover" />
+                {/* ★一覧では動画本体を読まない★（Issue #251）1枚目の画像があればそれを出し、押したらビューアで再生する。
+                    無い古い投稿は今までどおり（動画の最初の部分だけを読む） */}
+                {posterSrc(m) ? (
+                  <Image src={posterSrc(m)!} alt={m.alt ?? ""} fill sizes="(max-width: 640px) 50vw, 300px" className="object-cover" />
+                ) : (
+                  <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                )}
                 <span className="absolute inset-0 flex items-center justify-center text-white/90 drop-shadow">
                   <PlayIcon className="h-9 w-9" />
                 </span>
               </>
             ) : (
+              // 一覧は長辺 828px の小さい版（Issue #251。無い古い投稿は軽量版）
               <Image
-                src={thumbSrc(m)}
+                src={feedSrc(m)}
                 alt={m.alt ?? ""}
                 fill
                 sizes="(max-width: 640px) 50vw, 300px"

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { signOut, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import type { User } from "firebase/auth";
+import { auth, clearDeviceData } from "@/lib/firebase";
+import { recallInvitationKind } from "@/lib/invitation-kind-local";
 import { LINE_CHECK_DELAY_MS } from "@/config/startup";
 
 /**
@@ -32,7 +33,8 @@ export function useLineAccountCheck(user: User | null) {
         const sub = liff.getDecodedIDToken()?.sub;
         if (sub && `line:${sub}` !== user.uid && auth.currentUser?.uid === user.uid) {
           console.warn("[line-check] LINE のアカウントがログイン中の人と違うため、ログインし直します");
-          await signOut(auth);
+          // ★前の人の分を端末に残さない★（Issue #251。端末に保存したタイムラインは、前の人が読めた投稿）
+          await clearDeviceData(recallInvitationKind() === "family" ? "/invitation/family" : "/invitation");
         }
       } catch (e) {
         console.warn("[line-check] LINE のアカウントを確かめられませんでした（このまま続けます）", e);

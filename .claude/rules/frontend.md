@@ -22,6 +22,7 @@ paths:
 
 ## データと API
 - Firestore のクエリは Rules に合わせる（`.claude/rules/data.md`）。posts の購読は `usePosts` に1本化している。
+- 本番の Firestore は読んだ内容を端末（IndexedDB）に残す（`persistentLocalCache`。Issue #251。エミュレーターはメモリのまま）。サインアウトさせるときは `signOut` ではなく `clearDeviceData(行き先)`（`lib/firebase.ts`）を使う（端末の保存を消し、ページを読み直す。terminate した db は使えないため router では移らない）。
 - API は `src/lib/api-client.ts` の `getJson` / `postJson` / `putJson` で呼ぶ（`res.json()` を直接呼ばない。5xx には問い合わせ用の ID が付く）。素の `fetch` は例外だけ: ログイン前の `/api/auth/line`、待たない顔検出、AI のストリーム（`src/lib/ai-stream.ts`）と音声（`src/lib/tts.ts`）。
 - ブラウザに秘密を置かない。`NEXT_PUBLIC_*` は誰でも読める前提で扱う。パスコードや招待コードをクライアントのコードに書かない。
 

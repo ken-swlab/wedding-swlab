@@ -22,6 +22,12 @@ paths:
 - 1投稿のメディアは最大 4 件。上限: 原本 24MiB（`MAX_ORIGINAL_BYTES`）、軽量版と動画 8MiB（`MAX_THUMB_BYTES`）。動画は圧縮せず `kind:"thumb"` で1回だけ送る。
 - IndexedDB の `DB_VERSION` を上げない（ゲストの端末に残った未送信の原本がすべて消える）。原本のバイト列は Blob ではなく ArrayBuffer で持つ（WebKit の不具合対策）。
 
+## 一覧用の小さい版（Issue #251）
+- 投稿・編集のとき、端末で軽量版から feed（長辺 828px・q0.72）と grid（400px・q0.7）を、動画からは1枚目の画像（poster。400px）を canvas で作り、軽量版と同じ公開バケットに送る（`makeImageVariants`・`makeVideoPoster`・`uploadVariants`）。**作れない・送れないときも投稿は止めず、表示は軽量版に落ちる。**
+- キーは軽量版のキーから決まる `u/{uid}/t/{uuid}__{feed|grid|poster}.jpg`（`src/lib/media-variants.ts` の `variantKey`。テストあり）。presign は `variantOf`（本人の軽量版のキー）と `variant` を受け、キーはサーバーが決める。JPEG・1MiB（`MAX_VARIANT_BYTES`）まで。編集の API も `variantKey(storagePath, …)` と一致するものだけを受け付ける。
+- 大きさ・画質は `MEDIA_VARIANTS` の1か所（`ops.mjs media backfill-variants` も同じものを読む）。投稿の削除・写真を外す編集で、小さい版も消す（`media-delete-server.ts`）。
+- `Cache-Control: public, max-age=31536000, immutable` は Cloudflare のルール（レスポンスヘッダーの変換）で公開バケットのドメインに付ける（オーナー。ブラウザのアップロードでは付けない）。backfill と Worker は自分で付ける。
+
 ## キーとバケット
 - 軽量版 `u/{uid}/t/{uuid}.{ext}`（公開バケット `wedding-media`）、原本 `u/{uid}/o/{uuid}.{ext}`（非公開バケット `wedding-originals`）。バケットはサーバーが `kind` から決め、クライアントには選ばせない。
 - 原本と Worker のマーカー（`_linked/`・`_pending/`・`_failed/`・`_skipped/`）を消さない。Worker は原本を移動も削除もしない（原本の削除は Issue #159 で、運用が始まってから決める）。
@@ -30,7 +36,7 @@ paths:
 - 片方だけ変えない: `MAX_ORIGINAL_BYTES` ⇔ `wrangler.toml` の `MAX_BYTES`、webhook の `KEY_RE` ⇔ Worker の `ORIGINAL_KEY_RE`、Worker の `WEBHOOK_SECRET` ⇔ Vercel の `WORKER_WEBHOOK_SECRET`。
 
 ## 表示
-- URL は `src/lib/media-url.ts` だけで作る: `thumbSrc`（一覧）、`bestSrc`（拡大・投影。公開済みなら原本）、`originalSrc`（`published` のときだけ）、`keyUrl`、`rehost`（旧ドメインの URL の付け替え）。Firestore の `url` / `originalUrl` を直接使わない。
+- URL は `src/lib/media-url.ts` だけで作る: `feedSrc`（タイムライン・投稿の詳細の一覧。828px）、`gridSrc`（ギャラリーの格子・小さいサムネイル。400px）、`posterSrc`（動画の1枚目の画像。一覧では動画本体を読まない）、`thumbSrc`（軽量版。全画面の下敷き・動画の本体）、`bestSrc`（拡大・投影。公開済みなら原本）、`originalSrc`（`published` のときだけ）、`keyUrl`、`rehost`（旧ドメインの URL の付け替え）。Firestore の `url` / `originalUrl` を直接使わない。
 - `next/image` はすべて `unoptimized`（next.config.ts）。軽くしたいときは `/_next/image` を戻さず、アップロード時に小さい版を作る方向で考える。
 - `/screen` の写真は意図して `<img>`（遅延と画質のため）。
 - 配信元のホストを足すときは `src/lib/csp.ts` の `img-src` / `media-src` に足す。

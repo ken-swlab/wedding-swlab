@@ -15,6 +15,9 @@
  *   - 最初の投稿が見えるまで: 最初の投稿の本文が出るまで
  *   - 最初の写真が見えるまで: 最初の投稿の写真を読み終わるまで
  *   - 通信量（MB）と JS の量（KB）: 最初の投稿が見えるまでに受け取った分（圧縮後の量）
+ *   - 開いて落ち着くまでの通信量（回線を絞らずに測る）: 通信が 3 秒止まるまでに受け取った分と、そのうち写真の分（Issue #251）
+ * 投稿は --posts 件（既定 40 件）の写真付きの投稿を足す（タイムラインの読み込みの件数・写真の大きさの違いが出るように）。
+ * 見本の投稿には一覧用の小さい版（feed・grid。Issue #251）も付ける。小さい版を知らないコードは軽量版を読む（前後で同じデータを比べる）。
  * ★開発サーバーなので、JS は本番より大きい★ 直す前と後を同じ条件で比べるためのもの（perf-slow.mjs の★参照）。
  */
 import { spawn } from "node:child_process";
@@ -41,6 +44,7 @@ function arg(name, fallback) {
   return i >= 0 ? process.argv[i + 1] : fallback;
 }
 const RUNS = Number(arg("runs", "3"));
+const EXTRA_POSTS = Number(arg("posts", "40"));
 const LABEL = arg("label", "result");
 const TIMEOUT_MS = 180_000;
 
@@ -77,16 +81,32 @@ async function makeSamples() {
       raw[p] = (seed >> 16) & 0xff;
     }
     const file = resolve(SAMPLES, `photo-${i + 1}.jpg`);
-    const info = await sharp(raw, { raw: { width: w, height: h, channels: 3 } }).blur(1.6).jpeg({ quality: 80 }).toFile(file);
-    out.push({ url: `/perf-samples/photo-${i + 1}.jpg`, width: w, height: h, bytes: info.size });
+    const img = sharp(raw, { raw: { width: w, height: h, channels: 3 } }).blur(1.6);
+    const info = await img.clone().jpeg({ quality: 80 }).toFile(file);
+    // 一覧用の小さい版（Issue #251。lib/media-variants.ts と同じ大きさ・品質）
+    const variants = {};
+    for (const [name, edge, q] of [["feed", 828, 72], ["grid", 400, 70]]) {
+      const vfile = resolve(SAMPLES, `photo-${i + 1}__${name}.jpg`);
+      const vinfo = await img.clone().resize({ width: edge, height: edge, fit: "inside" }).jpeg({ quality: q }).toFile(vfile);
+      variants[name] = { url: `/perf-samples/photo-${i + 1}__${name}.jpg`, bytes: vinfo.size };
+    }
+    out.push({ url: `/perf-samples/photo-${i + 1}.jpg`, width: w, height: h, bytes: info.size, variants });
   }
   return out;
+}
+
+/** 見本の写真1枚を、投稿の media の1件にする（小さい版も付ける） */
+function sampleMedia(s) {
+  return {
+    type: "image", url: s.url, storagePath: "", width: s.width, height: s.height, alt: "（見本）写真",
+    feedPath: "", feedUrl: s.variants.feed.url, gridPath: "", gridUrl: s.variants.grid.url,
+  };
 }
 
 /** エミュレーターの見本の投稿の写真を差し替え、承認後の演出を見たことにする（測定のじゃまにならないよう） */
 async function prepareData(samples) {
   const { initializeApp } = require("firebase-admin/app");
-  const { getFirestore, FieldValue } = require("firebase-admin/firestore");
+  const { getFirestore, FieldValue, Timestamp } = require("firebase-admin/firestore");
   if (!process.env.FIRESTORE_EMULATOR_HOST) throw new Error("エミュレーターの中で動かしてください（npm run perf:slow）");
   initializeApp({ projectId: process.env.GCLOUD_PROJECT || "demo-wedding" });
   const db = getFirestore();
@@ -95,11 +115,20 @@ async function prepareData(samples) {
   for (const d of posts.docs) {
     const media = d.get("media");
     if (!Array.isArray(media) || media.length === 0) continue;
-    const next = media.map((m) => {
-      const s = samples[k++ % samples.length];
-      return { ...m, type: "image", url: s.url, storagePath: "", width: s.width, height: s.height };
-    });
+    const next = media.map((m) => ({ ...m, ...sampleMedia(samples[k++ % samples.length]) }));
     await d.ref.update({ media: next });
+  }
+  // 写真付きの投稿を足す（古い順に並ぶよう、作成時刻を 1 分ずつずらす）。全員に見える投稿
+  const author = posts.docs[0]?.data() ?? {};
+  const base = Date.now() - EXTRA_POSTS * 60_000;
+  for (let i = 0; i < EXTRA_POSTS; i++) {
+    const n = 1 + (i % 3);
+    const media = Array.from({ length: n }, (_, j) => sampleMedia(samples[(i + j) % samples.length]));
+    await db.collection("posts").add({
+      authorUid: author.authorUid ?? "dev:admin", authorName: author.authorName ?? "テスト", text: `（測定の見本）写真 ${n} 枚の投稿 ${i + 1}`,
+      media, visibleToTags: ["all"], hashtags: [], mentions: [], status: "visible", reactionCount: 0, commentCount: 0,
+      createdAt: Timestamp.fromMillis(base + i * 60_000),
+    });
   }
   await db.collection("guestPrivate").doc("dev:guest").set({ welcomeSeenAt: FieldValue.serverTimestamp() }, { merge: true });
 }
@@ -186,6 +215,39 @@ async function measure(ctx, profile) {
   return { fcp, shell, post, photo, bytesAtPost: atPost.all, jsAtPost: atPost.js, bytesAtPhoto: atPhoto.all };
 }
 
+/** 回線を絞らずに /guestbook を開き、通信が 3 秒止まるまでの通信量（全体と写真）と、読み込んだ投稿の数を測る */
+async function measureSettled(ctx) {
+  const page = await ctx.newPage();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send("Network.enable");
+  await cdp.send("Network.setCacheDisabled", { cacheDisabled: true });
+  await cdp.send("Network.clearBrowserCache");
+  const bytes = new Map();
+  const types = new Map();
+  let last = Date.now();
+  cdp.on("Network.requestWillBeSent", () => (last = Date.now()));
+  cdp.on("Network.responseReceived", (e) => types.set(e.requestId, e.type));
+  cdp.on("Network.dataReceived", (e) => {
+    last = Date.now();
+    bytes.set(e.requestId, (bytes.get(e.requestId) ?? 0) + e.encodedDataLength);
+  });
+  cdp.on("Network.loadingFinished", (e) => bytes.set(e.requestId, Math.max(bytes.get(e.requestId) ?? 0, e.encodedDataLength)));
+  await page.goto(`${BASE}/guestbook`, { timeout: TIMEOUT_MS });
+  await page.locator("[data-post-card]").first().waitFor({ timeout: TIMEOUT_MS });
+  // Firestore の購読（ストリーム）は止まらないので、受け取りが 3 秒止まったら落ち着いたとみなす
+  const t0 = Date.now();
+  while (Date.now() - last < 3000 && Date.now() - t0 < 60_000) await sleep(250);
+  let all = 0;
+  let img = 0;
+  for (const [id, n] of bytes) {
+    all += n;
+    if (types.get(id) === "Image") img += n;
+  }
+  const cards = await page.locator("[data-post-card]").count();
+  await page.close();
+  return { all, img, cards };
+}
+
 const median = (xs) => {
   const s = [...xs].filter((x) => typeof x === "number").sort((a, b) => a - b);
   return s.length ? s[Math.floor(s.length / 2)] : null;
@@ -209,6 +271,8 @@ async function main() {
   await login.close();
   // 開発サーバーの組み立てを済ませる（回線を絞らずに 2 回）
   for (let i = 0; i < 2; i++) await measure(ctx, null);
+  const settled = await measureSettled(ctx);
+  console.log(`  落ち着くまで: ${mb(settled.all)}MB（写真 ${mb(settled.img)}MB）・投稿 ${settled.cards} 件を描画`);
 
   const rows = [];
   for (const profile of PROFILES) {
@@ -229,9 +293,10 @@ async function main() {
     ...rows.map((r) => `| ${r.profile} | ${sec(r.fcp)}s | ${sec(r.shell)}s | ${sec(r.post)}s | ${sec(r.photo)}s | ${mb(r.bytesAtPost)}MB | ${kb(r.jsAtPost)}KB | ${mb(r.bytesAtPhoto)}MB |`),
   ].join("\n");
   mkdirSync(OUT, { recursive: true });
-  writeFileSync(resolve(OUT, `${LABEL}.json`), JSON.stringify({ runsPerProfile: RUNS, samples, rows }, null, 2));
-  writeFileSync(resolve(OUT, `${LABEL}.md`), `${md}\n`);
-  console.log(`\n${md}\n\n（${RUNS} 回の中央値。開発サーバー・キャッシュなし・ログイン済み）\n結果: ${resolve(OUT, `${LABEL}.md`)}`);
+  const settledMd = `\n開いて落ち着くまで（回線を絞らない・キャッシュなし）: 通信量 ${mb(settled.all)}MB（うち写真 ${mb(settled.img)}MB）・描画した投稿 ${settled.cards} 件（見本の投稿 ${EXTRA_POSTS} 件を足した状態）`;
+  writeFileSync(resolve(OUT, `${LABEL}.json`), JSON.stringify({ runsPerProfile: RUNS, extraPosts: EXTRA_POSTS, samples, settled, rows }, null, 2));
+  writeFileSync(resolve(OUT, `${LABEL}.md`), `${md}\n${settledMd}\n`);
+  console.log(`\n${md}\n${settledMd}\n\n（${RUNS} 回の中央値。開発サーバー・キャッシュなし・ログイン済み）\n結果: ${resolve(OUT, `${LABEL}.md`)}`);
 }
 
 main()

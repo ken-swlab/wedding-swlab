@@ -47,7 +47,7 @@ paths:
 ## クライアントのクエリ
 - Rules はフィルタではない。条件と `limit()` が Rules と合わないクエリは全体が拒否される。
 - `limit()` の上限: posts 50 / comments 100 / 自分のいいねの一覧（reactions の collection group）500 / notifications の items 50 / guests 200（管理者 500）/ guestPrivate・guestAdmin 500 / faces 300 / tags 200 / episodes 50（管理者 500）。
-- posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。管理者（新郎新婦）の一覧だけはタグの条件を付けず、全投稿を出す（`usePosts`。インデックス `posts_timeline_admin`）。
+- posts は `status == "visible"` と `visibleToTags array-contains-any <自分のタグ>`（最大 30 個）を付ける。管理者（新郎新婦）の一覧だけはタグの条件を付けず、全投稿を出す（`usePosts`。インデックス `posts_timeline_admin`）。タイムラインは最初に 10 件だけ購読し、続きは 20 件ずつ読む（`config/guestbook.ts` の `TIMELINE_*`。Issue #251）。
 - 「新郎新婦あて」の投稿は `visibleToTags: ["couple"]` だけ（ほかのタグと混ぜない。Rules が拒否する）。誰でも作れ、見えるのは投稿者本人と新郎新婦だけ。投稿者のタイムラインには出さず、マイページ（`useMyPosts`）にだけ出す。`/screen` は `SCREEN_TAGS`（既定 `all`）だけを出す。
 - コメントの横断購読（`collectionGroup("comments")`）は `match /{path=**}/comments/{id}` のルールが別に要る。
 

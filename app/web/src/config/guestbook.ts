@@ -196,3 +196,18 @@ export const SAVE_BATCH_MAX_BYTES = 50 * 1024 * 1024;
 
 /** 選択モードで、一番下のこの距離 (px) 手前まで来たら過去の写真を読み込み始める */
 export const PICKER_PRELOAD_MARGIN_PX = 800;
+
+/**
+ * タイムライン・ギャラリーで読む投稿の件数（Issue #251。電波が悪くても速く開けるように）。
+ * ★どれも Rules の上限（posts 50）以下にする★ 超えるとクエリ全体が拒否される。
+ * - 最初は 10 件だけ購読する（以前は 50 件。写真付きが多いと、開くだけで重くなっていた）
+ * - 続きは 1 回に 20 件ずつ読む（loadMore）
+ * - タイムラインは、下に残りが PREFETCH 件になったら先に次を読み始める（待ち時間を見せない）
+ * - ギャラリーは、最初に格子が GALLERY_FIRST_TILES 枚になるまで続けて読む
+ */
+export const TIMELINE_FIRST_PAGE = 10;
+export const TIMELINE_NEXT_PAGE = 20;
+export const TIMELINE_PREFETCH_POSTS = 3;
+export const GALLERY_FIRST_TILES = 30;
+/** ギャラリーの格子で、下の端の手前どれだけで先に読むか（画面の高さに対する割合） */
+export const GALLERY_PREFETCH_MARGIN = "0px 0px 100% 0px";

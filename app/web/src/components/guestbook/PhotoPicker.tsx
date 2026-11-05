@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { Post } from "@/types";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc } from "@/lib/media-url";
 import {
   canShareFiles,
   downloadFiles,
@@ -123,7 +123,7 @@ export function PhotoPicker({
                 className="relative aspect-square touch-manipulation bg-stone-100"
               >
                 <Image
-                  src={thumbSrc(p.media)}
+                  src={gridSrc(p.media)}
                   alt=""
                   fill
                   sizes="33vw"
