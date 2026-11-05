@@ -106,7 +106,7 @@ export async function likePost(postId: string, uid: string, emoji = "❤️"): P
 
 /** 編集で送るメディア1件。残す写真は storagePath だけで足りる（サーバーが保存済みの要素をそのまま使う） */
 export type EditedMedia = Pick<MediaItem, "type" | "storagePath"> &
-  Partial<Pick<MediaItem, "width" | "height" | "alt" | "originalPath" | "feedPath" | "gridPath" | "posterPath">>;
+  Partial<Pick<MediaItem, "width" | "height" | "alt" | "originalPath" | "feedPath" | "gridPath" | "posterPath" | "placeholder">>;
 
 /**
  * 自分の投稿の本文と写真を編集する。

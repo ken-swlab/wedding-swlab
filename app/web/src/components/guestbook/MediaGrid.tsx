@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState } from "react";
 import type { Post } from "@/types";
 import dynamic from "next/dynamic";
@@ -12,6 +11,7 @@ import { feedSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { useDoubleTap, type TapPoint } from "@/hooks/useDoubleTap";
 import { useHeartBursts } from "./HeartBurst";
 import { PlayIcon } from "@/components/icons";
+import { PlaceholderImage } from "./PlaceholderImage";
 
 /** 枚数ごとのレイアウト。3枚のときだけ1枚目を大きく見せる */
 function cellClass(count: number, i: number) {
@@ -79,7 +79,7 @@ export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise
                 {/* ★一覧では動画本体を読まない★（Issue #251）1枚目の画像があればそれを出し、押したらビューアで再生する。
                     無い古い投稿は今までどおり（動画の最初の部分だけを読む） */}
                 {posterSrc(m) ? (
-                  <Image src={posterSrc(m)!} alt={m.alt ?? ""} fill sizes="(max-width: 640px) 50vw, 300px" className="object-cover" />
+                  <PlaceholderImage src={posterSrc(m)!} placeholder={m.placeholder} alt={m.alt ?? ""} sizes="(max-width: 640px) 50vw, 300px" className="object-cover" />
                 ) : (
                   <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
                 )}
@@ -88,11 +88,11 @@ export function MediaGrid({ post, onLike }: { post: Post; onLike?: () => Promise
                 </span>
               </>
             ) : (
-              // 一覧は長辺 828px の小さい版（Issue #251。無い古い投稿は軽量版）
-              <Image
+              // 一覧は長辺 828px の小さい版（Issue #251。無い古い投稿は軽量版）。届くまでは下絵をぼかして敷く（Issue #253）
+              <PlaceholderImage
                 src={feedSrc(m)}
+                placeholder={m.placeholder}
                 alt={m.alt ?? ""}
-                fill
                 sizes="(max-width: 640px) 50vw, 300px"
                 className="object-cover transition duration-300 group-hover:scale-[1.03]"
               />

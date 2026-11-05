@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
-import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
+import { compressForTimeline, makeImageVariants, makePosterPlaceholder, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
   reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
@@ -159,7 +159,8 @@ export function PostEditor({
       const v = await uploadVideo(p.file, ext);
       const poster = await (p.poster ?? Promise.resolve(null));
       const extra = poster ? await uploadVariants(v.key, { poster }) : {};
-      result = { media: { type: "video", storagePath: v.key, alt: p.file.name, posterPath: extra.posterPath } };
+      const placeholder = poster ? await makePosterPlaceholder(poster) : null;
+      result = { media: { type: "video", storagePath: v.key, alt: p.file.name, posterPath: extra.posterPath, placeholder: placeholder ?? undefined } };
     } else {
       // ★軽量版は必ず canvas で作り直したものだけを送る★（Composer の★参照。Issue #66）
       if (!p.compressed) throw new Error("写真の準備ができていません。写真を選び直してください");
@@ -169,7 +170,7 @@ export function PostEditor({
       result = {
         media: {
           type: "image", storagePath: t.key, width: p.width, height: p.height, alt: p.file.name, originalPath,
-          feedPath: v.feedPath, gridPath: v.gridPath,
+          feedPath: v.feedPath, gridPath: v.gridPath, placeholder: p.variants?.placeholder,
         },
         original: { thumbPath: t.key, originalPath, fileName: p.file.name, bytes: p.file.size, file: p.file },
       };

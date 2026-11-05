@@ -179,7 +179,7 @@ async function readDimensions(blob: Blob): Promise<{ width: number; height: numb
 }
 
 /** 一覧用の小さい版（Issue #251）。作れなかったものは入らない */
-export type ImageVariants = { feed?: ReencodedJpeg; grid?: ReencodedJpeg };
+export type ImageVariants = { feed?: ReencodedJpeg; grid?: ReencodedJpeg; placeholder?: string };
 
 /**
  * 一覧用の小さい版（feed: 長辺 828px・grid: 長辺 400px）を作る（Issue #251。lib/media-variants.ts）。
@@ -205,6 +205,7 @@ export async function makeImageVariants(thumb: ReencodedJpeg): Promise<ImageVari
       ctx.drawImage(source.image, 0, 0, size.width, size.height);
       out[name] = markReencoded(await canvasToJpeg(canvas, quality));
     }
+    out.placeholder = (await placeholderFrom(source.image, source.width, source.height)) ?? undefined;
   } catch (e) {
     console.warn("[image] 一覧用の小さい版を作れませんでした（軽量版で表示します）", e);
   } finally {
@@ -262,5 +263,47 @@ export async function makeVideoPoster(file: File): Promise<ReencodedJpeg | null>
     video.removeAttribute("src");
     video.load();
     URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * 写真の「下絵」（Issue #253）: 長辺 16px の JPEG の data URL。作れない・1024 文字に収まらなければ null（下絵なし）。
+ * ★描くのは作り直した軽量版・ポスターの画素だけ★（元の写真から描かない。EXIF の入る道を増やさない）。
+ *   canvas の toDataURL は画素だけを JPEG にするので、メタデータは入らない。
+ * 品質を PLACEHOLDER.qualities の順に下げて作り直し、収まったものを使う。
+ */
+async function placeholderFrom(image: CanvasImageSource, width: number, height: number): Promise<string | null> {
+  const { PLACEHOLDER, fitWithin, isPlaceholder } = await import("@/lib/media-variants");
+  try {
+    const size = fitWithin(width, height, PLACEHOLDER.maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, size.width, size.height);
+    for (const q of PLACEHOLDER.qualities) {
+      const url = canvas.toDataURL("image/jpeg", q);
+      if (isPlaceholder(url)) return url;
+    }
+    return null;
+  } catch (e) {
+    console.warn("[image] 下絵を作れませんでした（下絵なしで表示します）", e);
+    return null;
+  }
+}
+
+/** 動画のポスター（作り直した JPEG）から下絵を作る（Issue #253）。作れなければ null */
+export async function makePosterPlaceholder(poster: ReencodedJpeg): Promise<string | null> {
+  let source: IconSource | null = null;
+  try {
+    source = await loadIconSource(new Blob([poster], { type: "image/jpeg" }) as File);
+    return await placeholderFrom(source.image, source.width, source.height);
+  } catch (e) {
+    console.warn("[image] 動画の下絵を作れませんでした", e);
+    return null;
+  } finally {
+    source?.close();
   }
 }

@@ -24,3 +24,15 @@ test("長辺を縮める", () => {
   assert.deepEqual(fitWithin(1440, 1920, 400), { width: 300, height: 400 });
   assert.deepEqual(fitWithin(300, 200, 400), { width: 300, height: 200 });
 });
+
+test("下絵（Issue #253）は JPEG の data URL で 1024 文字以下だけ", async () => {
+  const { isPlaceholder, PLACEHOLDER_PREFIX } = await import("../src/lib/media-variants.ts");
+  assert.equal(isPlaceholder(`${PLACEHOLDER_PREFIX}/9j/4AAQSkZJRg==`), true);
+  assert.equal(isPlaceholder(PLACEHOLDER_PREFIX + "A".repeat(1024 - PLACEHOLDER_PREFIX.length)), true);
+  assert.equal(isPlaceholder(PLACEHOLDER_PREFIX + "A".repeat(1025 - PLACEHOLDER_PREFIX.length)), false);
+  assert.equal(isPlaceholder("data:image/png;base64,iVBORw0KGgo="), false);
+  assert.equal(isPlaceholder(`${PLACEHOLDER_PREFIX}<script>`), false);
+  assert.equal(isPlaceholder(PLACEHOLDER_PREFIX), false);
+  assert.equal(isPlaceholder(1), false);
+  assert.equal(isPlaceholder(undefined), false);
+});

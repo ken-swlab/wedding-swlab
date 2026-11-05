@@ -11,7 +11,7 @@ import { POST_ID_RE } from "@/config/guestbook";
 import { MAX_MEDIA_PER_POST, NEW_MEDIA_KEY_RE, POSTS_API_PATH_RE } from "@/config/post-edit";
 import { AUDIT_COUNTS_HEADER } from "@/config/audit";
 import type { MediaItem } from "@/types";
-import { variantKey, type MediaVariant } from "@/lib/media-variants";
+import { isPlaceholder, variantKey, type MediaVariant } from "@/lib/media-variants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,6 +89,12 @@ function newMediaItem(uid: string, raw: Record<string, unknown>): MediaItem {
     if (!expected || raw0 !== expected) throw new PublicError("写真・動画の指定が不正です");
     item[field] = expected;
     item[`${name}Url` as const] = publicUrlOf(expected);
+  }
+
+  // 写真の下絵（Issue #253）。★形が違えば断る★（Rules の okPlaceholder と同じ条件。投稿のデータはゲスト全員が読む）
+  if (raw.placeholder !== undefined && raw.placeholder !== null) {
+    if (!isPlaceholder(raw.placeholder)) throw new PublicError("写真・動画の指定が不正です");
+    item.placeholder = raw.placeholder;
   }
   return item;
 }
