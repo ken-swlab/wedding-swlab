@@ -70,6 +70,7 @@ export function putJson<T = Record<string, unknown>>(path: string, body: unknown
 export function patchJson<T = Record<string, unknown>>(path: string, body: unknown) {
   return request<T>(path, "PATCH", body);
 }
-export function deleteJson<T = Record<string, unknown>>(path: string) {
-  return request<T>(path, "DELETE");
+/** body は任意（消す対象を本文で渡すルート用。Issue #256） */
+export function deleteJson<T = Record<string, unknown>>(path: string, body?: unknown) {
+  return request<T>(path, "DELETE", body);
 }
