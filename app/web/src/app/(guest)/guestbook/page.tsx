@@ -19,11 +19,12 @@ import {
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
-import { GuestbookShell, selectModeHref, useGuestbookView } from "@/components/guestbook/GuestbookShell";
+import { GuestbookShell, selectModeHref, useGalleryEnabled, useGuestbookView } from "@/components/guestbook/GuestbookShell";
 import {
   GUESTBOOK_PATHS,
   GUESTBOOK_QUERY_PARAM,
   GUESTBOOK_SELECT_PARAM,
+  GUESTBOOK_VIEW_PARAM,
   GALLERY_FIRST_TILES,
   GALLERY_PREFETCH_MARGIN,
   postIdFromPath,
@@ -80,6 +81,19 @@ export default function GuestbookPage() {
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
+  // ★ギャラリーを出さない間（Issue #270）は、ギャラリーの URL をタイムラインの URL に書き直す★ 画面はもうタイムライン
+  //   （useGuestbookView）。管理者かどうかが分かってから（authLoading が終わってから）見る。検索語（?q=）は残す
+  const galleryEnabled = useGalleryEnabled();
+  const galleryUrl = params.get(GUESTBOOK_VIEW_PARAM) === "gallery";
+  useEffect(() => {
+    // 詳細シートの表示中（URL が /guestbook/posts/{id}）は書き直さない（シートが閉じてしまう）
+    if (authLoading || galleryEnabled || !galleryUrl || sheetId) return;
+    const next = new URLSearchParams(params.toString());
+    next.delete(GUESTBOOK_VIEW_PARAM);
+    next.delete(GUESTBOOK_SELECT_PARAM);
+    const q = next.toString();
+    router.replace(q ? `${GUESTBOOK_PATHS.home}?${q}` : GUESTBOOK_PATHS.home, { scroll: false });
+  }, [authLoading, galleryEnabled, galleryUrl, sheetId, params, router]);
   const selecting = view === "gallery" && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   // 選択モードの自動読み込みに渡す。毎回作り直すと読み込みの見張りが張り直しになる
   const loadMoreGallery = useCallback(() => void loadMore(), [loadMore]);
@@ -88,7 +102,7 @@ export default function GuestbookPage() {
   //   人・検索で絞っているときは読みに行かない（絞り込みの結果が少ないだけで、遡りが止まらなくなる）
   // ★タイムラインのうちに、手が空いたら先に読んでおく★（Issue #255。下の warm）
   const [warm, setWarm] = useState(false);
-  const galleryShort = (view === "gallery" || warm) && !personUid && !searching && !loading && !error
+  const galleryShort = (view === "gallery" || (warm && galleryEnabled)) && !personUid && !searching && !loading && !error
     && hasMore && !loadingMore && allPosts.filter((p) => p.media.length > 0).length < GALLERY_FIRST_TILES;
   useEffect(() => {
     if (galleryShort) void loadMore();
@@ -111,13 +125,14 @@ export default function GuestbookPage() {
     });
   }, [settled, warm, router]);
   useEffect(() => {
-    if (!warm) return;
+    // ギャラリーを出さない間（Issue #270）は、ギャラリーの写真を先読みしない
+    if (!warm || !galleryEnabled) return;
     const count = galleryPrefetchCount(currentConnection(), { width: window.innerWidth, height: window.innerHeight }, 3);
     for (const p of allPosts.filter((x) => x.media.length > 0).slice(0, count)) {
       const m = p.media[0];
       prefetchImage(m.type === "image" ? gridSrc(m) : posterSrc(m));
     }
-  }, [warm, allPosts]);
+  }, [warm, galleryEnabled, allPosts]);
   // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);

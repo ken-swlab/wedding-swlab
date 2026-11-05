@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { paymentBreakdown } from "../src/lib/payment-calc.ts";
 import { parsePaymentConfig } from "../src/lib/payment-config.ts";
 
-const config = { partyYen: 20000, secondYen: 5000, carFareYen: 10000 };
+const config = { partyYen: 20000, secondYen: 5000, carFareYen: 10000, secondTentative: false };
 
 test("出欠4通り × お車代2通り", () => {
   const cases = [
@@ -44,4 +44,22 @@ test("config/payment の形", () => {
   assert.deepEqual(parsePaymentConfig({ ...config, secondYen: -1 }), { ok: false, field: "secondYen" });
   assert.deepEqual(parsePaymentConfig({ ...config, carFareYen: 1.5 }), { ok: false, field: "carFareYen" });
   assert.deepEqual(parsePaymentConfig({ partyYen: 1, secondYen: 1 }), { ok: false, field: "carFareYen" });
+});
+
+test("2次会の金額が未定（secondTentative）なら、2次会の分は合計に含めない（Issue #270）", () => {
+  const t = { ...config, secondTentative: true };
+  const both = paymentBreakdown(t, "both", false);
+  assert.deepEqual(both.items, [{ label: "会食", yen: 20000 }, { label: "2次会", yen: 5000, tentative: true }]);
+  assert.equal(both.totalYen, 20000);
+  assert.equal(paymentBreakdown(t, "second_only", false).totalYen, 0);
+  // お車代は、確定している分（会食）から差し引く
+  assert.equal(paymentBreakdown(t, "both", true).totalYen, 10000);
+  assert.equal(paymentBreakdown(t, "first_only", false).items.some((i) => i.tentative), false);
+});
+
+test("config/payment の secondTentative", () => {
+  const base = { partyYen: 1, secondYen: 1, carFareYen: 0 };
+  assert.deepEqual(parsePaymentConfig(base), { ok: true, value: { ...base, secondTentative: false } });
+  assert.deepEqual(parsePaymentConfig({ ...base, secondTentative: true }), { ok: true, value: { ...base, secondTentative: true } });
+  assert.deepEqual(parsePaymentConfig({ ...base, secondTentative: "true" }), { ok: false, field: "secondTentative" });
 });

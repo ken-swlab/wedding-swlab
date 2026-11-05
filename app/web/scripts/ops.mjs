@@ -35,6 +35,9 @@
  *   node scripts/ops.mjs payment status           会費の金額（config/payment）を出す
  *   node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000
  *                                                 会費の金額を変える（指定しない項目は今の値のまま。監査ログに残す）
+ *   node scripts/ops.mjs payment set --second 6000 --second-tentative
+ *                                                 2次会の金額を「（予定）」にする（招待状に「6,000円（予定）」、会費のタブでは合計に含めない。Issue #270）。
+ *                                                 決まったら --second <円> --second-fixed で「（予定）」を外す
  *   node scripts/ops.mjs media backfill-variants  一覧用の小さい版（feed・grid）か下絵（placeholder。Issue #253）が無い写真の数を数える（書き込まない。Issue #251）
  *   node scripts/ops.mjs media backfill-variants --apply [--limit 投稿数]
  *                                                 軽量版を読み、sharp で feed（828px）・grid（400px）を作って公開バケットに置き、
@@ -100,7 +103,7 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs audit [--limit N] [--action 前方一致] [--actor uid] [--denied] [--incomplete]
   node scripts/ops.mjs ratelimit
   node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]
-  node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
+  node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円] [--second-tentative|--second-fixed]
   node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry
   node scripts/ops.mjs media backfill-variants [--apply] [--limit 投稿数]
   node scripts/ops.mjs venue-test fixtures [--out <dir>]`);
@@ -170,6 +173,8 @@ function readLegacyInvitationFields(path) {
 if (cmd === "invitation" && inv[0] === "template") {
   // 親族用の見本は、当日の流れが 親族会食（role: meal）→ 挙式。afterParty（2次会）は無し
   console.log(readFileSync(resolve(HERE, "..", "src", "config", FAMILY ? "invitation-sample-family.json" : "invitation-sample.json"), "utf8"));
+  // ★会費は招待状の JSON に入れない★ config/payment（ops payment set）から招待状に出る。標準エラーに出すので、JSON はそのまま保存できる
+  if (!FAMILY) console.error("※ 会費は payment set で入れます。2次会の金額が未定なら --second-tentative を付けると「6,000円（予定）」と出ます（Issue #270）");
   process.exit(0);
 }
 if (cmd === "invitation" && inv[0] === "check") {
@@ -485,6 +490,15 @@ if (cmd === "payment") {
       next[key] = Number(raw);
       changed.push(key);
     }
+    // 2次会の金額が未定かどうか（Issue #270）。どちらも無ければ今のまま
+    if (has("--second-tentative") && has("--second-fixed")) {
+      console.error("--second-tentative と --second-fixed は同時に指定できません");
+      process.exit(1);
+    }
+    if (has("--second-tentative") || has("--second-fixed")) {
+      next.secondTentative = has("--second-tentative");
+      changed.push("secondTentative");
+    } else if (current.secondTentative !== undefined) next.secondTentative = current.secondTentative;
     if (changed.length === 0) {
       console.error("変える金額を指定してください（例: node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000）");
       process.exit(1);
@@ -516,7 +530,7 @@ if (cmd === "payment") {
     console.log("\n✅ config/payment を更新しました（監査ログに残しました）");
     console.log("   反映まで最大60秒（各サーバーのキャッシュ）\n");
   } else if (sub !== "status") {
-    console.error("使い方: node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]");
+    console.error("使い方: node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円] [--second-tentative|--second-fixed]");
     process.exit(1);
   }
   const snap = await ref.get();
@@ -531,7 +545,7 @@ if (cmd === "payment") {
   }
   const v = parsed.value;
   console.log(`会食（1次会）: ${yen(v.partyYen)}`);
-  console.log(`2次会       : ${yen(v.secondYen)}`);
+  console.log(`2次会       : ${yen(v.secondYen)}${v.secondTentative ? "（予定。会費のタブでは合計に含めない）" : ""}`);
   console.log(`お車代      : ${yen(v.carFareYen)}（差し引く額。招待状には出さない）`);
   console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);

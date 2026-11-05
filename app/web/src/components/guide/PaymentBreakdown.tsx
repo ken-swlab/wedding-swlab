@@ -7,6 +7,7 @@ const yen = (n: number) => `${n < 0 ? "−" : ""}${Math.abs(n).toLocaleString("j
 /**
  * 会費の内訳と合計（Issue #148）。値は GET /api/guest/payment（本人の分だけ）から受け取る。
  * 計算はサーバー（lib/payment-calc.ts）。ここは並べて出すだけ。
+ * 金額が未定の項目（2次会。tentative。Issue #270）は、額の代わりに「金額は決まり次第お知らせします」と出す（合計に含まれていない）。
  */
 export function PaymentBreakdown({ data }: { data: PaymentStatusResponse }) {
   if (!data.configured) {
@@ -25,9 +26,13 @@ export function PaymentBreakdown({ data }: { data: PaymentStatusResponse }) {
       ) : (
         <dl className="mt-3 space-y-2 text-sm text-stone-700">
           {data.items.map((i) => (
-            <div key={i.label} className="flex items-baseline justify-between">
-              <dt>{i.label}</dt>
-              <dd className="tabular-nums">{yen(i.yen)}</dd>
+            <div key={i.label} className="flex items-baseline justify-between gap-3">
+              <dt className="shrink-0">{i.label}</dt>
+              {i.tentative ? (
+                <dd className="text-right text-xs leading-relaxed text-stone-500">金額は決まり次第お知らせします</dd>
+              ) : (
+                <dd className="tabular-nums">{yen(i.yen)}</dd>
+              )}
             </div>
           ))}
         </dl>

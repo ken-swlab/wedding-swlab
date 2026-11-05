@@ -8,6 +8,16 @@
 export type GuestbookView = "timeline" | "gallery";
 
 /**
+ * ギャラリーをゲストに出すか（Issue #270）。★公開のときは false★
+ *   ギャラリーの操作（全画面の × と戻るの重なり・左右の矢印・顔の照合）がまだ詰まっていないため。写真が溜まってから
+ *   true にして「写真をまとめて見られるページができました」として出す。true にすれば、今の形にそのまま戻る。
+ *   false の間: 下のタブからギャラリーを外し（4つ）、ギャラリーの URL（?view=gallery）はタイムラインに移す。
+ *   左上のシートの説明からも外す。★管理者には今どおり出す★（中身を詰めるため。useGalleryEnabled）
+ *   タイムラインの写真を押したときの全画面表示は、これとは関係なく使う。
+ */
+export const GALLERY_ENABLED = false;
+
+/**
  * 招待後（/guestbook 以下・/guide 以下）のページのタイトル（Issue #226）。LINE のアプリ内ブラウザの黒いバーに出る。
  * 招待状まわり（/invitation・パスコード〜回答・承認待ち）は、ルートの layout.tsx の「WEDDING INVITATION」のまま。
  * ★ダッシュは em ダッシュ（U+2014）、前後に半角スペース★ ページごとの見出しは足さない（LINE のバーが短い）。
