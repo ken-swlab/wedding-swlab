@@ -69,11 +69,12 @@ export const OPENING_TIMING = {
   releaseGuide: 2500,
   /**
    * 案内を消してから Take を白くし始めるまでの余白。案内の文字が消えきる前に Take が光ると、続けて読めてしまい
-   * 構える間が無かった。この間に離しても、案内中と同じくフライングにしない（静かに「長押しで構える」へ戻す）
+   * 構える間が無かった。この間に離しても、案内中と同じくフライングにしない（静かに「長押しで構える」へ戻す）。
+   * Issue #262 で 500ms → 1000ms（案内のあと、はっきり間を置いてから Take your marks を出す）
    */
-  afterGuide: 500,
-  /** 案内のあと Take を出してから your まで */
-  afterTake: 200,
+  afterGuide: 1000,
+  /** 案内のあと Take を出してから your まで。Issue #262 で 200ms → 400ms（Take のあとに一拍のタメ） */
+  afterTake: 400,
   /** your を出してから marks まで */
   afterYour: 100,
   /**

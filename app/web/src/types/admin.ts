@@ -27,16 +27,34 @@ export type InvitationKind = (typeof INVITATION_KINDS)[number];
  * 親族の当日の流れは「親族会食 → 挙式 → 親族だけで写真 → 解散」で、友人会食・2次会には出ない。
  * ★時刻はコードに書かない★ config/invitation_family の program から組み立てる（lib/invitation-program.ts の familyChoiceNote）。
  */
+/**
+ * ★回答フォームで選べるのは「出席／欠席」の2つだけ★（Issue #262。親族は会食から最後まで通して参加する前提）
+ *   出席は、以前の「会食・挙式 両方」と同じ値 both で保存する（既存のデータと互換）。
+ */
 export const FAMILY_ATTENDANCE_OPTIONS = [
-  { value: "both",          label: "会食・挙式",  formLabel: "親族会食・挙式 両方参加" },
-  { value: "meal_only",     label: "会食のみ",    formLabel: "親族会食のみ参加" },
-  { value: "ceremony_only", label: "挙式のみ",    formLabel: "挙式のみ参加" },
-  { value: "declined",      label: "欠席",        formLabel: "欠席" },
+  { value: "both",     label: "出席", formLabel: "出席" },
+  { value: "declined", label: "欠席", formLabel: "欠席" },
 ] as const;
-export type FamilyAttendance = (typeof FAMILY_ATTENDANCE_OPTIONS)[number]["value"];
+export type FamilyAttendanceChoice = (typeof FAMILY_ATTENDANCE_OPTIONS)[number]["value"];
+
+/**
+ * 以前の選択肢（Issue #240 の4択のうち、なくなった2つ）。保存済みの回答にだけ残る。
+ * 回答フォームでは未選択に戻して選び直してもらい（「出欠の選び方が変わりました」）、管理画面では「出席（旧：会食のみ）」と出す。
+ */
+export const FAMILY_ATTENDANCE_LEGACY = [
+  { value: "meal_only",     label: "出席（旧：会食のみ）" },
+  { value: "ceremony_only", label: "出席（旧：挙式のみ）" },
+] as const;
+export type FamilyAttendance = FamilyAttendanceChoice | (typeof FAMILY_ATTENDANCE_LEGACY)[number]["value"];
+/** 保存されうる値すべて（管理画面の読み込み・絞り込み用） */
+export const FAMILY_ATTENDANCE_ALL: readonly { value: FamilyAttendance; label: string }[] = [...FAMILY_ATTENDANCE_OPTIONS, ...FAMILY_ATTENDANCE_LEGACY];
+
+export function isLegacyFamilyAttendance(v: unknown): v is (typeof FAMILY_ATTENDANCE_LEGACY)[number]["value"] {
+  return FAMILY_ATTENDANCE_LEGACY.some((o) => o.value === v);
+}
 
 export const FAMILY_ATTENDANCE_LABEL = Object.fromEntries(
-  FAMILY_ATTENDANCE_OPTIONS.map((o) => [o.value, o.label]),
+  FAMILY_ATTENDANCE_ALL.map((o) => [o.value, o.label]),
 ) as Record<FamilyAttendance, string>;
 
 /**
