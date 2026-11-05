@@ -2,8 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { signOut } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { clearDeviceData } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { SplashScreen } from "@/components/SplashScreen";
 import { GuestSessionProvider } from "@/components/guestbook/GuestSessionContext";
@@ -75,9 +74,9 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
-    // 停止されたら先にサインアウトする。user が消えると dest が /invitation になる
+    // 停止されたら先にサインアウトし、端末に残した内容も消す（Issue #251。消したあとは読み直して招待状へ）
     if (user && !isActive) {
-      void signOut(auth);
+      void clearDeviceData("/invitation");
       return;
     }
     if (dest && pathname !== dest) router.replace(dest);

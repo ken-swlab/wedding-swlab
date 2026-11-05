@@ -41,6 +41,36 @@ export function thumbSrc(m: Pick<MediaItem, "storagePath" | "url">): string {
 }
 
 /**
+ * タイムライン・投稿の詳細の一覧用の写真（長辺 828px。Issue #251）。小さい版の無い古い投稿・動画は軽量版。
+ * ★一覧の写真はここだけで決める★ 全画面（MediaLightbox・PostLightbox）は thumbSrc / bestSrc のまま。
+ */
+export function feedSrc(m: Pick<MediaItem, "type" | "storagePath" | "url" | "feedPath" | "feedUrl">): string {
+  if (m.type === "image") {
+    const v = keyUrl(m.feedPath) ?? (m.feedUrl || null);
+    if (v) return v;
+  }
+  return thumbSrc(m);
+}
+
+/** ギャラリーの格子・小さいサムネイル用の写真（長辺 400px。Issue #251）。無ければ feed、それも無ければ軽量版 */
+export function gridSrc(m: Pick<MediaItem, "type" | "storagePath" | "url" | "feedPath" | "feedUrl" | "gridPath" | "gridUrl">): string {
+  if (m.type === "image") {
+    const v = keyUrl(m.gridPath) ?? (m.gridUrl || null);
+    if (v) return v;
+  }
+  return feedSrc(m);
+}
+
+/**
+ * 動画の1枚目の画像（Issue #251）。無ければ null（一覧は今までどおり動画を preload="metadata" で出す）。
+ * ★一覧では動画本体を読まない★ これがあるときは <video> を置かず、画像と再生の印だけを出す（押すとビューアで再生）。
+ */
+export function posterSrc(m: Pick<MediaItem, "type" | "posterPath" | "posterUrl">): string | null {
+  if (m.type !== "video") return null;
+  return keyUrl(m.posterPath) ?? (m.posterUrl || null);
+}
+
+/**
  * 原本の src。公開が完了しているときだけ返す。
  *
  * ★originalPath があるだけでは原本は存在しない★

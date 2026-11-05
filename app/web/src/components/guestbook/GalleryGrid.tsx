@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useMemo } from "react";
 import type { Post } from "@/types";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { HeartIcon } from "./HeartIcon";
 import { PlayIcon } from "@/components/icons";
 
@@ -11,6 +11,8 @@ export type GalleryEntry = {
   post: Post;
   coverUrl: string;
   isVideo: boolean;
+  /** 動画の1枚目の画像があるか（あれば coverUrl はその画像で、動画本体は読まない。Issue #251） */
+  videoHasPoster: boolean;
   count: number;
 };
 
@@ -25,7 +27,9 @@ export function buildEntries(posts: Post[]): GalleryEntry[] {
     .filter((p) => p.media.length > 0)
     .map((p) => ({
       post: p,
-      coverUrl: thumbSrc(p.media[0]),
+      // ギャラリーの格子は長辺 400px の小さい版（Issue #251）。動画は1枚目の画像（無ければ動画を読む）
+      coverUrl: p.media[0].type === "video" ? posterSrc(p.media[0]) ?? thumbSrc(p.media[0]) : gridSrc(p.media[0]),
+      videoHasPoster: p.media[0].type === "video" && posterSrc(p.media[0]) !== null,
       isVideo: p.media[0].type === "video",
       count: p.media.length,
     }));
@@ -53,14 +57,14 @@ export function GalleryGrid({
   return (
     <div>
       <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
-        {entries.map(({ post, coverUrl, isVideo, count }) => (
+        {entries.map(({ post, coverUrl, isVideo, videoHasPoster, count }) => (
           <button
             key={post.id}
             type="button"
             onClick={() => onOpen(post.id)}
             className="group relative aspect-square bg-stone-100"
           >
-            {isVideo ? (
+            {isVideo && !videoHasPoster ? (
               <video src={coverUrl} muted playsInline preload="metadata"
                 className="h-full w-full object-cover" />
             ) : (

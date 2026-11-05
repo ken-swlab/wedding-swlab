@@ -24,8 +24,11 @@ import {
   GUESTBOOK_PATHS,
   GUESTBOOK_QUERY_PARAM,
   GUESTBOOK_SELECT_PARAM,
+  GALLERY_FIRST_TILES,
+  GALLERY_PREFETCH_MARGIN,
   postIdFromPath,
 } from "@/config/guestbook";
+import { useNearEnd } from "@/hooks/useNearEnd";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
@@ -76,6 +79,14 @@ export default function GuestbookPage() {
   const selecting = view === "gallery" && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   // 選択モードの自動読み込みに渡す。毎回作り直すと読み込みの見張りが張り直しになる
   const loadMoreGallery = useCallback(() => void loadMore(), [loadMore]);
+  // ★ギャラリーは、最初に格子が GALLERY_FIRST_TILES 枚になるまで続けて読む★（Issue #251）
+  //   タイムラインは 10 件だけ読むので、写真の無い投稿が多いとギャラリーが数枚しか出ない。
+  //   人・検索で絞っているときは読みに行かない（絞り込みの結果が少ないだけで、遡りが止まらなくなる）
+  const galleryShort = view === "gallery" && !personUid && !searching && !loading && !error
+    && hasMore && !loadingMore && allPosts.filter((p) => p.media.length > 0).length < GALLERY_FIRST_TILES;
+  useEffect(() => {
+    if (galleryShort) void loadMore();
+  }, [galleryShort, loadMore]);
   // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
@@ -204,6 +215,10 @@ export default function GuestbookPage() {
                     loading={loading}
                     error={error}
                     user={user}
+                    // 検索中は先読みしない（ボタンで読む）
+                    hasMore={hasMore && !searching}
+                    loadingMore={loadingMore}
+                    onNearEnd={loadMoreGallery}
                   />
                 )}
                 {!searching && hasMore && posts.length > 0 && (
@@ -229,6 +244,7 @@ export default function GuestbookPage() {
                 footer={
                   hasMore && !personUid && !searching && gallery.length > 0 ? (
                     <div className="pt-4">
+                      <GalleryPrefetch loadingMore={loadingMore} onNearEnd={loadMoreGallery} />
                       <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
                     </div>
                   ) : null
@@ -292,6 +308,12 @@ function SearchSummary({
       )}
     </div>
   );
+}
+
+/** ギャラリーの下の端の手前で、先に続きを読む目印（Issue #251） */
+function GalleryPrefetch({ loadingMore, onNearEnd }: { loadingMore: boolean; onNearEnd: () => void }) {
+  const ref = useNearEnd<HTMLDivElement>(true, loadingMore, onNearEnd, GALLERY_PREFETCH_MARGIN);
+  return <div ref={ref} aria-hidden="true" />;
 }
 
 function LoadMore({ loading, onClick }: { loading: boolean; onClick: () => void }) {

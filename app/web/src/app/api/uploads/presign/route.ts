@@ -10,6 +10,7 @@ import {
   type UploadKind,
 } from "@/lib/r2-server";
 import { mb } from "@/config/limits";
+import { MAX_VARIANT_BYTES, MEDIA_VARIANT_NAMES, variantKey, type MediaVariant } from "@/lib/media-variants";
 import { withGuard } from "@/lib/route-guard";
 
 export const runtime = "nodejs";
@@ -24,6 +25,9 @@ type Body = {
   key?: unknown;
   /** キーの発番だけ行い、署名は返さない */
   reserveOnly?: unknown;
+  /** 一覧用の小さい版（Issue #251）: 元の軽量版のキーと、版の名前（feed・grid・poster） */
+  variantOf?: unknown;
+  variant?: unknown;
 };
 
 function fail(message: string, status: number) {
@@ -63,6 +67,24 @@ async function _POST(req: Request) {
       body = (await req.json()) as Body;
     } catch {
       return fail("リクエストが不正です", 400);
+    }
+
+    /**
+     * ★一覧用の小さい版（Issue #251）は、キーをサーバーが軽量版のキーから決める★（lib/media-variants.ts の variantKey）
+     *   元の軽量版が本人のもの（u/{uid}/t/）で、軽量版のキーの形であることを確かめる。クライアントはキーを指定できない。
+     *   JPEG だけ・小さい版の大きさの上限（MAX_VARIANT_BYTES）まで。置き場所は軽量版と同じ公開バケット。
+     */
+    if (body.variantOf !== undefined) {
+      const base = typeof body.variantOf === "string" ? body.variantOf : "";
+      const variant = MEDIA_VARIANT_NAMES.find((v) => v === body.variant) as MediaVariant | undefined;
+      const key = variant && ownsKey(uid, base, "thumb") ? variantKey(base, variant) : null;
+      if (!key) return fail("このキーへの権限がありません", 403);
+      const ct = typeof body.contentType === "string" ? body.contentType : "";
+      const size = typeof body.bytes === "number" ? body.bytes : 0;
+      if (ct !== "image/jpeg") return fail("この形式はアップロードできません", 400);
+      if (!Number.isFinite(size) || size <= 0 || size > MAX_VARIANT_BYTES) return fail(`サイズが上限（${mb(MAX_VARIANT_BYTES)}MB）を超えています`, 400);
+      const url = await presignPut("thumb", key, ct, size);
+      return NextResponse.json({ ok: true, key, url, publicUrl: publicUrlOf(key), maxBytes: MAX_VARIANT_BYTES });
     }
 
     // ★バケットは kind から決まる。クライアントは選べない★

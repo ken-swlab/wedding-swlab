@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
 import { assertSafeThumb, type ReencodedJpeg } from "@/lib/thumb-guard";
 import type { MediaItem } from "@/types";
+import type { MediaVariant } from "@/lib/media-variants";
 
 export const MAX_MEDIA_PER_POST = 4;
 export { MAX_ORIGINAL_BYTES } from "@/config/limits";
@@ -36,6 +37,9 @@ async function presign(payload: {
   ext?: string;
   key?: string;
   reserveOnly?: boolean;
+  /** 一覧用の小さい版のとき、元の軽量版のキー（Issue #251）。キーはサーバーがこれから決める */
+  variantOf?: string;
+  variant?: MediaVariant;
 }): Promise<PresignResult> {
   return postJson<PresignResult>("/api/uploads/presign", payload);
 }
@@ -65,6 +69,43 @@ async function putSimple(signedUrl: string, blob: Blob, contentType: string) {
 export async function uploadThumb(image: ReencodedJpeg): Promise<{ url: string; key: string }> {
   await assertSafeThumb(image);
   return putPublic(image, "image/jpeg", "jpg");
+}
+
+/**
+ * 一覧用の小さい版を1枚送る（Issue #251）。キーはサーバーが軽量版のキーから決める（lib/media-variants.ts の variantKey）。
+ * ★軽量版と同じく、作り直したものだけ★（型で ReencodedJpeg だけを受け取り、送る直前に assertSafeThumb で確かめる）
+ */
+async function uploadVariant(baseKey: string, variant: MediaVariant, image: ReencodedJpeg): Promise<{ url: string; key: string }> {
+  await assertSafeThumb(image);
+  const r = await presign({ kind: "thumb", contentType: "image/jpeg", bytes: image.size, variantOf: baseKey, variant });
+  if (!r.url || !r.publicUrl) throw new Error("署名付き URL を取得できませんでした");
+  await putSimple(r.url, image, "image/jpeg");
+  return { url: r.publicUrl, key: r.key };
+}
+
+/**
+ * 小さい版をまとめて送り、投稿の media に足す項目を返す（Issue #251）。
+ * ★送れなかった版は入れない★ 投稿は止めない（表示は軽量版に落ちる）。
+ */
+export async function uploadVariants(
+  baseKey: string,
+  images: { feed?: ReencodedJpeg; grid?: ReencodedJpeg; poster?: ReencodedJpeg | null },
+): Promise<Pick<MediaItem, "feedPath" | "feedUrl" | "gridPath" | "gridUrl" | "posterPath" | "posterUrl">> {
+  const out: Pick<MediaItem, "feedPath" | "feedUrl" | "gridPath" | "gridUrl" | "posterPath" | "posterUrl"> = {};
+  const jobs = (["feed", "grid", "poster"] as const).map(async (name) => {
+    const image = images[name];
+    if (!image) return;
+    try {
+      const r = await uploadVariant(baseKey, name, image);
+      if (name === "feed") Object.assign(out, { feedPath: r.key, feedUrl: r.url });
+      if (name === "grid") Object.assign(out, { gridPath: r.key, gridUrl: r.url });
+      if (name === "poster") Object.assign(out, { posterPath: r.key, posterUrl: r.url });
+    } catch (e) {
+      console.warn(`[upload] 一覧用の小さい版（${name}）を送れませんでした（軽量版で表示します）`, e);
+    }
+  });
+  await Promise.all(jobs);
+  return out;
 }
 
 /** 動画は圧縮せず1段階で公開バケットへ送る。写真をここから送らない */

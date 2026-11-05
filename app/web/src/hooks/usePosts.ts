@@ -8,7 +8,7 @@ import {
 import { db } from "@/lib/firebase";
 import { toPost } from "@/lib/posts";
 import { TAG_QUERY_LIMIT } from "@/config/tags";
-import { PULL_REFRESH_COOLDOWN_MS, PULL_REFRESH_TIMEOUT_MS } from "@/config/guestbook";
+import { PULL_REFRESH_COOLDOWN_MS, PULL_REFRESH_TIMEOUT_MS, TIMELINE_FIRST_PAGE, TIMELINE_NEXT_PAGE } from "@/config/guestbook";
 import type { Post } from "@/types";
 
 /** createdAt が未確定（ローカル書き込み直後）のものは最新扱い */
@@ -32,11 +32,11 @@ function byNewest(a: Post, b: Post) {
  *   （infra/terraform/firestore_rules.tf の posts_timeline_admin）。
  *   管理者でない人がこの形で問い合わせると、Rules が全体を拒否する。
  *
- * 直近 pageSize 件はリアルタイム購読、それ以前は loadMore() で
- * 単発取得して継ぎ足す。ギャラリーで過去を遡るための構成で、
+ * 直近 pageSize 件はリアルタイム購読、それ以前は loadMore() で nextPageSize 件ずつ
+ * 単発取得して継ぎ足す。★最初は少なく読む★（Issue #251。既定 10 件。以前は 50 件で、開くだけで重かった）ギャラリーで過去を遡るための構成で、
  * タイムラインとギャラリーは同じ配列を共有する（タブ切替で再取得しない）。
  */
-export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
+export function usePosts(tags: string[], isAdmin = false, pageSize = TIMELINE_FIRST_PAGE, nextPageSize = TIMELINE_NEXT_PAGE) {
   // tags は毎レンダリング新しい配列になり得るので、内容で購読キーを作る
   const tagKey = useMemo(() => [...tags].sort().join("|"), [tags]);
   const myTags = useMemo(
@@ -132,7 +132,10 @@ export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
 
   const livePosts = live?.key === key ? live.posts : EMPTY;
   const olderPosts = older?.key === key ? older.posts : EMPTY;
-  const exhausted = older?.key === key && older.exhausted;
+  // 直近の購読だけで pageSize 件に満たなければ、それより前は無い（続きを読みに行かない）
+  const exhausted = older?.key === key
+    ? older.exhausted
+    : live?.key === key && live.posts.length < pageSize;
   const loading = ready && live?.key !== key;
   const error = errorState?.key === key ? errorState.error : null;
 
@@ -158,7 +161,7 @@ export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
           ...scope,
           orderBy("createdAt", "desc"),
           startAfter(last.createdAt),
-          limit(pageSize),
+          limit(nextPageSize), // これも Rules の上限（50）以下
         ),
       );
       const page = snap.docs.map(toPost);
@@ -166,7 +169,7 @@ export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
       setOlder((o) => ({
         key,
         posts: [...(o?.key === key ? o.posts : []), ...page],
-        exhausted: page.length < pageSize,
+        exhausted: page.length < nextPageSize,
       }));
     } catch (e) {
       setErrorState({ key, error: e as FirestoreError });
@@ -174,7 +177,7 @@ export function usePosts(tags: string[], isAdmin = false, pageSize = 50) {
       busy.current = false;
       setLoadingMore(false);
     }
-  }, [exhausted, key, ready, scope, pageSize, posts]);
+  }, [exhausted, key, ready, scope, nextPageSize, posts]);
 
   /**
    * 編集・削除した投稿を、遡って読み込んだ分（older）にも反映する（Issue #94）。

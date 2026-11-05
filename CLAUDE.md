@@ -80,7 +80,7 @@ cd app/web && npx next analyze --output   # 本番の JS の大きさ（Turbopac
 
 ### 画像・メディア
 9. `next.config.ts` の `images.unoptimized: true`・`remotePatterns: []`・ダミーの `localPatterns` を維持し、`/_next/image` を使わない（Vercel Hobby の月 5,000 回上限と、その枠を外から使い切られる悪用への対策）。写真は R2、アイコンは LINE / Google から直接読む。配信元を足すときは `src/lib/csp.ts` の `img-src` に足す。
-10. メディアの URL は `src/lib/media-url.ts`（`thumbSrc` / `bestSrc` / `keyUrl`）で組み立てる。R2 のキーは `u/{uid}/{t|o}/{uuid}.{ext}`、バケットはサーバーが `kind` から決める。
+10. メディアの URL は `src/lib/media-url.ts`（`feedSrc` / `gridSrc` / `posterSrc` / `thumbSrc` / `bestSrc` / `keyUrl`）で組み立てる。R2 のキーは `u/{uid}/{t|o}/{uuid}.{ext}`（一覧用の小さい版は `…/t/{uuid}__{feed|grid|poster}.jpg`。Issue #251）、バケットはサーバーが `kind` から決める。
 11. 原本は EXIF 付きのまま非公開バケットへ直接 PUT し、EXIF は Worker が落とす。ブラウザで EXIF を処理しない（iOS の HEIC で落ちる）。HEIC の原本は公開しない。
 12. 対になった値を片方だけ変えない: `MAX_ORIGINAL_BYTES` ⇔ Worker の `MAX_BYTES`、webhook の `KEY_RE` ⇔ Worker の `ORIGINAL_KEY_RE`、`AUDIT_RETENTION_DAYS` ⇔ Terraform の `audit_retention_days`、Worker の `WEBHOOK_SECRET` ⇔ Vercel の `WORKER_WEBHOOK_SECRET`。
 

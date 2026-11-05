@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEv
 import { createPortal } from "react-dom";
 import type { MediaItem, Post } from "@/types";
 import { displayStatus } from "@/lib/original-status";
-import { bestSrc, thumbSrc } from "@/lib/media-url";
+import { bestSrc, feedSrc } from "@/lib/media-url";
 import {
   isSwipeExempt,
   prefersReducedMotion,
@@ -389,7 +389,8 @@ export function MediaLightbox({
             const box = fitBox(sizes[i], view.w, view.h);
             const near = Math.abs(i - index) <= 1;
             const best = bestSrc(m);
-            const thumb = thumbSrc(m);
+            // 仮の表示は、一覧で読み終わっている小さい版（Issue #251。無い古い投稿は軽量版）。その上に全画面用（軽量版か原本）を重ねる
+            const thumb = feedSrc(m);
             return (
               <div
                 key={m.storagePath || `${m.url}-${i}`}

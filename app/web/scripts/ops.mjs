@@ -35,6 +35,11 @@
  *   node scripts/ops.mjs payment status           会費の金額（config/payment）を出す
  *   node scripts/ops.mjs payment set --party 20000 --second 5000 --car-fare 10000
  *                                                 会費の金額を変える（指定しない項目は今の値のまま。監査ログに残す）
+ *   node scripts/ops.mjs media backfill-variants  一覧用の小さい版（feed・grid）が無い写真の数を数える（書き込まない。Issue #251）
+ *   node scripts/ops.mjs media backfill-variants --apply [--limit 投稿数]
+ *                                                 軽量版を読み、sharp で feed（828px）・grid（400px）を作って公開バケットに置き、
+ *                                                 投稿の feedPath・gridPath を書く。済んだ写真は飛ばすので、途中で止めても続きから再開できる。
+ *                                                 アップロードは wrangler（オーナーの Cloudflare ログイン）。Codespaces で実行する
  *     ★本物の名前・日付・会場を入れた JSON はリポジトリの外に置く★（公開リポジトリ。コミットしない）
  *     ★このコマンドは値を画面に出さない★ 出すのは項目の名前と件数だけ。
  *
@@ -92,7 +97,8 @@ if (!cmd || cmd === "--help") {
   node scripts/ops.mjs ratelimit
   node scripts/ops.mjs invitation status|template|check <file>|set <file>|photo set <hero|groom|bride> <画像ファイル> [--family]
   node scripts/ops.mjs payment status|set [--party 円] [--second 円] [--car-fare 円]
-  node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry`);
+  node scripts/ops.mjs notify status|mode <off|dryRun|adminsOnly|on>|retry
+  node scripts/ops.mjs media backfill-variants [--apply] [--limit 投稿数]`);
   process.exit(0);
 }
 
@@ -524,6 +530,161 @@ if (cmd === "payment") {
   console.log(`お車代      : ${yen(v.carFareYen)}（差し引く額。招待状には出さない）`);
   console.log(`updatedAt   : ${jst(snap.get("updatedAt"))}\n`);
   process.exit(0);
+}
+
+// ---- media backfill-variants（Issue #251）---------------------------------------
+/**
+ * 今ある投稿の写真に、一覧用の小さい版（feed・grid）を作る。
+ * ★キー・大きさ・画質は投稿のときと同じもの★（src/lib/media-variants.ts を読む。片方だけ変えない）
+ * ★作るのは軽量版（公開バケットの t/、EXIF なし）から★ 原本は読まない。sharp も EXIF を書かない（withMetadata を呼ばない）。
+ * ★済んだ写真は飛ばす★ 投稿ごとに、置けたぶんだけをトランザクションで書く。止めても、もう一度実行すれば続きからになる。
+ * ★動画は対象外★ 1枚目の画像は sharp では作れない（古い動画は、今までどおり一覧で動画の最初の部分を読む）。
+ * ★キー（uid が入る）は画面に出さない★ 出すのは投稿 ID と件数だけ。
+ */
+if (cmd === "media") {
+  if (rest[0] !== "backfill-variants") {
+    console.error("使い方: node scripts/ops.mjs media backfill-variants [--apply] [--limit 投稿数]");
+    process.exit(1);
+  }
+  const apply = has("--apply");
+  const limitPosts = Number(flag("--limit") ?? Infinity);
+  const { MEDIA_VARIANTS, variantKey } = await import("../src/lib/media-variants.ts");
+  const { MEDIA_FETCH_REFERER } = await import("../src/config/media-access.ts");
+  const base = (process.env.NEXT_PUBLIC_MEDIA_BASE ?? "").replace(/\/+$/, "");
+  if (!/^https:\/\//.test(base)) {
+    console.error("NEXT_PUBLIC_MEDIA_BASE（公開バケットの配信元。https://…）が .env.local にありません");
+    process.exit(1);
+  }
+  const bucket = process.env.R2_BUCKET_PUBLIC || "wedding-media";
+  /** 小さい版が足りない写真か（キーの形が違うもの＝ごく初期の投稿は作れないので数えない） */
+  const needs = (m) => m?.type === "image" && typeof m.storagePath === "string" && variantKey(m.storagePath, "feed")
+    && (!m.feedPath || !m.gridPath);
+
+  const sharp = apply ? (await import("sharp")).default : null;
+  const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const dir = apply ? mkdtempSync(resolve(tmpdir(), "media-variants-")) : null;
+  const wranglerCwd = resolve(HERE, "..", "..", "..", "infra", "workers", "exif-stripper");
+
+  /** 公開バケットに置く。★新しく置くものに Cache-Control を付ける★（キーは変わらないので、一度読めば端末に残る） */
+  function put(key, bytes) {
+    const tmp = resolve(dir, "variant.jpg");
+    writeFileSync(tmp, bytes);
+    const r = spawnSync(
+      "npx",
+      ["--no-install", "wrangler", "r2", "object", "put", `${bucket}/${key}`, "--file", tmp, "--content-type", "image/jpeg",
+        "--cache-control", "public, max-age=31536000, immutable", "--remote"],
+      { cwd: wranglerCwd, stdio: ["ignore", "ignore", "pipe"] },
+    );
+    // ★置けないときは全体を止める★（ログインしていない・ネットワークなど。続けても全部失敗する）
+    if (r.status !== 0) throw Object.assign(new Error("wrangler でのアップロードに失敗しました（npx wrangler login でログインしてから、やり直してください）"), { fatal: true });
+  }
+
+  /** 1枚ぶん: 軽量版を読み、feed・grid を作って置く。置けたフィールドを返す */
+  async function makeFor(m) {
+    const res = await fetch(`${base}/${m.storagePath}`, { headers: { Referer: MEDIA_FETCH_REFERER }, redirect: "error" });
+    if (!res.ok) throw new Error(`軽量版を読めませんでした（${res.status}）`);
+    const src = Buffer.from(await res.arrayBuffer());
+    const out = {};
+    for (const name of ["feed", "grid"]) {
+      if (m[`${name}Path`]) continue;
+      const { maxEdge, quality } = MEDIA_VARIANTS[name];
+      const bytes = await sharp(src, { failOn: "error" })
+        .rotate()
+        .resize({ width: maxEdge, height: maxEdge, fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: Math.round(quality * 100), mozjpeg: true })
+        .toBuffer();
+      const meta = await sharp(bytes).metadata();
+      if (meta.exif || meta.xmp || meta.iptc) throw new Error("メタデータを消せませんでした");
+      const key = variantKey(m.storagePath, name);
+      put(key, bytes);
+      out[`${name}Path`] = key;
+      out[`${name}Url`] = `${base}/${key}`;
+    }
+    return out;
+  }
+
+  const total = (await db.collection("posts").count().get()).data().count;
+  console.log(`\n投稿 ${total} 件を新しい順に見ます${apply ? "" : "（数えるだけ。作るときは --apply）"}\n`);
+  let seen = 0, targetPosts = 0, targetPhotos = 0, donePhotos = 0, failedPhotos = 0, processed = 0;
+  let cursor = null;
+  let stopped = false;
+  try {
+    outer: for (;;) {
+      let q = db.collection("posts").orderBy("createdAt", "desc").limit(100);
+      if (cursor) q = q.startAfter(cursor);
+      const snap = await q.get();
+      if (snap.empty) break;
+      for (const d of snap.docs) {
+        seen += 1;
+        const media = Array.isArray(d.get("media")) ? d.get("media") : [];
+        const todo = media.filter(needs);
+        if (todo.length === 0) continue;
+        targetPosts += 1;
+        targetPhotos += todo.length;
+        if (!apply) continue;
+        if (processed >= limitPosts) break outer;
+        processed += 1;
+
+        const made = new Map();
+        for (const m of todo) {
+          try {
+            made.set(m.storagePath, await makeFor(m));
+          } catch (e) {
+            failedPhotos += 1;
+            console.warn(`  投稿 ${d.id}: ${e instanceof Error ? e.message : "作れませんでした"}`);
+            if (e?.fatal) {
+              stopped = true;
+              break;
+            }
+          }
+        }
+        if (made.size > 0) {
+          // ★書く直前に読み直す★ 実行中に編集・削除された投稿を上書きしない
+          await db.runTransaction(async (tx) => {
+            const cur = await tx.get(d.ref);
+            if (!cur.exists) return;
+            const list = Array.isArray(cur.get("media")) ? cur.get("media") : [];
+            const next = list.map((m) => (made.has(m?.storagePath) ? { ...m, ...made.get(m.storagePath), ...pickExisting(m) } : m));
+            tx.update(d.ref, { media: next });
+          });
+          donePhotos += made.size;
+        }
+        console.log(`[${seen}/${total}] 投稿 ${d.id}: ${made.size}/${todo.length} 枚（累計 ${donePhotos} 枚）`);
+        if (stopped) break outer;
+      }
+      cursor = snap.docs[snap.docs.length - 1];
+    }
+  } finally {
+    if (dir) rmSync(dir, { recursive: true, force: true });
+  }
+
+  if (!apply) {
+    console.log(`小さい版の無い写真: ${targetPhotos} 枚（投稿 ${targetPosts} 件）\n`);
+    process.exit(0);
+  }
+  // ★監査ログに残す★（形は src/lib/audit.ts と同じ。件数だけ）
+  const requestId = `ops-${randomUUID()}`;
+  const expiresAt = Timestamp.fromMillis(Date.now() + 400 * 86_400_000);
+  await db.collection("auditLogs").doc(`${requestId}-b`).create({
+    requestId, route: "ops.media.backfill-variants", method: "CLI", action: "media.backfill-variants", actorUid: "ops-cli",
+    actorRole: "admin", targetId: "posts", fields: ["media.feedPath", "media.gridPath"], ipHash: null, userAgent: "scripts/ops.mjs",
+    phase: "begin", at: FieldValue.serverTimestamp(), expiresAt,
+  });
+  await db.collection("auditLogs").doc(`${requestId}-e`).create({
+    requestId, route: "ops.media.backfill-variants", phase: "end", result: failedPhotos ? "partial" : "success", status: 200,
+    durationMs: 0, counts: { photos: donePhotos, failed: failedPhotos }, at: FieldValue.serverTimestamp(), expiresAt,
+  });
+  console.log(`\n${failedPhotos ? "⚠️" : "✅"} ${donePhotos} 枚に小さい版を作りました（失敗 ${failedPhotos} 枚${stopped ? "。アップロードできないため途中で止めました" : ""}。もう一度実行すると、残りだけを作ります）\n`);
+  process.exit(failedPhotos ? 1 : 0);
+}
+
+/** 実行中に投稿の画面から付いた小さい版があれば、そちらを残す */
+function pickExisting(m) {
+  const out = {};
+  for (const k of ["feedPath", "feedUrl", "gridPath", "gridUrl"]) if (m?.[k]) out[k] = m[k];
+  return out;
 }
 
 // ---- audit ------------------------------------------------------------------

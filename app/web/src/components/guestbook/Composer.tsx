@@ -6,10 +6,10 @@ import type { User } from "firebase/auth";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
-import { compressForTimeline } from "@/lib/image";
+import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb, uploadVideo,
+  reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
 } from "@/lib/media";
 import { createPost } from "@/lib/posts";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
@@ -35,6 +35,10 @@ type Picked = {
   compressed?: ReencodedJpeg;
   width?: number;
   height?: number;
+  /** 一覧用の小さい版（Issue #251）。圧縮と一緒に作っておく */
+  variants?: ImageVariants;
+  /** 動画の1枚目の画像（Issue #251）。選んだ直後から作り始め、投稿するときに待つ */
+  poster?: Promise<ReencodedJpeg | null>;
 };
 
 const DEFAULT_PLACEHOLDER = "おふたりへのメッセージや、当日の写真をどうぞ 🌿";
@@ -150,6 +154,7 @@ export function Composer({
       previewUrl: URL.createObjectURL(file),
       isVideo: file.type.startsWith("video/"),
       compressing: !file.type.startsWith("video/"),
+      poster: file.type.startsWith("video/") && file.size <= MAX_ORIGINAL_BYTES ? makeVideoPoster(file).catch(() => null) : undefined,
     }));
     setPicked((p) => [...p, ...drafts]);
 
@@ -165,8 +170,10 @@ export function Composer({
       }
       try {
         const { blob, width, height } = await compressForTimeline(d.file);
+        // 一覧用の小さい版は作り直した軽量版から描く（失敗しても投稿は止めない）
+        const variants = await makeImageVariants(blob);
         setPicked((p) => p.map((x) => x.id === d.id
-          ? { ...x, compressing: false, compressed: blob, width, height } : x));
+          ? { ...x, compressing: false, compressed: blob, width, height, variants } : x));
       } catch {
         setPicked((p) => p.map((x) => x.id === d.id
           ? { ...x, compressing: false, error: "画像を処理できませんでした" } : x));
@@ -271,7 +278,10 @@ export function Composer({
         if (p.isVideo) {
           // 動画は圧縮せず1段階で公開バケットへ送る（従来どおり）
           const v = await uploadVideo(p.file, ext);
-          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name });
+          // 一覧では動画本体を読まずに1枚目の画像を出す（Issue #251。作れなければ無し）
+          const poster = await (p.poster ?? Promise.resolve(null));
+          const extra = poster ? await uploadVariants(v.key, { poster }) : {};
+          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name, ...extra });
           continue;
         }
 
@@ -286,6 +296,8 @@ export function Composer({
         // 原本は後日、非公開バケットへ送る。ここではキーだけ確保する
         // （署名は寿命が短いので保存しない）
         const originalKey = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
+        // 一覧用の小さい版（Issue #251）。送れなかった版は入らず、表示は軽量版に落ちる
+        const variants = p.variants ? await uploadVariants(t.key, p.variants) : {};
 
         media.push({
           type: "image",
@@ -295,6 +307,7 @@ export function Composer({
           height: p.height,
           alt: p.file.name,
           originalStatus: "pending",
+          ...variants,
         });
         photoUrls.push(t.url);
         originals.push({

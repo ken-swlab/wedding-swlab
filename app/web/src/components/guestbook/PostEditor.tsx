@@ -4,12 +4,12 @@ import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
-import { compressForTimeline } from "@/lib/image";
+import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb, uploadVideo,
+  reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
 } from "@/lib/media";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { updatePost, type EditedMedia } from "@/lib/posts";
 import { MAX_POST_LENGTH } from "@/lib/text";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
@@ -31,6 +31,10 @@ type Picked = {
   compressed?: ReencodedJpeg;
   width?: number;
   height?: number;
+  /** 一覧用の小さい版（Issue #251。Composer と同じ） */
+  variants?: ImageVariants;
+  /** 動画の1枚目の画像（Issue #251。Composer と同じ） */
+  poster?: Promise<ReencodedJpeg | null>;
 };
 
 /** 送信済みの1件（保存の API だけ失敗してやり直すときに、同じ写真を二重に送らない） */
@@ -116,6 +120,7 @@ export function PostEditor({
         previewUrl,
         isVideo: file.type.startsWith("video/"),
         compressing: !file.type.startsWith("video/"),
+        poster: file.type.startsWith("video/") && file.size <= MAX_ORIGINAL_BYTES ? makeVideoPoster(file).catch(() => null) : undefined,
       };
     });
     setAdded((p) => [...p, ...drafts]);
@@ -130,7 +135,8 @@ export function PostEditor({
       }
       try {
         const { blob, width, height } = await compressForTimeline(d.file);
-        setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, compressed: blob, width, height } : x)));
+        const variants = await makeImageVariants(blob);
+        setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, compressed: blob, width, height, variants } : x)));
       } catch {
         setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, error: "画像を処理できませんでした" } : x)));
       }
@@ -151,14 +157,20 @@ export function PostEditor({
     let result: Sent;
     if (p.isVideo) {
       const v = await uploadVideo(p.file, ext);
-      result = { media: { type: "video", storagePath: v.key, alt: p.file.name } };
+      const poster = await (p.poster ?? Promise.resolve(null));
+      const extra = poster ? await uploadVariants(v.key, { poster }) : {};
+      result = { media: { type: "video", storagePath: v.key, alt: p.file.name, posterPath: extra.posterPath } };
     } else {
       // ★軽量版は必ず canvas で作り直したものだけを送る★（Composer の★参照。Issue #66）
       if (!p.compressed) throw new Error("写真の準備ができていません。写真を選び直してください");
       const t = await uploadThumb(p.compressed);
       const originalPath = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
+      const v = p.variants ? await uploadVariants(t.key, p.variants) : {};
       result = {
-        media: { type: "image", storagePath: t.key, width: p.width, height: p.height, alt: p.file.name, originalPath },
+        media: {
+          type: "image", storagePath: t.key, width: p.width, height: p.height, alt: p.file.name, originalPath,
+          feedPath: v.feedPath, gridPath: v.gridPath,
+        },
         original: { thumbPath: t.key, originalPath, fileName: p.file.name, bytes: p.file.size, file: p.file },
       };
     }
@@ -262,9 +274,13 @@ export function PostEditor({
             {kept.map((m) => (
               <div key={m.storagePath} className="relative aspect-square overflow-hidden rounded-xl bg-stone-100">
                 {m.type === "video" ? (
-                  <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  posterSrc(m) ? (
+                    <Image src={posterSrc(m)!} alt="" fill sizes="25vw" className="object-cover" />
+                  ) : (
+                    <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  )
                 ) : (
-                  <Image src={thumbSrc(m)} alt="" fill sizes="25vw" className="object-cover" />
+                  <Image src={gridSrc(m)} alt="" fill sizes="25vw" className="object-cover" />
                 )}
                 <RemoveButton
                   disabled={busy}
