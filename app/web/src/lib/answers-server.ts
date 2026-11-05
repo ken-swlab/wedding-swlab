@@ -92,6 +92,7 @@ export function parseAnswers(body: AnswersBody, kind: InvitationKind = "friend")
   let attendance: Attendance = "unanswered";
   let familyAttendance: FamilyAttendance | null = null;
   if (kind === "family") {
+    // ★新しく受け付けるのは「出席（both）／欠席」だけ★（Issue #262。以前の会食のみ・挙式のみは選び直してもらう）
     if (typeof body.familyAttendance !== "string" || !FAMILY_ATTENDANCE_VALUES.has(body.familyAttendance)) {
       return { error: "出欠の選択が不正です" };
     }
@@ -129,8 +130,9 @@ export function parseAnswers(body: AnswersBody, kind: InvitationKind = "friend")
     drinkLevel = body.drinkLevel;
   }
 
+  // ★親族用はお車代を聞かない★（Issue #262。前日の宿泊の質問が代わり）。本文に値があっても保存しない
   let carFare: Answers["carFare"] = null;
-  if (!declined) {
+  if (kind === "friend" && !declined) {
     if (typeof body.carFare !== "boolean") return { error: "お車代をお受け取りになるか選んでください" };
     carFare = body.carFare;
   }
@@ -142,7 +144,7 @@ export function parseAnswers(body: AnswersBody, kind: InvitationKind = "friend")
   if (allergy.length > ANSWER_ALLERGY_MAX) return { error: `アレルギー情報は${ANSWER_ALLERGY_MAX}文字までです` };
 
   const note = str(body.note);
-  if (note.length > ANSWER_NOTE_MAX) return { error: `備考・連絡事項は${ANSWER_NOTE_MAX}文字までです` };
+  if (note.length > ANSWER_NOTE_MAX) return { error: `連絡事項は${ANSWER_NOTE_MAX}文字までです` };
 
   return {
     answers: {

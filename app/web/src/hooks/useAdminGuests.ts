@@ -9,9 +9,10 @@ import type {
   Attendance, Ceremony, GuestAdmin, GuestPrivate, GuestPublic, GuestRow, PaymentStatus,
 } from "@/types/admin";
 import { isDrinkLevel } from "@/config/drink";
-import { FAMILY_ATTENDANCE_OPTIONS, type FamilyAttendance } from "@/types/admin";
+import { FAMILY_ATTENDANCE_ALL, type FamilyAttendance } from "@/types/admin";
 
-const FAMILY_ATTENDANCE_VALUES = new Set<unknown>(FAMILY_ATTENDANCE_OPTIONS.map((o) => o.value));
+// ★以前の選択肢（会食のみ・挙式のみ）も読む★（Issue #262。管理画面で「出席（旧：会食のみ）」と出して見落とさない）
+const FAMILY_ATTENDANCE_VALUES = new Set<unknown>(FAMILY_ATTENDANCE_ALL.map((o) => o.value));
 
 /**
  * 3つのコレクションをそれぞれ読む上限。★届いたら画面に警告を出す（truncated）★（Issue #203）

@@ -24,6 +24,7 @@ import {
   type Attendance,
   type Ceremony,
   type FamilyAttendance,
+  isLegacyFamilyAttendance,
   type InvitationKind,
 } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
@@ -99,6 +100,8 @@ export default function GuideQuestionnairePage() {
   const [tried, setTried] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const program = useInvitationProgram(!!user);
+  // 以前の選択肢（会食のみ・挙式のみ）で答えていた親族（Issue #262）。未選択に戻して、選び直してもらう
+  const [legacyFamily, setLegacyFamily] = useState<FamilyAttendance | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -107,6 +110,8 @@ export default function GuideQuestionnairePage() {
       .then((snap) => {
         if (!alive) return;
         const a = draftFromPrivate(snap.data() ?? {});
+        const stored = snap.data()?.familyAttendance;
+        setLegacyFamily(isLegacyFamilyAttendance(stored) ? stored : null);
         setKind(snap.data()?.invitationKind === "family" ? "family" : "friend");
         setSaved(a);
         setForm(a);
@@ -200,11 +205,18 @@ export default function GuideQuestionnairePage() {
             program={program?.program}
             missing={tried ? missing : undefined}
             attendanceHint={
-              attendanceChanged &&
-              saved && (
-                <p className="mt-1.5 text-xs text-amber-700">
-                  {attendanceText(kind, saved)} から {attendanceText(kind, form)} に変更します（保存前に確認します）
+              kind === "family" && legacyFamily && form.familyAttendance === "unanswered" ? (
+                // ★以前の4択で答えた人には、選び直しを頼む★（Issue #262。出席は会食から最後まで通しての参加になった）
+                <p role="alert" className="mt-1.5 text-xs text-amber-700">
+                  出欠の選び方が変わりました。もう一度お選びください（以前のご回答：{FAMILY_ATTENDANCE_LABEL[legacyFamily]}）
                 </p>
+              ) : (
+                attendanceChanged &&
+                saved && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    {legacyFamily && kind === "family" ? FAMILY_ATTENDANCE_LABEL[legacyFamily] : attendanceText(kind, saved)} から {attendanceText(kind, form)} に変更します（保存前に確認します）
+                  </p>
+                )
               )
             }
           />
