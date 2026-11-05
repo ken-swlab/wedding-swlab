@@ -1,4 +1,3 @@
-import imageCompression from "browser-image-compression";
 import { ICON_MAX_EDGE, ICON_MAX_MB, ICON_QUALITY } from "@/config/profile";
 import { markReencoded, type ReencodedJpeg } from "@/lib/thumb-guard";
 
@@ -35,6 +34,8 @@ export type Compressed = {
  * 原本アップロード側にも処理を足すこと。
  */
 export async function compressForTimeline(file: File): Promise<Compressed> {
+  // ★圧縮のライブラリは、写真を選んだときに読む★（Issue #250。最初の JS を小さくする）
+  const { default: imageCompression } = await import("browser-image-compression");
   const out = await imageCompression(file, {
     maxWidthOrHeight: THUMB_MAX_EDGE,
     initialQuality: THUMB_QUALITY,

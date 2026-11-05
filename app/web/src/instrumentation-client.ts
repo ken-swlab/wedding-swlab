@@ -1,4 +1,6 @@
-import * as Sentry from "@sentry/nextjs";
+// ★名前を付けて import する★（Issue #250）`import * as Sentry` だと使っていない部品（Session Replay・Feedback など）まで
+//   最初の JS に入る。使うものだけを書く
+import { captureRouterTransitionStart, init, SDK_VERSION } from "@sentry/nextjs";
 import { scrubBreadcrumb, scrubEvent, sentryMajorIsSafe } from "@/lib/sentry-scrub";
 
 /**
@@ -13,14 +15,19 @@ import { scrubBreadcrumb, scrubEvent, sentryMajorIsSafe } from "@/lib/sentry-scr
  *   エラー画面に出す requestId と auditLogs で行う。
  */
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-const version = (Sentry as unknown as { SDK_VERSION?: string }).SDK_VERSION;
+const version: string | undefined = SDK_VERSION;
 
 if (dsn && sentryMajorIsSafe(version)) {
-  Sentry.init({
+  init({
     dsn,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
     sendDefaultPii: false,
-    tracesSampleRate: 0.05,
+    /**
+     * ★ページの読み込みの速さ（Web Vitals: LCP・INP・CLS など）を 10% の訪問で集める★（Issue #250）
+     *   ページの読み込みの記録（pageload）に Web Vitals が付く。送る前に beforeSendTransaction（scrubEvent）が
+     *   URL のクエリ・ユーザー・追加の情報を消す（スパンの URL のクエリも消す。lib/sentry-scrub.ts）。
+     */
+    tracesSampleRate: 0.1,
     beforeSend: (event) => scrubEvent(event),
     beforeSendTransaction: (event) => scrubEvent(event),
     beforeBreadcrumb: (crumb) => scrubBreadcrumb(crumb),
@@ -32,4 +39,4 @@ if (dsn && sentryMajorIsSafe(version)) {
   });
 }
 
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+export const onRouterTransitionStart = captureRouterTransitionStart;
