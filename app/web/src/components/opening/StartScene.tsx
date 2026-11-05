@@ -236,7 +236,11 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
           // ★背の低い画面では案内の上に収める★（Issue #230）36% のままだと、高さ 550〜570px で中央の案内（約 105px）と重なった。
           //   50% − 110px（案内の上半分 53px ＋ この行の高さ 45px ＋ すき間 12px）より下にしない
           // ★行の高さに余裕を持たせ、下に少し余白★（Issue #262。y の下（ディセンダー）を、箱の中に収める）
-          className="absolute inset-x-0 top-[min(36%,calc(50%-110px))] pb-1 text-center text-[30px] font-extrabold leading-[1.3] tracking-[0.06em] transition-opacity duration-[400ms]"
+          // ★案内（画面が白く光り…）より上に描く（z-10）・案内とのすき間を広くとる（50% − 130px）★
+          //   案内の箱は、見えていない間（opacity 0）も同じ場所にある。iPhone の LINE では、Take your marks の行と
+          //   すき間が小さい（8〜20px）と、重なった所で「y」の下が切れたり、色が描き直されずに残ったりした（実機で確認）。
+          //   上に描けば、多少重なっても欠けない。フライングの箱（下の role="alert"）は、この行の位置から決める
+          className="absolute inset-x-0 top-[min(36%,calc(50%-130px))] z-10 pb-1 text-center text-[30px] font-extrabold leading-[1.3] tracking-[0.06em] transition-opacity duration-[400ms]"
           style={{ visibility: markHidden ? "hidden" : "visible", opacity: marksShown ? 1 : 0 }}
         >
           {WORDS.map((w, i) => (
@@ -295,11 +299,11 @@ export function StartScene({ onResult, onSkip }: { onResult: (reactionMs: number
         ★フライングの箱は Take your marks の下に置く★（Issue #262）
           以前は top-[38%] で、画面の高さによっては Take your marks の行の下 4〜9px に重なり、
           フライングのあと「y」の下が黒い帯（bg-black/80）で切られて見えた（iPhone 13 mini・SE で再現）。
-          Take your marks の行の上端（min(36%, 50%−110px)）から、行の高さ（約 43px）＋すき間の分だけ下げる。
+          Take your marks の行の上端（min(36%, 50%−130px)）から、行の高さ（約 43px）＋すき間の分だけ下げる。
       */}
       <div
         role="alert"
-        className="pointer-events-none absolute inset-x-6 top-[calc(min(36%,calc(50%-110px))+60px)] z-[22] rounded-2xl bg-black/80 py-[18px] text-center text-[34px] font-black transition-opacity duration-200"
+        className="pointer-events-none absolute inset-x-6 top-[calc(min(36%,calc(50%-130px))+60px)] z-[22] rounded-2xl bg-black/80 py-[18px] text-center text-[34px] font-black transition-opacity duration-200"
         style={{ opacity: foul ? 1 : 0, color: OPENING_COLORS.led }}
       >
         {foul && (
