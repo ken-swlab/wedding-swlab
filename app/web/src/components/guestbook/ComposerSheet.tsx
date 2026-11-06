@@ -17,6 +17,7 @@ import { AuthorNameProvider } from "./AuthorNameProvider";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { CameraIcon } from "@/components/icons";
 import { usePostOutbox, type PostOutbox } from "@/hooks/usePostOutbox";
+import { usePhotoIntro } from "./PhotoIntroSheet";
 
 type ComposerSheetApi = { open: () => void };
 
@@ -70,11 +71,13 @@ export function ComposerSheetProvider({
   const notify = useCallback((n: ComposerNotice) => {
     const id = ++nextId.current;
     setToasts((list) => [...list, { ...n, id }]);
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), COMPOSER_TOAST_MS);
+    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), n.ms ?? COMPOSER_TOAST_MS);
   }, []);
 
   // ★送信は投稿画面を閉じても続く★（Issue #254）列はここ（ゲストブックの間ずっとある所）に1つだけ持つ
-  const outbox = usePostOutbox({ enqueue, notify });
+  //   写真付きで初めて投稿したら「写真は2回に分けて届けます」を出す（Issue #272）
+  const { showIfFirst } = usePhotoIntro();
+  const outbox = usePostOutbox({ enqueue, notify, onPhotosPosted: showIfFirst });
 
   const onPosted = useCallback(() => {
     setOpen(false);
@@ -162,7 +165,10 @@ function Toasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number
           role={t.kind === "error" ? "alert" : "status"}
           className={`welcome-fade-in pointer-events-auto flex items-start gap-2 rounded-xl py-2 pl-3 pr-1 text-xs leading-relaxed shadow-lg ring-1 ring-inset ${TOAST_TONE[t.kind]}`}
         >
-          <p className="min-w-0 flex-1 py-1">{t.text}</p>
+          <p className="min-w-0 flex-1 py-1">
+            {t.text}
+            {t.sub && <span className="block text-[length:calc(11px*var(--inv-scale))] opacity-80">{t.sub}</span>}
+          </p>
           <button
             type="button"
             onClick={() => onDismiss(t.id)}

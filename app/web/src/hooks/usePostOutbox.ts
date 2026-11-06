@@ -5,13 +5,14 @@ import { auth } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
 import { feedSrc, posterSrc } from "@/lib/media-url";
 import { MENTION_NOTIFY_API } from "@/config/mentions";
-import { OUTBOX_PRELOAD_TIMEOUT_MS } from "@/config/guestbook";
+import { OUTBOX_PRELOAD_TIMEOUT_MS, POSTED_TOAST_MS } from "@/config/guestbook";
 import { emptyProgress, stepCount, type PostDraft, type SendProgress } from "@/lib/post-draft";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import type { MediaItem } from "@/types";
 
 /** 投稿したあとの知らせ（ComposerSheet のトースト） */
-export type OutboxNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string };
+/** sub … 2行目（小さく出す）。ms … 出しておく時間（無ければ COMPOSER_TOAST_MS） */
+export type OutboxNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string; sub?: string; ms?: number };
 
 export type OutboxEntry = {
   draft: PostDraft;
@@ -46,9 +47,12 @@ export type PostOutbox = {
 export function usePostOutbox({
   enqueue,
   notify,
+  onPhotosPosted,
 }: {
   enqueue: (items: EnqueueItem[]) => void;
   notify: (n: OutboxNotice) => void;
+  /** 写真付きの投稿が書けたとき（高画質版を列に入れたあと）。初回の説明を出す（Issue #272。PhotoIntroSheet） */
+  onPhotosPosted?: () => void;
 }): PostOutbox {
   const [entries, setEntries] = useState<OutboxEntry[]>([]);
   // 電波が戻ったときに、いまの列を読む（state の更新関数の中で送り始めない）
@@ -94,7 +98,7 @@ export function usePostOutbox({
       }
       running.current.delete(postId);
       patch(postId, { status: "sent" });
-      afterPosted(draft, prog, { enqueue, notify });
+      afterPosted(draft, prog, { enqueue, notify, onPhotosPosted });
 
       // 新郎新婦あては自分のタイムラインに出ないので、入れ替えを待たずに外す
       if (draft.coupleOnly) {
@@ -104,7 +108,7 @@ export function usePostOutbox({
       await preload(prog.media.filter((m): m is MediaItem => !!m));
       drop(postId);
     },
-    [drop, enqueue, notify, patch],
+    [drop, enqueue, notify, onPhotosPosted, patch],
   );
 
   const submit = useCallback(
@@ -158,7 +162,7 @@ export function usePostOutbox({
 function afterPosted(
   draft: PostDraft,
   prog: SendProgress,
-  { enqueue, notify }: { enqueue: (items: EnqueueItem[]) => void; notify: (n: OutboxNotice) => void },
+  { enqueue, notify, onPhotosPosted }: { enqueue: (items: EnqueueItem[]) => void; notify: (n: OutboxNotice) => void; onPhotosPosted?: () => void },
 ) {
   const postId = draft.postId;
   // メンションの通知。★待たない★ 相手に見えるかは、サーバーが保存済みの投稿で確かめる（/api/notifications/mention）
@@ -183,15 +187,23 @@ function afterPosted(
     }
   })();
 
-  // 高画質版は ★端末に保存するだけ★ 送信の発火はゲストのボタン操作に委ねる
+  // 高画質版は ★列に入れるだけ★ 送信の発火はゲストのボタン操作に委ねる
   const originals = prog.originals.filter((o): o is Omit<EnqueueItem, "postId"> => !!o);
-  if (originals.length > 0) {
-    enqueue(originals.map((o) => ({ ...o, postId })));
+  if (originals.length > 0) enqueue(originals.map((o) => ({ ...o, postId })));
+  /**
+   * ★写真付きの投稿は「投稿しました（軽量版）」を短く出す★（Issue #272。2.5 秒）
+   *   高画質版が残っているときだけ、2行目に送るタイミングを添える。ゲストに見える言葉は「軽量版」「高画質版」だけ。
+   *   写真が初めてなら、2回に分けている理由の説明（PhotoIntroSheet）も出す（高画質版がある投稿だけ）。
+   */
+  if (prog.media.some((m) => m?.type === "image")) {
     notify({
       kind: "upload",
-      text: `高画質版 ${originals.length} 枚をこの端末に保存しました。Wi-Fi に繋がったら、上の「本アップロードを開始」から送信をお願いします 📶`,
+      text: "投稿しました（軽量版）",
+      sub: originals.length > 0 ? "高画質版は Wi-Fi のときに送ってください" : undefined,
+      ms: POSTED_TOAST_MS,
     });
   }
+  if (originals.length > 0) onPhotosPosted?.();
 
   // エピソード。★投稿の後に行う★ 失敗しても投稿は取り消さない
   if (draft.episode) {

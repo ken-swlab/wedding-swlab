@@ -83,8 +83,10 @@ export function isGuestbookPath(pathname: string): boolean {
 export const COMPOSER_ANCHOR_ID = "composer";
 /** 灰色の「投稿する」を押したときに出す、足りないものの知らせを出しておく時間 (ms) */
 export const COMPOSER_HINT_MS = 3000;
-/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。高画質版の案内は長いので、読める長さにする */
+/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。エピソード・新郎新婦あて・失敗の知らせ */
 export const COMPOSER_TOAST_MS = 8000;
+/** 写真付きの投稿の「投稿しました（軽量版）」を出しておく時間 (ms)（Issue #272） */
+export const POSTED_TOAST_MS = 2500;
 /** 投稿の詳細画面の下に固定したコメント入力欄。詳細の「💬」を押すとここにフォーカスする */
 export const COMMENT_INPUT_ID = "comment-input";
 

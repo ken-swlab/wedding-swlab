@@ -17,6 +17,7 @@ paths:
 2. **あとから手動（原本）**: 端末の IndexedDB（`src/lib/upload-queue.ts`）に置いた原本を `presign {kind:"original"}` → 非公開バケットへ EXIF 付きのまま PUT → `attachOriginal`（トランザクション）。
 3. **Worker（`infra/workers/exif-stripper`、2分ごと）**: EXIF を落として公開バケットへ複製（`Cache-Control: public, max-age=31536000, immutable`）→ webhook で `originalStatus` を `published` か `skipped` にする。
 
+- **ゲストに見える言葉は「軽量版」「高画質版」だけ**（Issue #272。「本アップロード」「本体」「端末に保存」「低画質版」は使わない）。写真付きで初めて投稿したときだけ「写真は2回に分けて届けます」（`PhotoIntroSheet`。見た印は `guestPrivate.photoIntroSeen`）を出し、帯（`UploadStatusBar`）の「なぜ2回？」からもう一度出せる。投稿の直後は「投稿しました（軽量版）」を 2.5 秒（`POSTED_TOAST_MS`）。
 - 原本の状態: `pending | uploaded | published | skipped | failed | unavailable`。状態を足すなら `src/lib/original-status.ts` の `QUALITY`（マイページの画質マーク）と `MediaLightbox` の `ORIGINAL_NOTE` を両方更新する（漏れると型エラーになる作り）。写真のマスに画質のバッジは出さない（Issue #128）。
 - 原本として受け付けるのは jpeg / png / webp だけ（Worker の `formats.ts` が処理できるもの。それ以外は presign が拒否する）。Worker も HEIC・HEIF・AVIF は公開せず隔離する。
 - 1投稿のメディアは最大 4 件。上限: 原本 24MiB（`MAX_ORIGINAL_BYTES`）、軽量版と動画 8MiB（`MAX_THUMB_BYTES`）。動画は圧縮せず `kind:"thumb"` で1回だけ送る。

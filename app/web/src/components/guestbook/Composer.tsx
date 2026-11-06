@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
+import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
@@ -37,7 +38,7 @@ type Picked = {
 const DEFAULT_PLACEHOLDER = "おふたりへのメッセージや、当日の写真をどうぞ 🌿";
 
 /** 投稿したあとの知らせ。投稿画面は閉じるので、タイムラインのトーストで出す（ComposerSheet） */
-export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string };
+export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string; sub?: string; ms?: number };
 
 /**
  * お題のラベルをハッシュタグとして末尾に足す。
@@ -183,15 +184,14 @@ export function Composer({
   }
 
   /**
+   * ★「全員」と個別のタグは切り替え★（Issue #272。lib/visibility-scope.ts の toggleScope）
+   *   個別のタグを選ぶと「全員」が外れ、「全員」を選ぶと個別のタグが外れ、個別のタグを全部外すと「全員」に戻る。
    * ★「新郎新婦」は単独でだけ選べる★ 選ぶとほかのタグが外れ、ほかのタグを選ぶと「新郎新婦」が外れる。
    *   混ぜると、そのタグの人にも見えてしまう。Rules も ['couple'] ちょうどでない組み合わせを拒む。
    */
+  const canAll = available.some((t) => t.id === ALL_TAG);
   function toggleTag(id: string) {
-    setSelected((s) => {
-      if (id === COUPLE_TAG) return s.includes(id) ? [] : [COUPLE_TAG];
-      const rest = s.filter((x) => x !== COUPLE_TAG);
-      return rest.includes(id) ? rest.filter((x) => x !== id) : [...rest, id];
-    });
+    setSelected((s) => toggleScope(s, id, canAll));
   }
   const coupleOnly = selected.length === 1 && selected[0] === COUPLE_TAG;
 
@@ -595,5 +595,5 @@ function ScopeSheet({
  *   Composer は useTags を呼んでいるので、辞書が届いたら描き直されて名前になる。
  */
 function scopeNames(selected: readonly string[]): string {
-  return displayVisibleTags(selected).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
+  return scopeForDisplay(displayVisibleTags(selected)).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
 }
