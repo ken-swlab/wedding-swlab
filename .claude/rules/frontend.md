@@ -18,6 +18,7 @@ paths:
 - `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）・`textScale`（Issue #243）・`photoIntroSeen`（Issue #272）・`closeHintSeen`（Issue #273）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
 - 管理者かどうかは `claims.admin === true` だけで決める。
 - 起動（Issue #250）: ゲストの画面は Firebase のログイン（端末に残ったもの）だけを見て出し、LINE の確認（`liff.init`）は待たない。LINE アプリの中では、最初の画面のあとに `useLineAccountCheck` が LINE のアカウントと uid を比べ、違えばサインアウトして招待状からログインし直させる。`useGuestSession` は前回のプロフィール（guests の公開して困らない値だけ）を端末に覚え、届くまではそれで行き先を決める（届いた値で上書きする）。
+- 起動の速さ（Issue #277）: 関数は東京（`app/web/vercel.json` の `regions: ["hnd1"]`。Firestore と同じ地域。Hobby は1か所まで）。起動の段階（`js`・`liff-init`・`auth-line`・`firebase-login`・`first-content`）を `lib/boot-timing.ts` の `bootMark`／`useBootMark` で記録し、Sentry に「app.boot」として1回だけ送る（10% の抽出のまま。値はミリ秒だけ）。ブラウザの Sentry の初期化は最初の画面のあと（`requestIdleCallback`、遅くとも `SENTRY_INIT_TIMEOUT_MS`）で、それまでのエラーは控えてから送る（`instrumentation-client.ts`）。LINE の SDK は、Firebase のログインが無いと分かってから入口で前もって読み込み・準備する（`useLiffAuth` の `loadLiff`。ログイン済みの人には読まない）。API の中は順番に待たず `Promise.all` で同時に読み、`lib/server-timing.ts` で `Server-Timing` ヘッダを返す（`/api/auth/line`・`/api/guest/invitation`）。
 - 最初の画面に要らない部品は `next/dynamic` で使うときに読む（投稿画面・写真のビューア・投稿の詳細・写真の選択・承認後の演出・投稿の編集・画像の圧縮のライブラリ）。重い部品を足すときも同じにする。Sentry は名前を付けて import する（`import * as Sentry` は使わない部品まで最初の JS に入る）。
 
 ## データと API

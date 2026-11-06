@@ -108,6 +108,6 @@
 - Sentry・Vercel・Cloudflare のログの保持期間（プランと設定による）
 - R2 のバケットの場所（ロケーション）と、ライフサイクルの設定
 - AWS Rekognition のリージョンと、AWS の「AI サービスのオプトアウト」の設定の有無
-- Vercel の関数のリージョン
+- Vercel の関数のリージョン（Issue #277 で東京 `hnd1` を指定した。本番で `x-vercel-id` が `hnd1` になったかは、デプロイのあとオーナーが確かめる）
 - LINE ログインのチャネルで有効にしているスコープ（コードが使うのは ID トークンの `sub`・`name`・`picture` だけ）
 - 開発機に `pii-backup-*.json` が残っていないか

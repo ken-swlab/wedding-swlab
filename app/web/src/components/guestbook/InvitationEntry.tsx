@@ -168,11 +168,13 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
  */
 async function loadView(kind: InvitationKind): Promise<View | "registered"> {
   // ★種類は必ず付ける★ 付けないと、まだ答えていない人は友人用になる（記録が無いため）
+  // ★オープニングの記録も同時に読み始める★（Issue #277。順番に待たない）。オープニングを見ない人は使わずに捨てる
+  const reactionP = hasSeenOpening() ? null : getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
   const s = await getJson<InvitationStatus>(`/api/guest/invitation?kind=${kind}`);
   if (s.registered) return "registered";
   if (!s.cleared) return { kind: "passcode" };
   if (!s.ready || !s.invitation || !s.opening) return { kind: "preparing" };
-  if (hasSeenOpening()) return { kind: "open", invitation: s.invitation, opening: s.opening };
-  const reaction = await getJson<ReactionStatus>("/api/guest/reaction").catch(() => null);
+  if (!reactionP) return { kind: "open", invitation: s.invitation, opening: s.opening };
+  const reaction = await reactionP;
   return { kind: "opening", invitation: s.invitation, opening: s.opening, recordedMs: reaction?.reactionMs ?? null };
 }

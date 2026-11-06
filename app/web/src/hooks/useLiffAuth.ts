@@ -3,6 +3,30 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, signInWithCustomToken, type User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { bootMark } from "@/lib/boot-timing";
+import { LIFF_WARM_DELAY_MS } from "@/config/startup";
+import type { Liff } from "@line/liff";
+
+/**
+ * LINE の SDK の読み込みと準備（liff.init）は、このページで1回だけ（Issue #277）。
+ * ★招待状の入口では前もって始めておく★（warmLiff）「LINE でログイン」を押したとき、読み込みと準備を待たない。
+ *   ★ログインが残っている人には読まない★（Issue #250。起動で LINE の SDK を読まない）。前もって始めるのは、
+ *   Firebase のログインが無いと分かってからだけ。失敗したら、次に呼ばれたときにやり直す。
+ */
+let liffReady: Promise<Liff> | null = null;
+function loadLiff(liffId: string): Promise<Liff> {
+  liffReady ??= import("@line/liff")
+    .then(async (m) => {
+      await m.default.init({ liffId });
+      bootMark("liff-init");
+      return m.default;
+    })
+    .catch((e: unknown) => {
+      liffReady = null;
+      throw e;
+    });
+  return liffReady;
+}
 
 export type LiffPhase =
   | "booting"     // Firebase の永続セッション復元待ち
@@ -49,9 +73,8 @@ export function useLiffAuth(auto = true) {
     try {
       setPhase("liff-init");
 
-      // ★SSR で評価されないよう動的 import する★
-      const liff = (await import("@line/liff")).default;
-      await liff.init({ liffId });
+      // ★SSR で評価されないよう動的 import する★（入口で前もって始めていれば、それを待つだけ）
+      const liff = await loadLiff(liffId);
 
       if (!liff.isLoggedIn()) {
         // ★無限リダイレクト対策★
@@ -90,6 +113,7 @@ export function useLiffAuth(auto = true) {
         body: JSON.stringify({ idToken }),
       });
       const data = (await res.json()) as { ok?: boolean; customToken?: string; message?: string };
+      bootMark("auth-line");
 
       if (!res.ok || !data.ok || !data.customToken) {
         setMessage(data.message ?? "ログインに失敗しました");
@@ -110,12 +134,16 @@ export function useLiffAuth(auto = true) {
       setUser(u);
 
       if (u) {
+        bootMark("firebase-login");
         // 既にセッションが残っていれば LIFF を経由せず即座に入れる
         setPhase("ready");
         return;
       }
       if (!auto) {
         setPhase("ready");   // 未ログインのまま操作可能な状態
+        // ログインが無いと分かったので、LINE の SDK を前もって読み込み・準備しておく（上の loadLiff の★）
+        const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+        if (liffId) window.setTimeout(() => void loadLiff(liffId).catch(() => {}), LIFF_WARM_DELAY_MS);
         return;
       }
       if (started.current) return;
