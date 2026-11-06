@@ -15,7 +15,7 @@
     { "key": "timeline", "group": "承認後", "label": "タイムライン", "account": "guest", "path": "/guestbook", "settleMs": 4000 },
     { "key": "composer", "group": "承認後", "label": "投稿画面", "account": "guest", "path": "/guestbook", "action": "openComposer", "settleMs": 800 },
     { "key": "post", "group": "承認後", "label": "投稿の詳細", "account": "guest", "path": "/guestbook", "action": "openFirstPhotoPost", "settleMs": 3000 },
-    { "key": "gallery", "group": "承認後", "label": "ギャラリー", "account": "guest", "path": "/guestbook?view=gallery", "settleMs": 4000 },
+    { "key": "gallery", "group": "承認後", "label": "ギャラリー（管理者だけ。Issue #270）", "account": "admin", "path": "/guestbook?view=gallery", "settleMs": 4000 },
     { "key": "community", "group": "承認後", "label": "コミュニティ", "account": "guest", "path": "/guestbook/community", "settleMs": 4000 },
     { "key": "notifications", "group": "承認後", "label": "通知", "account": "guest", "path": "/guestbook/notifications", "settleMs": 3000 },
     { "key": "settings", "group": "承認後", "label": "マイページ", "account": "guest", "path": "/guestbook/settings", "settleMs": 3500 },

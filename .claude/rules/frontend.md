@@ -24,6 +24,7 @@ paths:
 - Firestore のクエリは Rules に合わせる（`.claude/rules/data.md`）。posts の購読は `usePosts` に1本化している。
 - 本番の Firestore は読んだ内容を端末（IndexedDB）に残す（`persistentLocalCache`。Issue #251。エミュレーターはメモリのまま）。サインアウトさせるときは `signOut` ではなく `clearDeviceData(行き先)`（`lib/firebase.ts`）を使う（端末の保存を消し、ページを読み直す。terminate した db は使えないため router では移らない）。
 - 投稿は送信を待たない（Issue #254）: 投稿画面（Composer）は「投稿する」で `PostDraft`（ID は `newPostId()` で先に決める）を送信の列 `usePostOutbox`（`ComposerSheetProvider` に1つ）に渡してすぐ閉じる。送信の処理は `lib/post-send.ts`（送るときに `import()`）、タイムラインは `PendingPostCard` を一番上に出し、同じ ID の本物は列から外れるまで出さない（本物の写真を読み込んでから入れ替える）。送れなければ「もう一度送る」「取り消す」と、`online` で自動の再送。**送信中の投稿は端末に保存しない**（閉じると消える。送っている間は閉じる前に確認を出す）。
+- ギャラリーは `config/guestbook.ts` の `GALLERY_ENABLED`（いまは `false`。Issue #270）でゲストから隠す: 下のタブは4つ、`?view=gallery` はタイムラインに書き直し、ギャラリーの先読みもしない。管理者には出す（`useGalleryEnabled`）。`true` で元の形に戻る。
 - 先読み（Issue #255。`lib/prefetch.ts`）: タイムラインは見えている投稿の次の 3 件の一覧の写真（feed）、ギャラリーは次の1画面分（grid）を `new Image()` で読む。全画面の写真は先読みしない。タイムラインが落ち着いたら（`whenIdle`）下のタブの画面を `router.prefetch` し、ギャラリーの最初の 30 枚分のデータと1画面分の写真を読む。**下のタブの `Link` は `prefetch={false}`**（最初の画面と取り合わないよう、ここでまとめて読む）。電波が悪い（`saveData`・`2g`）ときは写真を1件だけにし、画面の先読みはしない。
 - API は `src/lib/api-client.ts` の `getJson` / `postJson` / `putJson` で呼ぶ（`res.json()` を直接呼ばない。5xx には問い合わせ用の ID が付く）。素の `fetch` は例外だけ: ログイン前の `/api/auth/line`、待たない顔検出、AI のストリーム（`src/lib/ai-stream.ts`）と音声（`src/lib/tts.ts`）。
 - ブラウザに秘密を置かない。`NEXT_PUBLIC_*` は誰でも読める前提で扱う。パスコードや招待コードをクライアントのコードに書かない。

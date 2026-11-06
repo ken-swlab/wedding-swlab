@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
-import { GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
+import { GALLERY_ENABLED, GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
 import { INVITATION_COLORS } from "@/config/invitation";
 import { GUIDE_PATHS, type AppSpace } from "@/config/guide";
 import { ChevronDownIcon, ClipboardIcon, CrownIcon, FlowerIcon } from "@/components/icons";
@@ -16,7 +16,8 @@ const SPACES: { key: AppSpace; icon: ReactNode; label: string; sub: string; href
     key: "guestbook",
     icon: <FlowerIcon className="h-6 w-6" />,
     label: "SNS・写真共有",
-    sub: "タイムライン・ギャラリー",
+    // ギャラリーを出さない間（Issue #270）は説明からも外す（管理者にも同じ文言。説明だけなので出し分けない）
+    sub: GALLERY_ENABLED ? "タイムライン・ギャラリー" : "タイムライン・コミュニティ",
     href: GUESTBOOK_PATHS.home,
   },
   {

@@ -56,12 +56,14 @@ export function InvitationVenue({
           {afterParty.venueMapUrl && <MapLink href={afterParty.venueMapUrl} />}
         </div>
       )}
-      {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない */}
+      {/* 会費（Issue #148）。金額は config/payment。未設定なら出さない。お車代の額は出さない。
+          2次会の金額が未定（secondTentative）の間は「（予定）」を付ける（Issue #270。当日のご案内も同じ部品） */}
       {fee && (
         <dl className="mt-3 pt-3" style={RULE_TOP}>
           <dt className={SUBHEAD}>会費</dt>
           <dd className="mt-0.5 font-serif text-[length:calc(14px*var(--inv-scale))] text-stone-700">
             会食 {yen(fee.partyYen)} ／ 2次会 {yen(fee.secondYen)}
+            {fee.secondTentative && "（予定）"}
           </dd>
           {feeNote && <dd>{feeNote}</dd>}
         </dl>
