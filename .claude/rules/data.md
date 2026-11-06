@@ -59,6 +59,7 @@ paths:
 - `media` 配列の更新はトランザクションで行う（同時に終わると書き負ける）。原本の状態を `published` / `skipped` から戻さない。
 - 本人による投稿の編集（本文・写真）と削除は `/api/posts/[id]`（PATCH / DELETE）だけで行う。クライアントから `posts` の本文を書き換えたり `deleteDoc` したりしない（削除はコメント・いいね・faces をまとめて消し、公開バケットの写真と Rekognition の顔も消す。非公開バケットの原本とマーカーは消さない。Issue #122）。編集した投稿には `editedAt` が付く（「編集済」の判定に `updatedAt` を使わない）。
 - カウンタ（`reactionCount` / `commentCount`）は `increment(±1)` と `updatedAt` だけを更新する。
+- お題（Issue #284。`config/episode-prompts.ts`）: お題を選んだ投稿は、本文の末尾にお題のハッシュタグを足し（`withPromptHashtag`）、`/api/episodes` がエピソード（`theme`・`promptId`）を作る。**投稿の `promptId` は `/api/episodes` がサーバーから付ける**（`postId` を受け、本人の投稿か確かめる。`validPost()` の項目は変えていない）。旧お題（第一印象など）は表示のためだけに定義に残す。「いま ◯件の思い出」の件数は `/api/episodes/count`（全体の件数だけ。`EPISODE_COUNT_MIN` 未満は返さない）。
 
 ## インデックスと TTL
 - 複合インデックスは Terraform の `google_firestore_index` で管理する（`firestore_rules.tf`・`faces.tf`・`episodes.tf`・`screen.tf`。単一フィールドの collection group のインデックスは `google_firestore_field`。`reactions.tf`）。新しいクエリの形には index を足し、PR に「terraform apply が必要」と書く。

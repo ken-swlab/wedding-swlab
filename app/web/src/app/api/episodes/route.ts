@@ -4,6 +4,7 @@ import { COUPLE_TAG, TAG_DEFS } from "@/config/tags";
 import { EPISODE_THEMES, MAX_EPISODE_CONTENT } from "@/config/episodes";
 import { withGuard } from "@/lib/route-guard";
 import { safeMessage } from "@/lib/public-error";
+import { POST_ID_RE } from "@/config/guestbook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,8 +100,11 @@ async function handle(req: Request) {
     return fail("リクエストが不正です", 400);
   }
 
+  // お題（Issue #284 で7つに変えた。古い画面から旧お題が来ても受け付ける。config/episode-prompts.ts）
   const theme = typeof body.theme === "string" ? body.theme.trim() : "";
   if (!KNOWN_THEMES.has(theme)) return fail("お題が不正です", 400);
+  // 投稿の ID（任意）。あれば、その投稿にもお題（promptId）を付ける（下の★）
+  const postId = typeof body.postId === "string" && POST_ID_RE.test(body.postId) ? body.postId : null;
 
   const originalText = typeof body.originalText === "string" ? body.originalText.trim() : "";
   if (!originalText) return fail("エピソードの本文を入力してください", 400);
@@ -160,6 +164,8 @@ async function handle(req: Request) {
     // ★公開名だけ★ authorName は他のゲストに見える。本名を入れない
     authorName: guest.get("nickname") || "ゲスト",
     theme,
+    // ★お題の id（Issue #284）★ theme と同じ値。RAG のメタデータ・管理画面の絞り込みに使う
+    promptId: theme,
     originalText,
     photoUrls,
     createdAt: now,
@@ -178,6 +184,20 @@ async function handle(req: Request) {
 
     updatedAt: now,
   });
+
+  /**
+   * ★投稿にもお題（promptId）を付ける★（Issue #284）投稿はブラウザが Rules の範囲で作る（validPost の項目は変えない）ので、
+   *   お題はここで、サーバーから付ける。★本人の投稿だけ★（authorUid を確かめる）。書けなくてもエピソードは保存済みなので止めない。
+   */
+  if (postId) {
+    try {
+      const postRef = db.collection("posts").doc(postId);
+      const post = await postRef.get();
+      if (post.exists && post.get("authorUid") === uid) await postRef.update({ promptId: theme });
+    } catch (e) {
+      console.error("[episodes POST] 投稿にお題を付けられませんでした", e);
+    }
+  }
 
   return NextResponse.json({ ok: true, id: ref.id });
 }

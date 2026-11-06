@@ -71,3 +71,15 @@ export function shortDateLabel(date: string): string {
   const p = parseDotDate(date);
   return p ? `${p.m}.${p.d} ${weekdayOf(date)}` : date;
 }
+
+/**
+ * 今日（日本時間）が開催日かそれ以降か（Issue #284。投稿画面のお題なしのプレースホルダーを切り替える）。
+ * date は config/invitation の opening.date（YYYY.M.D）。読めなければ false（式の前として扱う）。
+ */
+export function isOnOrAfterEventDay(date: string, now: number = Date.now()): boolean {
+  const p = parseDotDate(date);
+  if (!p) return false;
+  const jst = new Date(now + 9 * 60 * 60 * 1000);
+  const today = Date.UTC(jst.getUTCFullYear(), jst.getUTCMonth(), jst.getUTCDate());
+  return today >= Date.UTC(p.y, p.m - 1, p.d);
+}
