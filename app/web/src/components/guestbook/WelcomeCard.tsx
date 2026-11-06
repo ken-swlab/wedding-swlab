@@ -54,7 +54,7 @@ export function WelcomeCard({
         </div>
       </header>
 
-      <p className="mt-3 whitespace-pre-wrap break-words text-[15px] leading-relaxed text-stone-800">{content.message}</p>
+      <p className="mt-3 whitespace-pre-wrap break-words text-[length:calc(15px*var(--inv-scale))] leading-relaxed text-stone-800">{content.message}</p>
 
       <div
         onClick={onPhotoClick}
@@ -78,7 +78,7 @@ export function WelcomeCard({
             <HeartIcon filled={liked} />
             <span className="tabular-nums">{count}</span>
           </span>
-          <span className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm text-stone-500">
+          <span className="inline-flex min-h-[var(--inv-tap)] items-center gap-1.5 rounded-full px-3 text-sm text-stone-500">
             <CommentIcon className="h-[18px] w-[18px]" />
             コメントする
           </span>
@@ -97,7 +97,7 @@ export function WelcomePinned({ content, hidden }: { content: WelcomeContent; hi
   return (
     <div data-welcome-pin="" className={hidden ? "invisible" : ""}>
       {/* ラベルは無彩色（Issue #236。赤はいいねにだけ使う）。カードにせず、投稿と同じく罫線で区切る */}
-      <p className="flex items-center gap-1 pt-3 text-[11px] font-medium text-stone-500">新郎新婦から</p>
+      <p className="flex items-center gap-1 pt-3 text-[length:calc(11px*var(--inv-scale))] font-medium text-stone-500">新郎新婦から</p>
       <WelcomeCard content={content} liked plain />
     </div>
   );

@@ -6,11 +6,17 @@
  * ★クライアントからは読み書きできない★（Rules の既定の拒否）。お車代の額は招待状に出さない。
  */
 
-/** 会費の金額（円）。partyYen = 会食（1次会）、secondYen = 2次会、carFareYen = お車代（会費から差し引く額） */
+/**
+ * 会費の金額（円）。partyYen = 会食（1次会）、secondYen = 2次会、carFareYen = お車代（会費から差し引く額）。
+ * secondTentative = 2次会の金額がまだ決まっていない（Issue #270）。true の間は、招待状・当日のご案内の会費を
+ *   「2次会 6,000円（予定）」と出し、会費のタブでは2次会の分を「金額は決まり次第お知らせします」として合計に含めない。
+ *   保存されていなければ false（決まった金額）。
+ */
 export type PaymentConfig = {
   partyYen: number;
   secondYen: number;
   carFareYen: number;
+  secondTentative: boolean;
 };
 
 export const PAYMENT_FIELDS = ["partyYen", "secondYen", "carFareYen"] as const;
@@ -28,5 +34,8 @@ export function parsePaymentConfig(data: unknown): { ok: true; value: PaymentCon
     if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > MAX_YEN) return { ok: false, field: key };
     out[key] = v;
   }
+  const tentative = d.secondTentative;
+  if (tentative !== undefined && typeof tentative !== "boolean") return { ok: false, field: "secondTentative" };
+  out.secondTentative = tentative === true;
   return { ok: true, value: out };
 }

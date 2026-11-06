@@ -11,6 +11,7 @@ import { POST_ID_RE } from "@/config/guestbook";
 import { MAX_MEDIA_PER_POST, NEW_MEDIA_KEY_RE, POSTS_API_PATH_RE } from "@/config/post-edit";
 import { AUDIT_COUNTS_HEADER } from "@/config/audit";
 import type { MediaItem } from "@/types";
+import { isPlaceholder, variantKey, type MediaVariant } from "@/lib/media-variants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,24 @@ function newMediaItem(uid: string, raw: Record<string, unknown>): MediaItem {
     if (!ownsKey(uid, original, "original")) throw new PublicError("写真・動画の指定が不正です");
     item.originalPath = original;
     item.originalStatus = "pending";
+  }
+
+  // 一覧用の小さい版（Issue #251）。★キーは軽量版のキーから決まるものだけ★（他人のキーや別の写真のキーを指させない）
+  const names: MediaVariant[] = type === "image" ? ["feed", "grid"] : ["poster"];
+  for (const name of names) {
+    const field = `${name}Path` as const;
+    const raw0 = raw[field];
+    if (raw0 === undefined || raw0 === null || raw0 === "") continue;
+    const expected = variantKey(key, name);
+    if (!expected || raw0 !== expected) throw new PublicError("写真・動画の指定が不正です");
+    item[field] = expected;
+    item[`${name}Url` as const] = publicUrlOf(expected);
+  }
+
+  // 写真の下絵（Issue #253）。★形が違えば断る★（Rules の okPlaceholder と同じ条件。投稿のデータはゲスト全員が読む）
+  if (raw.placeholder !== undefined && raw.placeholder !== null) {
+    if (!isPlaceholder(raw.placeholder)) throw new PublicError("写真・動画の指定が不正です");
+    item.placeholder = raw.placeholder;
   }
   return item;
 }

@@ -1,4 +1,3 @@
-import imageCompression from "browser-image-compression";
 import { ICON_MAX_EDGE, ICON_MAX_MB, ICON_QUALITY } from "@/config/profile";
 import { markReencoded, type ReencodedJpeg } from "@/lib/thumb-guard";
 
@@ -35,6 +34,8 @@ export type Compressed = {
  * 原本アップロード側にも処理を足すこと。
  */
 export async function compressForTimeline(file: File): Promise<Compressed> {
+  // ★圧縮のライブラリは、写真を選んだときに読む★（Issue #250。最初の JS を小さくする）
+  const { default: imageCompression } = await import("browser-image-compression");
   const out = await imageCompression(file, {
     maxWidthOrHeight: THUMB_MAX_EDGE,
     initialQuality: THUMB_QUALITY,
@@ -175,4 +176,134 @@ async function readDimensions(blob: Blob): Promise<{ width: number; height: numb
     };
     img.src = url;
   });
+}
+
+/** 一覧用の小さい版（Issue #251）。作れなかったものは入らない */
+export type ImageVariants = { feed?: ReencodedJpeg; grid?: ReencodedJpeg; placeholder?: string };
+
+/**
+ * 一覧用の小さい版（feed: 長辺 828px・grid: 長辺 400px）を作る（Issue #251。lib/media-variants.ts）。
+ * ★元の写真ではなく、作り直した軽量版（compressForTimeline の出力）から描く★ 軽量版はすでに canvas で作り直してあり、
+ *   EXIF（GPS を含む）も向きの情報も無い。元の写真から描くと、位置情報の入る道を増やすことになる。
+ * ★作れなくても投稿は止めない★ 失敗したもの（古い端末で読めないなど）は入れず、表示は軽量版に落ちる。
+ */
+export async function makeImageVariants(thumb: ReencodedJpeg): Promise<ImageVariants> {
+  const { MEDIA_VARIANTS, fitWithin } = await import("@/lib/media-variants");
+  const out: ImageVariants = {};
+  let source: IconSource | null = null;
+  try {
+    source = await loadIconSource(new Blob([thumb], { type: "image/jpeg" }) as File);
+    for (const name of ["feed", "grid"] as const) {
+      const { maxEdge, quality } = MEDIA_VARIANTS[name];
+      const size = fitWithin(source.width, source.height, maxEdge);
+      const canvas = document.createElement("canvas");
+      canvas.width = size.width;
+      canvas.height = size.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) continue;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(source.image, 0, 0, size.width, size.height);
+      out[name] = markReencoded(await canvasToJpeg(canvas, quality));
+    }
+    out.placeholder = (await placeholderFrom(source.image, source.width, source.height)) ?? undefined;
+  } catch (e) {
+    console.warn("[image] 一覧用の小さい版を作れませんでした（軽量版で表示します）", e);
+  } finally {
+    source?.close();
+  }
+  return out;
+}
+
+/** 動画の1枚目の画像を待つ時間の上限（読めない形式の動画で止まらないように） */
+const POSTER_TIMEOUT_MS = 8000;
+
+/**
+ * 動画の1枚目の画像（長辺 400px の JPEG。Issue #251）。一覧では動画本体を読まずにこれを出す。
+ * ★canvas で描いた画素だけを送る★ 動画のメタデータ（撮影場所など）は画像に入らない。
+ * 作れなければ null（一覧は今までどおり動画の最初の部分を読む）。
+ */
+export async function makeVideoPoster(file: File): Promise<ReencodedJpeg | null> {
+  const { MEDIA_VARIANTS, fitWithin } = await import("@/lib/media-variants");
+  const url = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.src = url;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("timeout")), POSTER_TIMEOUT_MS);
+      video.onloadeddata = () => {
+        // 真っ黒な最初のコマを避けて、少し先へ進める
+        video.currentTime = Math.min(0.1, (video.duration || 1) / 2);
+      };
+      video.onseeked = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      video.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error("動画を読めませんでした"));
+      };
+    });
+    if (!video.videoWidth || !video.videoHeight) return null;
+    const { maxEdge, quality } = MEDIA_VARIANTS.poster;
+    const size = fitWithin(video.videoWidth, video.videoHeight, maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.drawImage(video, 0, 0, size.width, size.height);
+    return markReencoded(await canvasToJpeg(canvas, quality));
+  } catch (e) {
+    console.warn("[image] 動画の1枚目の画像を作れませんでした（一覧は動画を読みます）", e);
+    return null;
+  } finally {
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * 写真の「下絵」（Issue #253）: 長辺 16px の JPEG の data URL。作れない・1024 文字に収まらなければ null（下絵なし）。
+ * ★描くのは作り直した軽量版・ポスターの画素だけ★（元の写真から描かない。EXIF の入る道を増やさない）。
+ *   canvas の toDataURL は画素だけを JPEG にするので、メタデータは入らない。
+ * 品質を PLACEHOLDER.qualities の順に下げて作り直し、収まったものを使う。
+ */
+async function placeholderFrom(image: CanvasImageSource, width: number, height: number): Promise<string | null> {
+  const { PLACEHOLDER, fitWithin, isPlaceholder } = await import("@/lib/media-variants");
+  try {
+    const size = fitWithin(width, height, PLACEHOLDER.maxEdge);
+    const canvas = document.createElement("canvas");
+    canvas.width = size.width;
+    canvas.height = size.height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(image, 0, 0, size.width, size.height);
+    for (const q of PLACEHOLDER.qualities) {
+      const url = canvas.toDataURL("image/jpeg", q);
+      if (isPlaceholder(url)) return url;
+    }
+    return null;
+  } catch (e) {
+    console.warn("[image] 下絵を作れませんでした（下絵なしで表示します）", e);
+    return null;
+  }
+}
+
+/** 動画のポスター（作り直した JPEG）から下絵を作る（Issue #253）。作れなければ null */
+export async function makePosterPlaceholder(poster: ReencodedJpeg): Promise<string | null> {
+  let source: IconSource | null = null;
+  try {
+    source = await loadIconSource(new Blob([poster], { type: "image/jpeg" }) as File);
+    return await placeholderFrom(source.image, source.width, source.height);
+  } catch (e) {
+    console.warn("[image] 動画の下絵を作れませんでした", e);
+    return null;
+  } finally {
+    source?.close();
+  }
 }

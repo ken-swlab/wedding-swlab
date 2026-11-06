@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { markOriginalUnavailable } from "@/lib/media";
 import type { UploadApi } from "@/hooks/useUpload";
 import { CheckIcon } from "@/components/icons";
+import { usePhotoIntro } from "./PhotoIntroSheet";
 
 /** サーバー側で原本を待っているメディア1件 */
 export type PendingOriginal = { postId: string; thumbPath: string };
@@ -15,6 +16,11 @@ function mb(bytes: number) {
   return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }
 
+/**
+ * 高画質版の送信の帯（タイムラインの上）。
+ * ★ゲストに見える言葉は「軽量版」「高画質版」だけ★（Issue #272。「本アップロード」「本体」「端末に保存」は使わない）
+ *   高画質版が何のためのものか（上映・エンドロール・ダウンロード）を一言で添え、「なぜ2回？」で説明のシート（PhotoIntroSheet）を出す。
+ */
 export function UploadStatusBar({
   upload,
   serverPending = [],
@@ -25,6 +31,7 @@ export function UploadStatusBar({
 }) {
   const { jobs, failed, current, remaining, remainingBytes, running, sentCount, showDone, error, hydrated } =
     upload;
+  const intro = usePhotoIntro();
   const [giving, setGiving] = useState(false);
   const [gaveUp, setGaveUp] = useState(false);
 
@@ -83,8 +90,9 @@ export function UploadStatusBar({
           className="sticky top-[calc(4rem+env(safe-area-inset-top))] z-30 rounded-2xl border border-sky-200 bg-sky-50/95 p-3 shadow-sm backdrop-blur"
         >
           <div className="flex items-center justify-between text-xs font-medium text-sky-900">
+            {/* 何枚目か（送り始めに sentCount は 0 に戻る。useUpload の start） */}
             <span>
-              送信中… 残り {remaining} 枚（{mb(remainingBytes)}）
+              高画質版を送っています（<span className="tabular-nums">{Math.min(sentCount + 1, sentCount + remaining)}/{sentCount + remaining}</span>）
             </span>
             <span className="tabular-nums">
               {Math.round((current?.progress ?? 0) * 100)}%
@@ -96,9 +104,8 @@ export function UploadStatusBar({
               style={{ width: `${Math.max(3, (current?.progress ?? 0) * 100)}%` }}
             />
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-sky-700">
-            ゲストブックを開いたままお待ちください。閉じても写真は端末に残るので、
-            あとから続きを送れます。
+          <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-sky-700">
+            ゲストブックを開いたままお待ちください（残り {mb(remainingBytes)}）。途中で閉じても、あとから続きを送れます。
           </p>
         </div>
       )}
@@ -108,27 +115,25 @@ export function UploadStatusBar({
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
           <div className="flex items-baseline justify-between gap-2">
             <p className="text-sm font-medium text-amber-900">
-              <span className="tabular-nums">{remaining}</span> 枚が本アップロード待ちです
+              高画質版がまだ送られていません（<span className="tabular-nums">{remaining}</span>枚）
             </p>
-            <span className="shrink-0 tabular-nums text-[11px] text-amber-700">
+            <span className="shrink-0 tabular-nums text-[length:calc(11px*var(--inv-scale))] text-amber-700">
               {mb(remainingBytes)}
             </span>
           </div>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-amber-800">
-            会場の電波が混み合うため、高画質版は自動では送っていません。
-            <span className="font-medium">ご自宅などで Wi-Fi に繋いだタイミング</span>
-            で、下のボタンから送信をお願いします 📶
+          <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-amber-800">
+            上映やエンドロールに使う、元のきれいな写真です。Wi-Fi のときに送ってください。
           </p>
 
           {failed.length > 0 && (
             <details className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2">
-              <summary className="cursor-pointer text-[11px] font-medium text-rose-800">
+              <summary className="cursor-pointer text-[length:calc(11px*var(--inv-scale))] font-medium text-rose-800">
                 うち {failed.length} 枚が失敗しています（詳細）
               </summary>
               {/* スマホではコンソールが見られないので、理由は必ず画面に出す */}
               <ul className="mt-1.5 space-y-1">
                 {failed.map((j) => (
-                  <li key={j.id} className="text-[10px] leading-tight text-rose-700">
+                  <li key={j.id} className="text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                     <span className="font-medium">{j.fileName}</span>
                     <span className="block text-rose-600">{j.error ?? "原因不明"}</span>
                   </li>
@@ -142,12 +147,19 @@ export function UploadStatusBar({
             onClick={failed.length > 0 ? upload.retryFailed : upload.start}
             className="mt-3 w-full touch-manipulation rounded-full bg-amber-700 py-3 text-sm font-medium text-white transition active:bg-amber-900"
           >
-            本アップロードを開始
+            高画質版を送る
           </button>
 
-          <p className="mt-1.5 text-center text-[10px] text-amber-700/80">
-            写真はこの端末に保存されています。通信量にご注意ください。
-          </p>
+          {/* 帯の右下に小さく。押すと「写真は2回に分けて届けます」をもう一度出す */}
+          <div className="mt-1 flex justify-end">
+            <button
+              type="button"
+              onClick={intro.open}
+              className="min-h-[var(--inv-tap)] touch-manipulation px-1 text-[length:calc(11px*var(--inv-scale))] text-amber-800 underline underline-offset-4"
+            >
+              なぜ2回？
+            </button>
+          </div>
         </div>
       )}
 
@@ -156,10 +168,10 @@ export function UploadStatusBar({
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-center">
           <p className="flex items-center justify-center gap-1 text-sm font-medium text-emerald-800">
             <CheckIcon className="h-4 w-4" />
-            <span className="tabular-nums">{sentCount}</span> 枚の高画質版を送信しました
+            高画質版を送りました。ありがとうございます
           </p>
-          <p className="mt-0.5 text-[11px] text-emerald-700">
-            ありがとうございます。ふたりの宝物になります 🌿
+          <p className="mt-0.5 text-[length:calc(11px*var(--inv-scale))] text-emerald-700">
+            <span className="tabular-nums">{sentCount}</span>枚。ふたりの宝物になります 🌿
           </p>
         </div>
       )}
@@ -168,9 +180,9 @@ export function UploadStatusBar({
       {showMissing && (
         <div className="rounded-2xl border border-stone-300 bg-white p-3">
           <p className="text-xs font-medium text-stone-800">
-            高画質版がこの端末に見つからない写真が {missing.length} 枚あります
+            高画質版を送れない写真が {missing.length} 枚あります
           </p>
-          <p className="mt-1 text-[11px] leading-relaxed text-stone-600">
+          <p className="mt-1 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-600">
             考えられる理由は2つです。
             <span className="mt-1 block">
               ① <span className="font-medium">別の画面から投稿した</span> — 高画質版は投稿したときの
@@ -194,7 +206,7 @@ export function UploadStatusBar({
 
       {/* ---- エラー ---- */}
       {error && (
-        <p className="rounded-xl bg-rose-50 px-3 py-2 text-[11px] leading-relaxed text-rose-700">
+        <p className="rounded-xl bg-rose-50 px-3 py-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-rose-700">
           {error}
         </p>
       )}

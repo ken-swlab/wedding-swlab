@@ -4,11 +4,12 @@ import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { useComposerSheet } from "./ComposerSheet";
-import { useGuestSessionContext } from "./GuestSessionContext";
+import { useGuestSessionContext, useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
 import { SpaceSwitch } from "./SpaceSwitch";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
+import { useHistoryFloor } from "@/hooks/useHistoryOverlay";
 import { useTags } from "@/lib/tags-client";
 import { useCompactChrome } from "@/hooks/useCompactChrome";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
@@ -16,6 +17,7 @@ import { UNREAD_BADGE_LIMIT } from "@/config/mentions";
 import {
   CHROME_MORPH_EASING,
   CHROME_MORPH_MS,
+  GALLERY_ENABLED,
   GUESTBOOK_PATHS,
   GUESTBOOK_SELECT_PARAM,
   GUESTBOOK_VIEW_PARAM,
@@ -35,15 +37,29 @@ const NAV: { key: NavKey; label: string; icon: ReactNode; href: string }[] = [
     href: `${GUESTBOOK_PATHS.home}?${GUESTBOOK_VIEW_PARAM}=gallery`,
   },
   // コミュニティ（Issue #174）。★5つのタブを横に並べる★ 文字は短く（横スクロールを出さない）
+  //   ギャラリーを出さない間（Issue #270。useGalleryEnabled）は、ギャラリーを外した4つ
   { key: "community", label: "コミュニティ", icon: <CommunityIcon />, href: GUESTBOOK_PATHS.community },
   { key: "notifications", label: "通知", icon: <NotificationIcon />, href: GUESTBOOK_PATHS.notifications },
   { key: "settings", label: "マイページ", icon: <UserIcon />, href: GUESTBOOK_PATHS.settings },
 ];
 
-/** /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー） */
+/**
+ * ギャラリーを出すか（Issue #270。config/guestbook.ts の GALLERY_ENABLED）。管理者には常に出す。
+ * ★管理者かどうかが分かるまで（セッションの読み込み中）は出さない★ 分かってから出す（ゲストに一瞬見せない）。
+ */
+export function useGalleryEnabled(): boolean {
+  const session = useOptionalGuestSessionContext();
+  return GALLERY_ENABLED || session?.isAdmin === true;
+}
+
+/**
+ * /guestbook のクエリから表示中のビューを読む（詳細シートの表示中は開く前のビュー）。
+ * ★ギャラリーを出さない間は、?view=gallery でもタイムライン★（Issue #270。URL の書き直しは guestbook/page.tsx）
+ */
 export function useGuestbookView(): GuestbookView {
   const { params } = useBackdropLocation();
-  return params.get(GUESTBOOK_VIEW_PARAM) === "gallery" ? "gallery" : "timeline";
+  const enabled = useGalleryEnabled();
+  return enabled && params.get(GUESTBOOK_VIEW_PARAM) === "gallery" ? "gallery" : "timeline";
 }
 
 /**
@@ -94,6 +110,11 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   const { pathname } = useBackdropLocation();
   const view = useGuestbookView();
   const { compact, expand } = useCompactChrome(`${pathname}:${view}`);
+  // ★タブの画面では、戻る（左端のスワイプ）で招待状やログインの画面へ行かない★（Issue #273。useHistoryFloor）
+  const { params } = useBackdropLocation();
+  const search = params.toString();
+  const tabRoot = NAV.some((item) => item.href.split("?")[0] === pathname);
+  useHistoryFloor(tabRoot, search ? `${pathname}?${search}` : pathname);
   const motion = { "--chrome-ms": `${CHROME_MORPH_MS}ms`, "--chrome-ease": CHROME_MORPH_EASING } as CSSProperties;
 
   return (
@@ -237,7 +258,7 @@ function UnreadBadge({ count, className }: { count: number; className: string })
   return (
     <span
       aria-hidden
-      className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-semibold leading-none tabular-nums text-white ${className}`}
+      className={`absolute flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[length:calc(10px*var(--inv-scale))] font-semibold leading-none tabular-nums text-white ${className}`}
     >
       {count >= UNREAD_BADGE_LIMIT ? `${UNREAD_BADGE_LIMIT - 1}+` : count}
     </span>
@@ -258,7 +279,9 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
           pathname === GUESTBOOK_PATHS.community || pathname === GUESTBOOK_PATHS.reaction
           ? "community"
           : view;
-  const current = NAV.find((item) => item.key === active) ?? NAV[0];
+  const galleryEnabled = useGalleryEnabled();
+  const nav = galleryEnabled ? NAV : NAV.filter((item) => item.key !== "gallery");
+  const current = nav.find((item) => item.key === active) ?? nav[0];
 
   return (
     <>
@@ -273,7 +296,7 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
         className={`fixed inset-x-0 bottom-0 z-40 origin-[2.75rem_calc(100%-2.75rem)] border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur ${CHROME_MOTION} group-data-[chrome=compact]/chrome:pointer-events-none group-data-[chrome=compact]/chrome:scale-x-[0.14] group-data-[chrome=compact]/chrome:scale-y-[0.6] group-data-[chrome=compact]/chrome:opacity-0`}
       >
         <ul className="mx-auto flex h-16 max-w-xl">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const on = active === item.key;
             // 詳細画面ではタイムラインを光らせるが、そこは「同じ画面」ではないので遷移させる
             const here = on && pathname === item.href.split("?")[0];
@@ -281,6 +304,11 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
               <li key={item.key} className="flex-1">
                 <Link
                   href={item.href}
+                  // ★タブの切り替えは履歴に積まない★（Issue #273。左端のスワイプで前のタブに戻らない）
+                  replace
+                  // ★画面の先読みは、タイムラインが落ち着いてから guestbook/page.tsx がまとめて行う★（Issue #255）
+                  //   既定（見えたらすぐ先読み）だと、最初の画面の読み込みと取り合い、電波が悪いときも読んでしまう
+                  prefetch={false}
                   aria-current={here ? "page" : undefined}
                   // 承認後の演出の3つ目の案内で照らす（WelcomeMoment。Issue #174）
                   data-welcome-community={item.key === "community" ? "" : undefined}
@@ -292,7 +320,8 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
                   }}
                   // ★ラベルは1行★（Issue #230）幅 320px では 1 タブ 64px で、11px だと「タイムライン」「コミュニティ」が折り返した。
                   //   幅 360px 未満だけ 10px にし、折り返さない
-                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[11px] transition max-[359px]:text-[10px] ${
+                  //   ★幅 360px 未満の 10px は、文字を大きくしていても倍率を掛けない★（Issue #243。掛けると隣のラベルとくっつく）
+                  className={`flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 whitespace-nowrap text-[length:calc(11px*var(--inv-scale))] transition max-[359px]:text-[10px] ${
                     // 選んでいるタブは墨の太字（Issue #236。下線や色は付けない）
                     on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"
                   }`}

@@ -27,6 +27,9 @@ import { ALLOW, DENY, commentData, postData, table, without } from "./harness.mj
 
 const FIXED_DATE = new Date("2027-01-01T03:00:00Z");
 const many = (n, prefix = "x") => Array.from({ length: n }, (_, i) => `${prefix}${i}`);
+// 写真の下絵（Issue #253）の見本。中身は本物の JPEG でなくてよい（Rules は形だけを見る）
+const PH_PREFIX = "data:image/jpeg;base64,";
+const PH = `${PH_PREFIX}/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgK==`;
 
 const get = (path) => (db) => getDoc(doc(db, path));
 const list = (path, ...constraints) => (db) => getDocs(query(collection(db, path), ...constraints));
@@ -140,6 +143,16 @@ table("posts: 作成（validPost と公開範囲）", [
   ["guest", DENY, "mentionUids が 11 件だと拒否", create({ mentionUids: many(11, "u") })],
   ["guest", DENY, "hashtags が 11 件だと拒否", create({ hashtags: many(11) })],
   ["guest", DENY, "media が 5 件だと拒否", create({ media: many(5) })],
+  // 写真の下絵（Issue #253）: data:image/jpeg;base64, で始まる 1024 文字以下だけ
+  ["guest", ALLOW, "下絵（JPEG の data URL）付きの写真で作れる", create({ media: [{ type: "image", placeholder: PH }] })],
+  ["guest", ALLOW, "下絵が無い写真と混ざっていても作れる", create({ media: [{ type: "image" }, { type: "image", placeholder: PH }] })],
+  ["guest", ALLOW, "下絵がちょうど 1024 文字なら作れる", create({ media: [{ type: "image", placeholder: PH_PREFIX + "A".repeat(1024 - PH_PREFIX.length) }] })],
+  ["guest", DENY, "下絵が 1025 文字だと拒否", create({ media: [{ type: "image", placeholder: PH_PREFIX + "A".repeat(1025 - PH_PREFIX.length) }] })],
+  ["guest", DENY, "下絵が JPEG の data URL でないと拒否（PNG）", create({ media: [{ type: "image", placeholder: "data:image/png;base64,iVBORw0KGgo=" }] })],
+  ["guest", DENY, "下絵がふつうの文字列だと拒否", create({ media: [{ type: "image", placeholder: "こんにちは" }] })],
+  ["guest", DENY, "下絵に base64 以外の文字が混ざると拒否", create({ media: [{ type: "image", placeholder: PH_PREFIX + "<script>" }] })],
+  ["guest", DENY, "下絵が文字列でないと拒否", create({ media: [{ type: "image", placeholder: 1 }] })],
+  ["guest", DENY, "4 枚めの下絵がおかしいと拒否", create({ media: [{}, {}, {}, { type: "image", placeholder: "x" }] })],
   ["guest", DENY, "本文が 4001 文字だと拒否", create({ text: "あ".repeat(4001) })],
   ["guest", DENY, "authorName が空だと拒否", create({ authorName: "" })],
   ["guest", DENY, "authorName が 41 文字だと拒否", create({ authorName: "あ".repeat(41) })],
@@ -156,6 +169,8 @@ table("posts: 本人・管理者の更新と削除", [
   ["guest", ALLOW, "自分の投稿の media と updatedAt を更新できる", update("posts/p_all", { media: [{ key: "u/u_guest/o/a.jpg" }], ...now() })],
   ["guest", ALLOW, "media だけの更新もできる", update("posts/p_all", { media: [] })],
   ["guest", DENY, "media を 5 件にはできない", update("posts/p_all", { media: many(5) })],
+  ["guest", ALLOW, "下絵付きの media に更新できる（Issue #253）", update("posts/p_all", { media: [{ type: "image", placeholder: PH }] })],
+  ["guest", DENY, "おかしな下絵の media には更新できない", update("posts/p_all", { media: [{ type: "image", placeholder: "data:text/html;base64,PGI+" }] })],
   ["guest", DENY, "updatedAt にサーバー時刻以外は書けない", update("posts/p_all", { media: [], updatedAt: FIXED_DATE })],
   ["guest", DENY, "本文は直接書き換えられない（/api/posts/[id] 経由）", update("posts/p_all", { text: "書き換え", ...now() })],
   ["guest", DENY, "公開範囲は直接書き換えられない", update("posts/p_all", { visibleToTags: ["guest"] })],
@@ -522,6 +537,31 @@ table("サーバー専用（クライアントからは管理者も触れない�
   ["guest", DENY, "lineOutbox: 通知を作れない（ゲストから送らせない）", set("lineOutbox/approved:u_guest", { uid: "u_guest", kind: "approved", status: "pending" })],
   ["pending", DENY, "lineOutbox: 承認前のゲストも作れない", set("lineOutbox/approved:u_pending", { uid: "u_pending", kind: "approved", status: "pending" })],
   ["anon", DENY, "lineOutbox: 未ログインは読めない", get("lineOutbox/approved:u_guest")],
+]);
+
+// 会場の電波テスト（Issue #256）
+const probe = (uid, data) => set(`venueProbe/${uid}`, data);
+table("venueProbe・venueTests・venueTestLive（会場の電波テスト。管理者だけ）", [
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを作れる", probe("u_admin", { n: 1, at: serverTimestamp() })],
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを読める", get("venueProbe/u_admin")],
+  ["admin", ALLOW, "venueProbe: 管理者は自分の試し書きを消せる", del("venueProbe/u_admin")],
+  ["admin", DENY, "venueProbe: ほかの人の uid には書けない", probe("u_guest", { n: 1, at: serverTimestamp() })],
+  ["admin", DENY, "venueProbe: 余計なキーは書けない", probe("u_admin", { n: 1, at: serverTimestamp(), note: "x" })],
+  ["admin", DENY, "venueProbe: 時刻はサーバー時刻だけ", probe("u_admin", { n: 1, at: FIXED_DATE })],
+  ["admin", DENY, "venueProbe: 回数は整数だけ", probe("u_admin", { n: "1", at: serverTimestamp() })],
+  ["guest", DENY, "venueProbe: 管理者でなければ書けない", probe("u_guest", { n: 1, at: serverTimestamp() })],
+  ["couple", DENY, "venueProbe: couple タグでも管理者でなければ書けない", probe("u_couple", { n: 1, at: serverTimestamp() })],
+  ["guest", DENY, "venueProbe: 管理者でなければ読めない", get("venueProbe/u_guest")],
+  ["admin", ALLOW, "venueTests: 管理者は1件読める", get("venueTests/t1")],
+  ["admin", ALLOW, "venueTests: 管理者は 500 件まで一覧できる", list("venueTests", limit(500))],
+  ["admin", DENY, "venueTests: 501 件以上の一覧は拒否", list("venueTests", limit(501))],
+  ["admin", DENY, "venueTests: 管理者もクライアントからは書けない（サーバーだけ）", set("venueTests/t1", { place: "窓側" })],
+  ["guest", DENY, "venueTests: ゲストは読めない", get("venueTests/t1")],
+  ["guest", DENY, "venueTests: ゲストは一覧できない", list("venueTests", limit(10))],
+  ["anon", DENY, "venueTests: 未ログインは読めない", get("venueTests/t1")],
+  ["admin", ALLOW, "venueTestLive: 管理者は開始時刻を読める", get("venueTestLive/current")],
+  ["admin", DENY, "venueTestLive: 管理者もクライアントからは書けない", set("venueTestLive/current", { startAt: FIXED_DATE })],
+  ["guest", DENY, "venueTestLive: ゲストは読めない", get("venueTestLive/current")],
 ]);
 
 table("Rules に書かれていないパス（既定拒否）", [

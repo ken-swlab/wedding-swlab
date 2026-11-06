@@ -1,16 +1,22 @@
 "use client";
 
-import Image from "next/image";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { useLastVisible } from "@/hooks/useLastVisible";
+import { currentConnection, galleryPrefetchCount, nextRange, prefetchImage } from "@/lib/prefetch";
 import type { Post } from "@/types";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { HeartIcon } from "./HeartIcon";
 import { PlayIcon } from "@/components/icons";
+import { PlaceholderImage } from "./PlaceholderImage";
 
 export type GalleryEntry = {
   post: Post;
   coverUrl: string;
   isVideo: boolean;
+  /** 動画の1枚目の画像があるか（あれば coverUrl はその画像で、動画本体は読まない。Issue #251） */
+  videoHasPoster: boolean;
+  /** 1枚目の下絵（Issue #253）。無ければ灰色の枠のまま */
+  placeholder?: string;
   count: number;
 };
 
@@ -25,11 +31,17 @@ export function buildEntries(posts: Post[]): GalleryEntry[] {
     .filter((p) => p.media.length > 0)
     .map((p) => ({
       post: p,
-      coverUrl: thumbSrc(p.media[0]),
+      // ギャラリーの格子は長辺 400px の小さい版（Issue #251）。動画は1枚目の画像（無ければ動画を読む）
+      coverUrl: p.media[0].type === "video" ? posterSrc(p.media[0]) ?? thumbSrc(p.media[0]) : gridSrc(p.media[0]),
+      videoHasPoster: p.media[0].type === "video" && posterSrc(p.media[0]) !== null,
       isVideo: p.media[0].type === "video",
+      placeholder: p.media[0].placeholder,
       count: p.media.length,
     }));
 }
+
+/** 格子の列の数（クラスの grid-cols-3 と同じ。先読みの1画面分の計算に使う） */
+const GALLERY_COLUMNS = 3;
 
 export function GalleryGrid({
   posts,
@@ -42,6 +54,18 @@ export function GalleryGrid({
 }) {
   const entries = useMemo(() => buildEntries(posts), [posts]);
 
+  // ★見えている格子の次の1画面分を、先に読んでおく★（Issue #255。電波が悪いときは1枚だけ）
+  //   動画で1枚目の画像が無いもの（動画そのもの）は読まない
+  const grid = useRef<HTMLDivElement>(null);
+  const ids = useMemo(() => entries.map((e) => e.post.id), [entries]);
+  const lastSeen = useLastVisible(grid, "data-gallery-tile", ids);
+  useEffect(() => {
+    const count = galleryPrefetchCount(currentConnection(), { width: window.innerWidth, height: window.innerHeight }, GALLERY_COLUMNS);
+    for (const e of nextRange(entries, lastSeen, count)) {
+      if (!e.isVideo || e.videoHasPoster) prefetchImage(e.coverUrl);
+    }
+  }, [entries, lastSeen]);
+
   if (entries.length === 0) {
     return (
       <p className="py-10 text-center text-sm text-stone-400">
@@ -52,22 +76,23 @@ export function GalleryGrid({
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
-        {entries.map(({ post, coverUrl, isVideo, count }) => (
+      <div ref={grid} className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-stone-200">
+        {entries.map(({ post, coverUrl, isVideo, videoHasPoster, placeholder, count }) => (
           <button
             key={post.id}
             type="button"
+            data-gallery-tile={post.id}
             onClick={() => onOpen(post.id)}
             className="group relative aspect-square bg-stone-100"
           >
-            {isVideo ? (
+            {isVideo && !videoHasPoster ? (
               <video src={coverUrl} muted playsInline preload="metadata"
                 className="h-full w-full object-cover" />
             ) : (
-              <Image
+              <PlaceholderImage
                 src={coverUrl}
+                placeholder={placeholder}
                 alt=""
-                fill
                 sizes="33vw"
                 className="object-cover transition duration-200 group-active:brightness-90"
               />
@@ -86,7 +111,7 @@ export function GalleryGrid({
 
             {/* いいね数。エンドロールの並び順の materia になるので見せる */}
             {post.reactionCount > 0 && (
-              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[11px] font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              <span className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 text-[length:calc(11px*var(--inv-scale))] font-medium text-white drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
                 <HeartIcon filled className="h-3 w-3" /> <span className="tabular-nums">{post.reactionCount}</span>
               </span>
             )}

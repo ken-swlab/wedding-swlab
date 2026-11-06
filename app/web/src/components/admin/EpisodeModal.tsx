@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { useMemo, useState } from "react";
 import { putJson } from "@/lib/api-client";
-import { TAG_DEFS } from "@/config/tags";
+import { builtinTagDefs } from "@/config/tags";
+import { useTags } from "@/lib/tags-client";
 import { EPISODE_PERIODS, MAX_EPISODE_CONTENT, themeDef } from "@/config/episodes";
 import { adminName } from "@/lib/names";
 import { compareGuests } from "@/lib/roster";
@@ -21,6 +22,9 @@ export function EpisodeModal({
   onClose: () => void;
   onSaved: (message: string) => void;
 }) {
+  // 組み込みのタグ（タグの管理の上書きを重ねたもの。Issue #248）。useTags で辞書の購読に乗り、届いたら描き直す
+  const { allTags } = useTags();
+  const builtinTags = useMemo(() => builtinTagDefs(), [allTags]); // eslint-disable-line react-hooks/exhaustive-deps
   const [title, setTitle] = useState(episode.title);
   const [period, setPeriod] = useState(episode.period);
   const [content, setContent] = useState(episode.content || episode.originalText);
@@ -176,7 +180,8 @@ export function EpisodeModal({
               </span>
               <div className="mt-1.5 flex flex-wrap gap-1">
                 {/* 仕組み用のタグ（「承認済」）は出さない。すでに選ばれているときだけ、外せるように出す（Issue #204） */}
-                {TAG_DEFS.filter((t) => !t.system || targetTags.includes(t.id)).map((t) => {
+                {/* 隠した組み込みのタグ（Issue #248）も、選ばれているときだけ出す。名前・色はタグの管理で変えたもの */}
+                {builtinTags.filter((t) => (!t.system && !t.archived) || targetTags.includes(t.id)).map((t) => {
                   const on = targetTags.includes(t.id);
                   return (
                     <button key={t.id} type="button"
@@ -243,7 +248,7 @@ export function EpisodeModal({
                 ミニAI はここで許可した相手にしかこのエピソードを使いません。
               </p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {TAG_DEFS.filter((t) => !t.system || visibleToTags.includes(t.id)).map((t) => {
+                {builtinTags.filter((t) => (!t.system && !t.archived) || visibleToTags.includes(t.id)).map((t) => {
                   const on = visibleToTags.includes(t.id);
                   return (
                     <button key={t.id} type="button"

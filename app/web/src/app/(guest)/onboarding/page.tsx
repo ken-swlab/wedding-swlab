@@ -55,17 +55,12 @@ export default function OnboardingPage() {
   // layout が揃うまで待つ。ここに来る時点で通常は揃っている
   if (!user || !profile || (needsCheck && !cleared)) return <SplashScreen phase="booting" />;
   if (finished) {
-    return (
-      <div className={kind === "family" ? "inv-family inv-scaled" : undefined}>
-        <EntryFinish guestName={classifyDisplayName(user.displayName).guest} onNext={() => router.replace("/guestbook")} />
-      </div>
-    );
+    return <EntryFinish guestName={classifyDisplayName(user.displayName).guest} onNext={() => router.replace("/guestbook")} />;
   }
 
   return (
     <GuestShell>
-      {/* 親族用は文字とボタンを約 1.12 倍（globals.css の .inv-family）。招待状のエントリー画面と同じ */}
-      <div className={kind === "family" ? "inv-family inv-scaled" : undefined}>
+
       {/* 当日の流れを上部に固定する（Issue #166。招待状のエントリー画面と同じ） */}
       {program && (
         <ProgramStrip
@@ -88,7 +83,6 @@ export default function OnboardingPage() {
           else router.replace("/guestbook");
         }}
       />
-      </div>
     </GuestShell>
   );
 }

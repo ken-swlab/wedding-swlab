@@ -82,7 +82,7 @@ export function PaymentMock() {
 function DebugStatusSwitch({ status, onChange }: { status: PaymentStatus; onChange: (s: PaymentStatus) => void }) {
   return (
     <div className="mb-3 flex items-center justify-end gap-1.5">
-      <span className="text-[10px] text-stone-400">表示確認（管理者のみ）</span>
+      <span className="text-[length:calc(10px*var(--inv-scale))] text-stone-400">表示確認（管理者のみ）</span>
       <div role="group" aria-label="送金状況の切り替え（表示確認用）" className="flex gap-1">
         {PAYMENT_STATUSES.map((s) => (
           <button
@@ -90,7 +90,7 @@ function DebugStatusSwitch({ status, onChange }: { status: PaymentStatus; onChan
             type="button"
             aria-pressed={status === s}
             onClick={() => onChange(s)}
-            className={`touch-manipulation rounded-full border px-2 py-1 text-[10px] transition ${
+            className={`touch-manipulation rounded-full border px-2 py-1 text-[length:calc(10px*var(--inv-scale))] transition ${
               status === s ? "border-stone-900 bg-stone-900 text-white" : "border-stone-200 bg-white text-stone-500 hover:bg-stone-100"
             }`}
           >
@@ -106,13 +106,13 @@ function DebugStatusSwitch({ status, onChange }: { status: PaymentStatus; onChan
 function DebugPreviewSwitch({ preview, onChange }: { preview: Preview; onChange: (p: Preview) => void }) {
   const attendance = preview?.attendance ?? "";
   return (
-    <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5 text-[10px] text-stone-500">
+    <div className="mb-3 flex flex-wrap items-center justify-end gap-1.5 text-[length:calc(10px*var(--inv-scale))] text-stone-500">
       <span className="text-stone-400">内訳の確認</span>
       <select
         aria-label="出欠（表示確認用）"
         value={attendance}
         onChange={(e) => onChange(e.target.value ? { attendance: e.target.value as Attendance, carFare: preview?.carFare ?? false } : null)}
-        className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[10px]"
+        className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[length:calc(10px*var(--inv-scale))]"
       >
         <option value="">自分の回答</option>
         {ATTENDANCE_OPTIONS.map((o) => (
@@ -153,7 +153,7 @@ function UnpaidView({ data, onPaid }: { data: PaymentStatusResponse; onPaid: () 
               aria-selected={method === m.key}
               aria-controls={`pay-panel-${m.key}`}
               onClick={() => setMethod(m.key)}
-              className={`min-h-11 touch-manipulation rounded-full text-xs font-medium transition ${
+              className={`min-h-[var(--inv-tap)] touch-manipulation rounded-full text-xs font-medium transition ${
                 method === m.key ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-700"
               }`}
             >
@@ -169,7 +169,7 @@ function UnpaidView({ data, onPaid }: { data: PaymentStatusResponse; onPaid: () 
               <button
                 type="button"
                 onClick={() => setConfirmingPaypay(true)}
-                className="mt-3 min-h-11 w-full touch-manipulation rounded-full border border-stone-300 text-sm font-medium text-stone-800 transition hover:bg-stone-100"
+                className="mt-3 min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full border border-stone-300 text-sm font-medium text-stone-800 transition hover:bg-stone-100"
               >
                 PayPay で送金する
               </button>
@@ -209,11 +209,11 @@ function UnpaidView({ data, onPaid }: { data: PaymentStatusResponse; onPaid: () 
       <button
         type="button"
         onClick={onPaid}
-        className="min-h-12 w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700"
+        className="min-h-[max(3rem,var(--inv-tap))] w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700"
       >
         送金完了（振り込みました）
       </button>
-      <p className="text-center text-[11px] leading-relaxed text-stone-400">
+      <p className="text-center text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
         送金を終えたら押してください。新郎新婦が確認するまで「確認待ち」と表示されます。
       </p>
 
@@ -239,13 +239,13 @@ function CopyRow({ label, value }: { label: string; value: string }) {
 
   return (
     <div className="mt-3 rounded-xl bg-stone-50 p-3">
-      <p className="text-[11px] text-stone-400">{label}</p>
+      <p className="text-[length:calc(11px*var(--inv-scale))] text-stone-400">{label}</p>
       <div className="mt-1 flex items-center gap-2">
         <p className="min-w-0 flex-1 select-all font-mono text-lg tracking-wider text-stone-900">{value}</p>
         <button
           type="button"
           onClick={() => void copy()}
-          className="min-h-11 shrink-0 touch-manipulation rounded-full border border-stone-300 bg-white px-4 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
+          className="min-h-[var(--inv-tap)] shrink-0 touch-manipulation rounded-full border border-stone-300 bg-white px-4 text-xs font-medium text-stone-700 transition hover:bg-stone-100"
         >
           コピーする
         </button>
@@ -301,7 +301,7 @@ function ConfirmPaypay({ amountYen, onCancel }: { amountYen: number; onCancel: (
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-11 touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
           >
             キャンセル
           </button>
@@ -310,7 +310,7 @@ function ConfirmPaypay({ amountYen, onCancel }: { amountYen: number; onCancel: (
             target="_blank"
             rel="noopener noreferrer"
             onClick={onCancel}
-            className="flex min-h-11 touch-manipulation items-center justify-center rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
+            className="flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-center rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
           >
             OK
           </a>

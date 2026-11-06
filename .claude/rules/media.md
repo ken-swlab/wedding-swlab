@@ -17,10 +17,26 @@ paths:
 2. **あとから手動（原本）**: 端末の IndexedDB（`src/lib/upload-queue.ts`）に置いた原本を `presign {kind:"original"}` → 非公開バケットへ EXIF 付きのまま PUT → `attachOriginal`（トランザクション）。
 3. **Worker（`infra/workers/exif-stripper`、2分ごと）**: EXIF を落として公開バケットへ複製（`Cache-Control: public, max-age=31536000, immutable`）→ webhook で `originalStatus` を `published` か `skipped` にする。
 
+- **ゲストに見える言葉は「軽量版」「高画質版」だけ**（Issue #272。「本アップロード」「本体」「端末に保存」「低画質版」は使わない）。写真付きで初めて投稿したときだけ「写真は2回に分けて届けます」（`PhotoIntroSheet`。見た印は `guestPrivate.photoIntroSeen`）を出し、帯（`UploadStatusBar`）の「なぜ2回？」からもう一度出せる。投稿の直後は「投稿しました（軽量版）」を 2.5 秒（`POSTED_TOAST_MS`）。
 - 原本の状態: `pending | uploaded | published | skipped | failed | unavailable`。状態を足すなら `src/lib/original-status.ts` の `QUALITY`（マイページの画質マーク）と `MediaLightbox` の `ORIGINAL_NOTE` を両方更新する（漏れると型エラーになる作り）。写真のマスに画質のバッジは出さない（Issue #128）。
 - 原本として受け付けるのは jpeg / png / webp だけ（Worker の `formats.ts` が処理できるもの。それ以外は presign が拒否する）。Worker も HEIC・HEIF・AVIF は公開せず隔離する。
 - 1投稿のメディアは最大 4 件。上限: 原本 24MiB（`MAX_ORIGINAL_BYTES`）、軽量版と動画 8MiB（`MAX_THUMB_BYTES`）。動画は圧縮せず `kind:"thumb"` で1回だけ送る。
 - IndexedDB の `DB_VERSION` を上げない（ゲストの端末に残った未送信の原本がすべて消える）。原本のバイト列は Blob ではなく ArrayBuffer で持つ（WebKit の不具合対策）。
+
+## 一覧用の小さい版（Issue #251）
+- 投稿・編集のとき、端末で軽量版から feed（長辺 828px・q0.72）と grid（400px・q0.7）を、動画からは1枚目の画像（poster。400px）を canvas で作り、軽量版と同じ公開バケットに送る（`makeImageVariants`・`makeVideoPoster`・`uploadVariants`）。**作れない・送れないときも投稿は止めず、表示は軽量版に落ちる。**
+- キーは軽量版のキーから決まる `u/{uid}/t/{uuid}__{feed|grid|poster}.jpg`（`src/lib/media-variants.ts` の `variantKey`。テストあり）。presign は `variantOf`（本人の軽量版のキー）と `variant` を受け、キーはサーバーが決める。JPEG・1MiB（`MAX_VARIANT_BYTES`）まで。編集の API も `variantKey(storagePath, …)` と一致するものだけを受け付ける。
+- 大きさ・画質は `MEDIA_VARIANTS` の1か所（`ops.mjs media backfill-variants` も同じものを読む）。投稿の削除・写真を外す編集で、小さい版も消す（`media-delete-server.ts`）。
+- `Cache-Control: public, max-age=31536000, immutable` は Cloudflare のルール（レスポンスヘッダーの変換）で公開バケットのドメインに付ける（オーナー。ブラウザのアップロードでは付けない）。backfill と Worker は自分で付ける。
+
+## 写真の下絵（Issue #253）
+- 投稿・編集のとき、端末で写真（作り直した軽量版）・動画（ポスター）から長辺 16px の JPEG を作り、data URL のまま `MediaItem.placeholder` に入れる（`image.ts` の `placeholderFrom`・`makePosterPlaceholder`）。品質 0.5 → 0.3 → 0.15 と下げ、1024 文字を超えたら入れない。
+- **形と長さは3か所で同じ**: `media-variants.ts` の `isPlaceholder`（`PLACEHOLDER_MAX_CHARS`）・投稿の編集の API・Rules の `okPlaceholder`（`data:image/jpeg;base64,` で始まる 1024 文字以下）。片方だけ変えない。
+- 表示は `PlaceholderImage`（タイムライン・投稿の詳細の `MediaGrid`、ギャラリーの格子）: 下絵を `blur(16px)`・`scale(1.1)` で敷き、本物が読めたら 200ms（`PLACEHOLDER_FADE_MS` ⇔ クラスの `duration-200`）で重ね、そのあと下絵を外す。下絵の無い投稿は今までどおり。
+- 今ある投稿は `ops.mjs media backfill-variants` が下絵も作る（feed・grid があるものは下絵だけ。動画はポスターがあるものだけ）。
+
+## 会場の電波テスト（Issue #256。管理者用 /admin/venue-test）
+- 読む写真は公開バケットの `test/venue/fixtures/`（`ops.mjs venue-test fixtures` が置く。大きさは `config/venue-test.ts` とぴったり同じ）。送るダミーは公開バケットの `test/venue/up/{uuid}.jpg`（`/api/admin/venue-test/upload` がキーを決めて署名し、測り終わったら同じ API の DELETE で消す。`VENUE_UPLOAD_KEY_RE` に合うキーしか消さない）。**本番の投稿の `u/` には触れない。** 消し忘れはバケットのライフサイクル（`test/venue/up/` を1日で消す。オーナーが設定）で消える。
 
 ## キーとバケット
 - 軽量版 `u/{uid}/t/{uuid}.{ext}`（公開バケット `wedding-media`）、原本 `u/{uid}/o/{uuid}.{ext}`（非公開バケット `wedding-originals`）。バケットはサーバーが `kind` から決め、クライアントには選ばせない。
@@ -30,7 +46,7 @@ paths:
 - 片方だけ変えない: `MAX_ORIGINAL_BYTES` ⇔ `wrangler.toml` の `MAX_BYTES`、webhook の `KEY_RE` ⇔ Worker の `ORIGINAL_KEY_RE`、Worker の `WEBHOOK_SECRET` ⇔ Vercel の `WORKER_WEBHOOK_SECRET`。
 
 ## 表示
-- URL は `src/lib/media-url.ts` だけで作る: `thumbSrc`（一覧）、`bestSrc`（拡大・投影。公開済みなら原本）、`originalSrc`（`published` のときだけ）、`keyUrl`、`rehost`（旧ドメインの URL の付け替え）。Firestore の `url` / `originalUrl` を直接使わない。
+- URL は `src/lib/media-url.ts` だけで作る: `feedSrc`（タイムライン・投稿の詳細の一覧。828px）、`gridSrc`（ギャラリーの格子・小さいサムネイル。400px）、`posterSrc`（動画の1枚目の画像。一覧では動画本体を読まない）、`thumbSrc`（軽量版。全画面の下敷き・動画の本体）、`bestSrc`（拡大・投影。公開済みなら原本）、`originalSrc`（`published` のときだけ）、`keyUrl`、`rehost`（旧ドメインの URL の付け替え）。Firestore の `url` / `originalUrl` を直接使わない。
 - `next/image` はすべて `unoptimized`（next.config.ts）。軽くしたいときは `/_next/image` を戻さず、アップロード時に小さい版を作る方向で考える。
 - `/screen` の写真は意図して `<img>`（遅延と画質のため）。
 - 配信元のホストを足すときは `src/lib/csp.ts` の `img-src` / `media-src` に足す。

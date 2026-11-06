@@ -15,7 +15,7 @@ import type { WelcomeContent } from "@/types/welcome";
 import { SAMPLE_INVITATION, SAMPLE_INVITATION_FAMILY } from "@/config/wedding";
 import type { InvitationKind } from "@/types/admin";
 import { INVITATION_COLORS, OPENING_NOTE } from "@/config/invitation";
-import { GUESTBOOK_LOGO } from "@/config/guestbook";
+import { GALLERY_ENABLED, GUESTBOOK_LOGO } from "@/config/guestbook";
 import { classifyDisplayName } from "@/lib/opening-names";
 import { clearInvitationRead, hasReadInvitation } from "@/lib/invitation-read";
 import { getJson } from "@/lib/api-client";
@@ -537,14 +537,17 @@ function TestPending({
   );
 }
 
-/** テスト画面の下のタブ（見た目だけ。本番の GuestbookShell の NAV に合わせる） */
+/**
+ * テスト画面の下のタブ（見た目だけ。本番の GuestbookShell の NAV に合わせる）。
+ * ★ゲストに見える形にする★ ギャラリーを出さない間（Issue #270。GALLERY_ENABLED）は外す（ここは管理者が見るが、演出はゲストの画面を再現する）
+ */
 const TEST_NAV = [
   { label: "タイムライン", icon: <TimelineIcon />, community: false },
-  { label: "ギャラリー", icon: <GalleryIcon />, community: false },
+  ...(GALLERY_ENABLED ? [{ label: "ギャラリー", icon: <GalleryIcon />, community: false }] : []),
   { label: "コミュニティ", icon: <CommunityIcon />, community: true },
   { label: "通知", icon: <NotificationIcon />, community: false },
   { label: "マイページ", icon: <UserIcon />, community: false },
-] as const;
+];
 
 /** テスト画面の演出に使う仮の投稿（仮の画像。いいねは保存しない） */
 const TEST_WELCOME: WelcomeContent = { postId: null, message: WELCOME_DEFAULT_MESSAGE, media: null, reactionCount: 0, authorPhotoURL: null };

@@ -57,7 +57,7 @@ export function PostOwnerMenu({
                 setOpen(false);
                 onEdit();
               }}
-              className="flex min-h-11 w-full touch-manipulation items-center px-4 text-left text-sm text-stone-700 hover:bg-stone-50"
+              className="flex min-h-[var(--inv-tap)] w-full touch-manipulation items-center px-4 text-left text-sm text-stone-700 hover:bg-stone-50"
             >
               編集
             </button>
@@ -68,7 +68,7 @@ export function PostOwnerMenu({
                 setOpen(false);
                 setConfirming(true);
               }}
-              className="flex min-h-11 w-full touch-manipulation items-center px-4 text-left text-sm text-rose-600 hover:bg-rose-50"
+              className="flex min-h-[var(--inv-tap)] w-full touch-manipulation items-center px-4 text-left text-sm text-rose-600 hover:bg-rose-50"
             >
               削除
             </button>
@@ -135,7 +135,7 @@ function DeleteDialog({
         className="w-full max-w-md rounded-t-2xl bg-white px-6 pt-6 shadow-xl sm:rounded-2xl"
         style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
       >
-        <p className="text-[15px] leading-relaxed text-stone-800">
+        <p className="text-[length:calc(15px*var(--inv-scale))] leading-relaxed text-stone-800">
           この投稿を削除します。コメントやいいねも消えます。元に戻せません。
         </p>
         {error && (
@@ -148,7 +148,7 @@ function DeleteDialog({
             type="button"
             onClick={() => void onConfirm()}
             disabled={busy}
-            className="min-h-11 touch-manipulation rounded-full bg-rose-600 text-sm font-medium text-white transition hover:bg-rose-500 disabled:opacity-40"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-rose-600 text-sm font-medium text-white transition hover:bg-rose-500 disabled:opacity-40"
           >
             {busy ? "削除しています…" : "削除する"}
           </button>
@@ -156,7 +156,7 @@ function DeleteDialog({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="min-h-11 touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-40"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-40"
           >
             キャンセル
           </button>

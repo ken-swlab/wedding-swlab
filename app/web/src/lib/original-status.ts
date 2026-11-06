@@ -30,11 +30,11 @@ export type Quality = "high" | "low";
  * ★uploaded を高画質版と言わない★ R2 には届いたが EXIF 除去がまだで、originalUrl が無い。
  */
 const QUALITY: Record<OriginalStatus, { quality: Quality; note: string }> = {
-  pending: { quality: "low", note: "低画質版のみ。高画質版は未送信です" },
-  failed: { quality: "low", note: "低画質版のみ。高画質版の送信に失敗しています" },
-  uploaded: { quality: "low", note: "低画質版のみ。高画質版は処理中です（数分かかります）" },
-  skipped: { quality: "low", note: "低画質版のみ。高画質版は保存できませんでした" },
-  unavailable: { quality: "low", note: "低画質版のみ。高画質版は取得できませんでした" },
+  pending: { quality: "low", note: "軽量版のみ。高画質版は未送信です" },
+  failed: { quality: "low", note: "軽量版のみ。高画質版の送信に失敗しています" },
+  uploaded: { quality: "low", note: "軽量版のみ。高画質版は処理中です（数分かかります）" },
+  skipped: { quality: "low", note: "軽量版のみ。高画質版は保存できませんでした" },
+  unavailable: { quality: "low", note: "軽量版のみ。高画質版は取得できませんでした" },
   published: { quality: "high", note: "高画質版を保存済みです" },
 };
 const QUALITY_ORDER = Object.keys(QUALITY) as OriginalStatus[];

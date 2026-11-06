@@ -6,7 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEv
 import { createPortal } from "react-dom";
 import type { MediaItem, Post } from "@/types";
 import { displayStatus } from "@/lib/original-status";
-import { bestSrc, thumbSrc } from "@/lib/media-url";
+import { bestSrc, feedSrc } from "@/lib/media-url";
 import {
   isSwipeExempt,
   prefersReducedMotion,
@@ -14,6 +14,7 @@ import {
   type SwipeState,
 } from "@/hooks/useSwipe";
 import { useDoubleTap } from "@/hooks/useDoubleTap";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import { useHeartBursts } from "./HeartBurst";
 import {
   MOTION_EASING,
@@ -38,16 +39,9 @@ const ORIGINAL_NOTE: Record<NonNullable<MediaItem["originalStatus"]>, string | n
   unavailable: "高画質版は取得できませんでした",
 };
 
-export type MediaSize = { w: number; h: number };
-
-/** 一覧のマスに表示済みの写真・動画から、元の縦横の大きさを読む */
-export function measureMedia(cell: HTMLElement, m: MediaItem): MediaSize | null {
-  const img = cell.querySelector("img");
-  if (img?.naturalWidth) return { w: img.naturalWidth, h: img.naturalHeight };
-  const video = cell.querySelector("video");
-  if (video?.videoWidth) return { w: video.videoWidth, h: video.videoHeight };
-  return m.width && m.height ? { w: m.width, h: m.height } : null;
-}
+// マスの大きさを測る関数は media-measure.ts（一覧から使う。ビューアの本体は使うときに読む。Issue #250）
+import { type MediaSize } from "./media-measure";
+export { measureMedia, type MediaSize } from "./media-measure";
 
 type Box = { left: number; top: number; width: number; height: number };
 
@@ -237,6 +231,10 @@ export function MediaLightbox({
     [index, onClose, sizes, thumbRect, view.w, view.h],
   );
 
+  // ★戻る（iPhone の左端からのスワイプ）で閉じる★（Issue #273。開いている間は履歴を1つ積む）
+  const closeByBack = useCallback(() => close(), [close]);
+  useBackToClose(true, closeByBack);
+
   /** 前後の写真へ送る（端なら元の位置へ戻す） */
   const page = useCallback(
     (next: number, dx = 0) => {
@@ -283,6 +281,8 @@ export function MediaLightbox({
   }
 
   const wasSwiping = useSwipe(root, {
+    // 画面の端から始まった指は、iPhone の「戻る」に任せる（Issue #273。戻るで閉じる）
+    guardEdges: true,
     canStart: (t) => {
       if (busy.current || isSwipeExempt(t)) return false;
       onVideo.current = !!t.closest("video");
@@ -396,7 +396,8 @@ export function MediaLightbox({
             const box = fitBox(sizes[i], view.w, view.h);
             const near = Math.abs(i - index) <= 1;
             const best = bestSrc(m);
-            const thumb = thumbSrc(m);
+            // 仮の表示は、一覧で読み終わっている小さい版（Issue #251。無い古い投稿は軽量版）。その上に全画面用（軽量版か原本）を重ねる
+            const thumb = feedSrc(m);
             return (
               <div
                 key={m.storagePath || `${m.url}-${i}`}
@@ -465,7 +466,7 @@ export function MediaLightbox({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{author.name}</p>
-              <p className="text-[11px] tabular-nums text-white/55">{fullDate(post)}</p>
+              <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/55">{fullDate(post)}</p>
             </div>
             {media.length > 1 && (
               <p className="shrink-0 text-xs tabular-nums text-white/70">
@@ -481,7 +482,7 @@ export function MediaLightbox({
               />
             </div>
           )}
-          {note && <p className="mt-2 text-[11px] text-white/60">{note}</p>}
+          {note && <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] text-white/60">{note}</p>}
         </div>
       </div>
 

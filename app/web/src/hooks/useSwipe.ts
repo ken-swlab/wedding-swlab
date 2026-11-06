@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
-import { SWIPE_SLOP_PX } from "@/config/guestbook";
+import { SWIPE_EDGE_GUARD_PX, SWIPE_SLOP_PX } from "@/config/guestbook";
 
 export type SwipeAxis = "x" | "y";
 
@@ -17,6 +17,11 @@ export type SwipeState = {
 export type SwipeHandlers = {
   /** このタッチを扱うか（入力欄の中などは除く） */
   canStart?: (target: Element) => boolean;
+  /**
+   * 画面の左右の端（SWIPE_EDGE_GUARD_PX）から始まった指を受け付けない（Issue #273）。
+   * iPhone の左端からのスワイプ（戻る）と取り合わないため。戻るは useBackToClose で全画面を閉じる
+   */
+  guardEdges?: boolean;
   /** 縦横が決まったときに、この操作を引き受けるか。false ならブラウザに任せる */
   accept: (axis: SwipeAxis, delta: number) => boolean;
   /** 引き受けなかった操作でも touchmove を止めるか（LINE のシートが閉じるのを防ぐ） */
@@ -85,7 +90,9 @@ export function useSwipe(
       if ((window.visualViewport?.scale ?? 1) > 1.01) return;
       const target = e.target instanceof Element ? e.target : null;
       if (target && h.current.canStart && !h.current.canStart(target)) return;
-      start = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      const x = e.touches[0].clientX;
+      if (h.current.guardEdges && (x < SWIPE_EDGE_GUARD_PX || x > window.innerWidth - SWIPE_EDGE_GUARD_PX)) return;
+      start = { x, y: e.touches[0].clientY };
     }
 
     function onMove(e: TouchEvent) {

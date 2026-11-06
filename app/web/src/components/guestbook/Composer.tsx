@@ -1,28 +1,32 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { takeFiles } from "@/lib/file-input";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
+import {
+  clearComposerDraft,
+  readComposerText,
+  readDraftFiles,
+  removeDraftFile,
+  saveComposerText,
+  saveDraftFile,
+} from "@/lib/composer-draft";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
+import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import { EPISODE_THEMES, themeDef } from "@/config/episodes";
-import { compressForTimeline } from "@/lib/image";
-import {
-  MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb, uploadVideo,
-} from "@/lib/media";
-import { createPost } from "@/lib/posts";
+import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
+import { MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, isStorageConfigured } from "@/lib/media";
+import { newPostId, type PostDraft } from "@/lib/post-draft";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
-import { postJson } from "@/lib/api-client";
-import type { EnqueueItem } from "@/hooks/useUpload";
 import { useMentionInput } from "@/hooks/useMentionInput";
-import { MENTION_NOTIFY_API } from "@/config/mentions";
 import { useAuthorName } from "./AuthorNameProvider";
 import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
-import type { MediaItem } from "@/types";
 import { TagChips } from "./TagChips";
-import { COMPOSER_HINT_MS } from "@/config/guestbook";
+import { COMPOSER_HINT_MS, DRAFT_SAVE_DELAY_MS } from "@/config/guestbook";
 import { CameraIcon } from "@/components/icons";
 
 type Picked = {
@@ -35,12 +39,16 @@ type Picked = {
   compressed?: ReencodedJpeg;
   width?: number;
   height?: number;
+  /** 一覧用の小さい版（Issue #251）。圧縮と一緒に作っておく */
+  variants?: ImageVariants;
+  /** 動画の1枚目の画像（Issue #251）。選んだ直後から作り始め、投稿するときに待つ */
+  poster?: Promise<ReencodedJpeg | null>;
 };
 
 const DEFAULT_PLACEHOLDER = "おふたりへのメッセージや、当日の写真をどうぞ 🌿";
 
 /** 投稿したあとの知らせ。投稿画面は閉じるので、タイムラインのトーストで出す（ComposerSheet） */
-export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string };
+export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string; sub?: string; ms?: number };
 
 /**
  * お題のラベルをハッシュタグとして末尾に足す。
@@ -70,26 +78,33 @@ function withThemeHashtag(raw: string, themeId: string): string {
  *   （disabled にすると、押しても何も起きず理由が分からない）。
  * ★写真を主役にする★ 上から「写真・動画を選ぶ（大きな枠）」→「一言」→「公開範囲（1行）」→「思い出エピソード」。
  *   公開範囲のチップは、1行を押したときだけ下からのシートで出す（チップが一番目立っていた）。
- * ★投稿できたら onPosted を呼ぶ（呼び出し側が閉じる）★ エピソードの保存はそのあとも続き、結果は onNotice で知らせる。
+ * ★「投稿する」で onSubmitDraft に渡し、すぐ onPosted を呼ぶ（呼び出し側が閉じる）★（Issue #254）
+ *   送信とその知らせ（高画質版・エピソード・新郎新婦あて）は、送信の列（usePostOutbox）が受け持つ。
  */
 export function Composer({
   user,
   tags,
-  onUploadOriginals,
+  onSubmitDraft,
   onClose = () => {},
   onPosted = () => {},
-  onNotice = () => {},
 }: {
   user: User;
   tags: string[];
-  onUploadOriginals: (items: EnqueueItem[]) => void;
+  /** 「投稿する」。押した時点の投稿を渡す（送信は呼び出し側が続ける。Issue #254） */
+  onSubmitDraft: (draft: PostDraft) => void;
   /** 「キャンセル」。書きかけなら確認してから呼ぶ */
   onClose?: () => void;
   /** 投稿が成立した（フォームは片付け済み） */
   onPosted?: () => void;
-  onNotice?: (notice: ComposerNotice) => void;
 }) {
-  const [text, setText] = useState("");
+  /**
+   * ★書きかけを端末に残す★（Issue #273。lib/composer-draft.ts）閉じて開き直しても、続きから書ける。
+   *   本文・公開範囲・エピソードは開いたときに戻し、写真は端末から読み直して、選んだときと同じ処理（圧縮など）をし直す。
+   *   投稿したら・「下書きを捨てますか？」で捨てたら消す。
+   */
+  const [saved] = useState(() => readComposerText(user.uid));
+  const [restored, setRestored] = useState(() => saved !== null);
+  const [text, setText] = useState(saved?.text ?? "");
   const [picked, setPicked] = useState<Picked[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,11 +115,14 @@ export function Composer({
   const [hint, setHint] = useState<{ text: string; key: string } | null>(null);
   /** 公開範囲を選ぶシート */
   const [scopeOpen, setScopeOpen] = useState(false);
+  // 公開範囲のシートも、戻る（左端のスワイプ）で閉じる（Issue #273）
+  const closeScope = useCallback(() => setScopeOpen(false), []);
+  useBackToClose(scopeOpen, closeScope);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---
-  const [episodeOn, setEpisodeOn] = useState(false);
-  const [theme, setTheme] = useState<string>("");
+  const [episodeOn, setEpisodeOn] = useState(saved?.episodeOn ?? false);
+  const [theme, setTheme] = useState<string>(saved?.theme ?? "");
 
   /**
    * ★「新郎新婦」は、自分がそのタグを持っていなくても選べる★（新郎新婦あての投稿。Issue #97）
@@ -117,9 +135,19 @@ export function Composer({
     () => allTags.filter((t) => t.selectable && !t.archived && !t.system && (tags.includes(t.id) || t.id === COUPLE_TAG)),
     [allTags, tags],
   );
-  const [selected, setSelected] = useState<string[]>(() =>
-    tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1),
-  );
+  // 書きかけの公開範囲は、今も選べるタグだけを戻す（無くなったタグ・外れたタグは使わない）
+  const [selected, setSelected] = useState<string[]>(() => {
+    const keep = (saved?.selected ?? []).filter((t) => t === COUPLE_TAG || tags.includes(t));
+    if (keep.length > 0) return keep;
+    return tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1);
+  });
+
+  // 本文・公開範囲・エピソードを残す（打つたびに書かず、少し待ってから）
+  useEffect(() => {
+    const t = setTimeout(() => saveComposerText(user.uid, { text, selected, episodeOn, theme }), DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [user.uid, text, selected, episodeOn, theme]);
+
 
   // @メンションの候補は、選んでいる公開範囲が見える人だけ（範囲を変えると候補も変わる）
   const textInput = useRef<HTMLTextAreaElement>(null);
@@ -136,22 +164,31 @@ export function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ★先に取り出してから入力欄を空にする★（Issue #278。lib/file-input.ts の takeFiles）
   async function onPick(files: FileList | null) {
-    if (!files?.length) return;
+    const list = takeFiles(files, fileRef.current);
+    if (list.length === 0) return;
+    await addFiles(list);
+  }
+
+  /** ids … 端末に残した書きかけから戻すとき、その ID（もう残してあるので、残し直さない） */
+  async function addFiles(files: File[], ids?: string[]) {
     setError(null);
 
     const room = MAX_MEDIA_PER_POST - picked.length;
-    const incoming = Array.from(files).slice(0, room);
-    if (fileRef.current) fileRef.current.value = "";
+    const incoming = files.slice(0, room);
 
-    const drafts: Picked[] = incoming.map((file) => ({
-      id: crypto.randomUUID(),
+    const drafts: Picked[] = incoming.map((file, i) => ({
+      id: ids?.[i] ?? crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
       isVideo: file.type.startsWith("video/"),
       compressing: !file.type.startsWith("video/"),
+      poster: file.type.startsWith("video/") && file.size <= MAX_ORIGINAL_BYTES ? makeVideoPoster(file).catch(() => null) : undefined,
     }));
     setPicked((p) => [...p, ...drafts]);
+    // 書きかけとして端末に残す（戻したものは残してあるので、新しく選んだものだけ）
+    if (!ids) drafts.forEach((d, i) => void saveDraftFile(user.uid, d.id, Date.now() + i, d.file));
 
     // 選んだ直後に圧縮まで済ませておく。投稿ボタンを押した時点で
     // 待ち時間がほぼゼロになり「送れた感」が出る。
@@ -165,8 +202,10 @@ export function Composer({
       }
       try {
         const { blob, width, height } = await compressForTimeline(d.file);
+        // 一覧用の小さい版は作り直した軽量版から描く（失敗しても投稿は止めない）
+        const variants = await makeImageVariants(blob);
         setPicked((p) => p.map((x) => x.id === d.id
-          ? { ...x, compressing: false, compressed: blob, width, height } : x));
+          ? { ...x, compressing: false, compressed: blob, width, height, variants } : x));
       } catch {
         setPicked((p) => p.map((x) => x.id === d.id
           ? { ...x, compressing: false, error: "画像を処理できませんでした" } : x));
@@ -180,18 +219,44 @@ export function Composer({
       if (target) URL.revokeObjectURL(target.previewUrl);
       return p.filter((x) => x.id !== id);
     });
+    void removeDraftFile(id);
+  }
+
+  // 残した写真・動画を読み直す（開いたときに1回だけ）
+  useEffect(() => {
+    let cancelled = false;
+    void readDraftFiles(user.uid).then((files) => {
+      if (cancelled || files.length === 0) return;
+      setRestored(true);
+      void addFiles(files.map((f) => f.file), files.map((f) => f.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // 開いたときに1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 書きかけを消して、空の投稿画面にする（「書きかけを消す」） */
+  function discardDraft() {
+    picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPicked([]);
+    setText("");
+    setEpisodeOn(false);
+    setTheme("");
+    setRestored(false);
+    void clearComposerDraft(user.uid);
   }
 
   /**
+   * ★「全員」と個別のタグは切り替え★（Issue #272。lib/visibility-scope.ts の toggleScope）
+   *   個別のタグを選ぶと「全員」が外れ、「全員」を選ぶと個別のタグが外れ、個別のタグを全部外すと「全員」に戻る。
    * ★「新郎新婦」は単独でだけ選べる★ 選ぶとほかのタグが外れ、ほかのタグを選ぶと「新郎新婦」が外れる。
    *   混ぜると、そのタグの人にも見えてしまう。Rules も ['couple'] ちょうどでない組み合わせを拒む。
    */
+  const canAll = available.some((t) => t.id === ALL_TAG);
   function toggleTag(id: string) {
-    setSelected((s) => {
-      if (id === COUPLE_TAG) return s.includes(id) ? [] : [COUPLE_TAG];
-      const rest = s.filter((x) => x !== COUPLE_TAG);
-      return rest.includes(id) ? rest.filter((x) => x !== id) : [...rest, id];
-    });
+    setSelected((s) => toggleScope(s, id, canAll));
   }
   const coupleOnly = selected.length === 1 && selected[0] === COUPLE_TAG;
 
@@ -240,6 +305,7 @@ export function Composer({
   function onCancel() {
     if (busy) return;
     if (hasDraft && !confirm("下書きを捨てますか？")) return;
+    void clearComposerDraft(user.uid);
     onClose();
   }
 
@@ -249,148 +315,47 @@ export function Composer({
       ? scopeNames(selected)
       : "未選択";
 
-  async function onSubmit() {
+  /**
+   * 「投稿する」（Issue #254）。★送信は待たない★ 押した時点の投稿（PostDraft）を送信の列に渡し、すぐ閉じる。
+   *   送信（軽量版 → createPost → メンションの通知 → 顔検出 → 高画質版の列 → エピソード）は usePostOutbox が続ける。
+   *   処理の中身は今までと同じ（lib/post-send.ts に移しただけ）。
+   * ★端末の写真の URL（previewUrl）は解放しない★ 送信中の投稿の表示に使う。解放は列が入れ替えのあとに行う。
+   */
+  function onSubmit() {
     if (!canSubmit) return;
     setBusy(true);
     setError(null);
     setHint(null);
+    // お題を選んでいればハッシュタグを付ける。投稿本文とエピソード本文で同じテキストを使う
+    const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
+    const draft: PostDraft = {
+      postId: newPostId(),
+      uid: user.uid,
+      displayName: name,
+      photoURL,
+      text: finalText,
+      visibleToTags: selected,
+      mentioned: mention.mentioned,
+      coupleOnly,
+      items: picked.map((p) => ({
+        id: p.id, file: p.file, previewUrl: p.previewUrl, isVideo: p.isVideo,
+        compressed: p.compressed, width: p.width, height: p.height, variants: p.variants, poster: p.poster,
+      })),
+      episode: episodeOn ? { theme } : null,
+    };
+    onSubmitDraft(draft);
+    // 送信の列に渡したので、端末の書きかけは消す（送れなかったときは列が「もう一度送る」を出す）
+    void clearComposerDraft(user.uid);
 
-    try {
-      // お題を選んでいればハッシュタグを付ける。
-      // 投稿本文とエピソード本文で同じテキストを使う。
-      const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
-
-      // --- 第1段: 軽量版だけを先に上げる ---
-      const media: MediaItem[] = [];
-      const originals: EnqueueItem[] = [];
-      const photoUrls: string[] = [];
-
-      for (const p of picked) {
-        const ext = extOf(p.file);
-
-        if (p.isVideo) {
-          // 動画は圧縮せず1段階で公開バケットへ送る（従来どおり）
-          const v = await uploadVideo(p.file, ext);
-          media.push({ type: "video", url: v.url, storagePath: v.key, alt: p.file.name });
-          continue;
-        }
-
-        // ★軽量版は必ず canvas で作り直したものだけを送る★
-        //   元の写真（p.file）は GPS 入りのことがあり、公開バケットは Worker を通らない。
-        //   圧縮できていない写真は、投稿の条件に関わらずここで止める（Issue #66）。
-        if (!p.compressed) {
-          throw new Error("写真の準備ができていません。写真を選び直してください");
-        }
-        // ★キーもバケットもサーバーが決める★ クライアントはパスを指定できない
-        const t = await uploadThumb(p.compressed);
-        // 原本は後日、非公開バケットへ送る。ここではキーだけ確保する
-        // （署名は寿命が短いので保存しない）
-        const originalKey = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
-
-        media.push({
-          type: "image",
-          url: t.url,
-          storagePath: t.key,
-          width: p.width,
-          height: p.height,
-          alt: p.file.name,
-          originalStatus: "pending",
-        });
-        photoUrls.push(t.url);
-        originals.push({
-          postId: "",
-          thumbPath: t.key,
-          originalPath: originalKey,
-          fileName: p.file.name,
-          bytes: p.file.size,
-          file: p.file,
-        });
-      }
-
-      // --- 第2段: タイムラインへの投稿（これが本体）---
-      const mentioned = mention.mentioned;
-      const toCouple = coupleOnly;
-      const postRef = await createPost({
-        uid: user.uid,
-        displayName: name,
-        photoURL,
-        text: finalText,
-        media,
-        visibleToTags: selected,
-        mentioned,
-      });
-
-      // --- メンションの通知。★待たない★ 失敗しても投稿は成立している（/api/notifications/mention）---
-      //   相手に投稿が見えるか（公開範囲を変えたあとも）は、サーバーが保存済みの投稿で確かめる。
-      if (mentioned.length > 0) {
-        void postJson(MENTION_NOTIFY_API, { postId: postRef.id }).catch((e) => console.error(e));
-      }
-
-      // 新郎新婦あての投稿は、投稿者のタイムラインには出ない（所属タグと重ならない）。
-      // 消えたように見えないよう、届いたことと、見られる場所を知らせる
-      if (toCouple) onNotice({ kind: "couple", text: "新郎新婦にだけ届きました。マイページで確認できます。" });
-
-      // --- 顔検出の発火。★絶対に await しない★ ---
-      void (async () => {
-        try {
-          await fetch("/api/faces/detect", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${await user.getIdToken()}`,
-            },
-            body: JSON.stringify({ postId: postRef.id }),
-          });
-        } catch {
-          /* 失敗しても投稿体験には影響させない */
-        }
-      })();
-
-      // --- 原本はページ側のキューに委ねる ---
-      if (originals.length > 0) {
-        // ★端末に保存するだけ★ 送信の発火はゲストのボタン操作に委ねる
-        onUploadOriginals(originals.map((o) => ({ ...o, postId: postRef.id })));
-        onNotice({
-          kind: "upload",
-          text: `高画質版 ${originals.length} 枚をこの端末に保存しました。Wi-Fi に繋がったら、上の「本アップロードを開始」から送信をお願いします 📶`,
-        });
-      }
-
-      // フォームは先に片付ける（投稿は成立しているため）
-      picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
-      const episodePayload = episodeOn
-        ? { theme, originalText: finalText, photoUrls, visibleToTags: selected }
-        : null;
-
-      setText("");
-      mention.reset();
-      setPicked([]);
-      setEpisodeOn(false);
-      setTheme("");
-      // 投稿は成立した。呼び出し側が画面を閉じ、タイムラインの一番上を見せる
-      onPosted();
-
-      // --- 第3段: エピソードの保存 ---
-      // ★投稿の後に行う★ ここが失敗しても投稿は取り消さない。
-      //   AI のデータが1件落ちるだけで、ゲストの体験は壊さない。
-      if (episodePayload) {
-        try {
-          await postJson("/api/episodes", episodePayload);
-          onNotice({ kind: "episode", text: "エピソードを受け付けました。新郎新婦の確認後に使われます 🌿" });
-        } catch (e) {
-          onNotice({
-            kind: "error",
-            text: `投稿は完了しました。エピソードの登録だけ失敗しました（${
-              e instanceof Error ? e.message : "不明なエラー"
-            }）`,
-          });
-        }
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "投稿に失敗しました");
-    } finally {
-      setBusy(false);
-    }
+    // フォームを片付ける（写真の URL は列に渡したので解放しない）
+    setText("");
+    mention.reset();
+    setPicked([]);
+    setEpisodeOn(false);
+    setTheme("");
+    setBusy(false);
+    // 呼び出し側が画面を閉じ、タイムラインの一番上（送信中の投稿）を見せる
+    onPosted();
   }
 
   const ready = blockedReason() === null && !busy;
@@ -405,17 +370,17 @@ export function Composer({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="min-h-11 justify-self-start touch-manipulation rounded-full px-3 text-sm text-stone-600 disabled:opacity-40"
+            className="min-h-[var(--inv-tap)] justify-self-start touch-manipulation rounded-full px-3 text-sm text-stone-600 disabled:opacity-40"
           >
             キャンセル
           </button>
           {/* 操作のバーの見出しはゴシック（Issue #227。押す部品と並ぶため）。強弱は太さで付ける */}
-          <h2 className="text-[16px] font-semibold text-stone-900">新しい投稿</h2>
+          <h2 className="text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-900">新しい投稿</h2>
           <button
             type="button"
             onClick={onSubmitTap}
             aria-disabled={!ready}
-            className={`min-h-11 justify-self-end touch-manipulation rounded-full px-4 text-sm font-medium transition ${
+            className={`min-h-[var(--inv-tap)] justify-self-end touch-manipulation rounded-full px-4 text-sm font-medium transition ${
               // ★押せるときは押す場所の色（テラコッタ・sub）★（Issue #236）
               ready ? "bg-sub-600 text-white hover:bg-sub-700" : "bg-stone-100 text-stone-400"
             }`}
@@ -432,6 +397,15 @@ export function Composer({
 
       {/* ---- 本体（ここだけスクロールする） ---- */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4">
+        {/* 前回の書きかけを戻したとき（Issue #273） */}
+        {restored && hasDraft && (
+          <div role="status" className="mb-3 flex items-center justify-between gap-3 border-b border-stone-200 pb-2">
+            <p className="text-xs text-stone-500">書きかけがあります。続きから書けます。</p>
+            <button type="button" onClick={discardDraft} className="min-h-[var(--inv-tap)] shrink-0 touch-manipulation px-1 text-xs text-stone-500 underline underline-offset-4">
+              書きかけを消す
+            </button>
+          </div>
+        )}
         <input
           ref={fileRef}
           type="file"
@@ -452,7 +426,7 @@ export function Composer({
           >
             <CameraIcon className="h-8 w-8" />
             <span className="text-sm font-medium">写真・動画を選ぶ</span>
-            <span className="text-[11px] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
+            <span className="text-[length:calc(11px*var(--inv-scale))] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
           </button>
         ) : (
           <div>
@@ -473,7 +447,7 @@ export function Composer({
                     </div>
                   )}
                   {p.error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[10px] leading-tight text-rose-700">
+                    <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                       {p.error}
                     </div>
                   )}
@@ -505,7 +479,7 @@ export function Composer({
                 </button>
               )}
             </div>
-            <p className="mt-1.5 text-right text-[11px] tabular-nums text-stone-400">
+            <p className="mt-1.5 text-right text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">
               {picked.length}/{MAX_MEDIA_PER_POST}
             </p>
           </div>
@@ -541,7 +515,7 @@ export function Composer({
           type="button"
           onClick={() => setScopeOpen(true)}
           disabled={busy}
-          className="mt-4 flex min-h-12 w-full touch-manipulation items-center gap-3 rounded-xl border border-stone-200 px-3 text-left hover:bg-stone-50 disabled:opacity-40"
+          className="mt-4 flex min-h-[max(3rem,var(--inv-tap))] w-full touch-manipulation items-center gap-3 rounded-xl border border-stone-200 px-3 text-left hover:bg-stone-50 disabled:opacity-40"
         >
           <span className="shrink-0 text-sm text-stone-500">公開範囲</span>
           <span className={`min-w-0 flex-1 truncate text-right text-sm font-medium ${selected.length > 0 ? "text-stone-900" : "text-amber-700"}`}>
@@ -569,7 +543,7 @@ export function Composer({
               <span className="block text-sm font-medium text-stone-800">
                 思い出エピソードも投稿する
               </span>
-              <span className="block text-[11px] leading-relaxed text-stone-500">
+              <span className="block text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
                 おふたりが確認したうえで、当日のムービーや
                 おもてなしAIの会話に使わせていただきます。
               </span>
@@ -602,7 +576,7 @@ export function Composer({
               </div>
 
               {theme && (
-                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
+                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
                   {themeDef(theme).prompt}
                   {theme !== "other" && (
                     <span className="mt-0.5 block text-stone-400">
@@ -613,11 +587,11 @@ export function Composer({
               )}
 
               {needsThemeText && (
-                <p className="mt-2 text-[11px] text-amber-700">
+                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] text-amber-700">
                   エピソードには本文が必要です。写真だけでは登録できません。
                 </p>
               )}
-              <p className="mt-2 text-[11px] leading-relaxed text-stone-400">
+              <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
                 エピソードも公開範囲（{scopeLabel}）の方にだけ使われます。
               </p>
             </div>
@@ -673,8 +647,8 @@ function ScopeSheet({
         style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
       >
         <div className="flex items-center justify-between">
-          <p id="composer-scope-title" className="text-[16px] font-semibold text-stone-900">公開範囲</p>
-          <button type="button" onClick={onClose} className="min-h-11 touch-manipulation px-2 text-sm font-medium text-stone-900">
+          <p id="composer-scope-title" className="text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-900">公開範囲</p>
+          <button type="button" onClick={onClose} className="min-h-[var(--inv-tap)] touch-manipulation px-2 text-sm font-medium text-stone-900">
             完了
           </button>
         </div>
@@ -698,5 +672,5 @@ function ScopeSheet({
  *   Composer は useTags を呼んでいるので、辞書が届いたら描き直されて名前になる。
  */
 function scopeNames(selected: readonly string[]): string {
-  return displayVisibleTags(selected).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
+  return scopeForDisplay(displayVisibleTags(selected)).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
 }

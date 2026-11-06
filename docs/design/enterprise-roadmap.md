@@ -34,7 +34,7 @@
 | uid | `line:<LINE のユーザー ID>`。LINE のユーザー ID は、LINE のプロバイダーごとに決まる | `src/app/api/auth/line/route.ts` |
 | 招待状の中身 | 新郎新婦の名前・日時・会場は、Firestore の `config/invitation` にある（サーバーだけが読む。Issue #131 でソースから移した） | `src/lib/invitation-server.ts` |
 | 合言葉 | 環境変数 `WEDDING_PASSCODE` が 1 つ | `src/lib/passcode-server.ts` |
-| タグの語彙 | 組み込みタグ（全員・親族・新郎友人…）はソースに固定。カスタムタグは `tags` コレクション | `src/config/tags.ts` |
+| タグの語彙 | 組み込みタグ（全員・親族・新郎友人…）はソースに定義し、名前・色・隠す・並び順は `tags/{ID}` で上書きできる（Issue #248）。カスタムタグは `tags` コレクション | `src/config/tags.ts` |
 | 投影（`/screen`） | 出すタグは、ビルド時の環境変数 `NEXT_PUBLIC_SCREEN_TAGS` | `src/config/screen.ts` |
 | 写真 | R2 のバケットは 2 つで固定。キーは `u/{uid}/{t\|o}/…`（式を表す部分は無い） | `src/lib/r2-server.ts`、`wrangler.toml` |
 | Worker | バケット名・公開の URL・webhook の URL が `wrangler.toml` に固定 | `infra/workers/exif-stripper/wrangler.toml` |

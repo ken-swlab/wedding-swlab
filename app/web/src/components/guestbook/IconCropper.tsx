@@ -176,7 +176,7 @@ export function IconCropper({
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-11 touch-manipulation rounded-full px-4 text-sm text-white/90 transition hover:bg-white/10"
+          className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-4 text-sm text-white/90 transition hover:bg-white/10"
         >
           キャンセル
         </button>
@@ -184,7 +184,7 @@ export function IconCropper({
           type="button"
           onClick={done}
           disabled={!diameter}
-          className="min-h-11 touch-manipulation rounded-full px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
+          className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-40"
         >
           決定
         </button>

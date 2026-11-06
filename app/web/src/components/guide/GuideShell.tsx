@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useHistoryFloor } from "@/hooks/useHistoryOverlay";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useTags } from "@/lib/tags-client";
+import { useOptionalGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { EnvelopeIcon, SeatIcon, SparkleIcon, YenIcon } from "@/components/icons";
 
 /**
@@ -30,6 +32,11 @@ const NAV: { key: string; label: string; icon: ReactNode; href: string | null; a
 export function GuideShell({ children }: { children: ReactNode }) {
   // ★タグの辞書の購読をここでも始める★（Issue #231。GuestbookShell と同じ。購読は1本のまま）
   useTags();
+  // ★タブの画面では、戻る（左端のスワイプ）で招待状やログインの画面へ行かない★（Issue #273。useHistoryFloor）
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const tabRoot = NAV.some((item) => item.href === pathname);
+  useHistoryFloor(tabRoot, search ? `${pathname}?${search}` : pathname);
   return (
     <div className="min-h-dvh bg-stone-50">
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-stone-50/94 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -46,6 +53,8 @@ export function GuideShell({ children }: { children: ReactNode }) {
 
 function GuideNav() {
   const pathname = usePathname();
+  // ★親族用から入った人には「会費」を出さない★（Issue #243。会費は手渡し。ご案内・座席・ミニAI の3つ）
+  const items = useOptionalGuestSessionContext()?.invitationKind === "family" ? NAV.filter((item) => item.key !== "payment") : NAV;
   return (
     <nav
       aria-label="ご案内のメニュー"
@@ -53,8 +62,8 @@ function GuideNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-stone-50/94 pb-[env(safe-area-inset-bottom)] backdrop-blur"
     >
       <ul className="mx-auto flex h-16 max-w-xl">
-        {NAV.map((item) => {
-          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[11px]";
+        {items.map((item) => {
+          const tab = "flex h-full touch-manipulation flex-col items-center justify-center gap-0.5 text-[length:calc(11px*var(--inv-scale))]";
           if (!item.href) {
             return (
               <li key={item.key} className="flex-1">
@@ -62,7 +71,7 @@ function GuideNav() {
                   <span aria-hidden className="flex h-5 items-center">{item.icon}</span>
                   <span>
                     {item.label}
-                    <span className="ml-0.5 text-[9px]">（予定）</span>
+                    <span className="ml-0.5 text-[length:calc(9px*var(--inv-scale))]">（予定）</span>
                   </span>
                 </span>
               </li>
@@ -75,6 +84,8 @@ function GuideNav() {
             <li key={item.key} className="flex-1">
               <Link
                 href={item.href}
+                // ★タブの切り替えは履歴に積まない★（Issue #273。左端のスワイプで前のタブに戻らない）
+                replace
                 aria-current={here ? "page" : undefined}
                 // 選んでいるタブは墨の太字（Issue #236）
                 className={`${tab} transition ${on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"}`}

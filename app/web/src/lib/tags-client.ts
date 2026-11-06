@@ -3,28 +3,24 @@
 import { collection, limit, onSnapshot, query } from "firebase/firestore";
 import { useSyncExternalStore } from "react";
 import { db } from "@/lib/firebase";
-import { allTagDefs, customTagDefs, isTagPending, paletteClass, registerCustomTags, tagDef, type TagDef } from "@/config/tags";
+import {
+  allTagDefs,
+  applyTagDocs,
+  customTagDefs,
+  customTagFromDoc,
+  isTagOrderSaved,
+  isTagPending,
+  orderedTagDefs,
+  tagDef,
+  type TagDef,
+  type TagDocData,
+} from "@/config/tags";
 
-export type CustomTagDoc = {
-  label?: string;
-  palette?: string;
-  selectable?: boolean;
-  community?: boolean;
-  archived?: boolean;
-  order?: number;
-};
+export type CustomTagDoc = TagDocData;
 
+/** 作ったタグのドキュメントを TagDef にする（作成の直後の楽観更新に使う） */
 export function toTagDef(id: string, d: CustomTagDoc): TagDef {
-  return {
-    id,
-    label: d.label || id,
-    className: paletteClass(d.palette ?? "stone"),
-    selectable: d.selectable !== false,
-    community: d.community === true,
-    archived: d.archived === true,
-    order: typeof d.order === "number" ? d.order : 0,
-    custom: true,
-  };
+  return customTagFromDoc(id, d);
 }
 
 /**
@@ -39,6 +35,11 @@ const EMPTY: TagDef[] = [];
 let cachedAll: TagDef[] = SERVER_SNAPSHOT;
 /** カスタムタグ（アーカイブ済みを含む）。タグの管理（/admin/tags）で使う */
 let cachedCustom: TagDef[] = EMPTY;
+/** 組み込み ∪ カスタムを並び順に（隠した・アーカイブしたものも含む）。タグの管理で使う（Issue #248） */
+const SERVER_ORDERED: TagDef[] = orderedTagDefs(true);
+let cachedOrdered: TagDef[] = SERVER_ORDERED;
+/** 辞書を一度でも受け取ったか（届く前に「並び順が未保存」と決めつけないため） */
+let loaded = false;
 let started = false;
 const listeners = new Set<() => void>();
 
@@ -49,9 +50,10 @@ function start() {
   onSnapshot(
     q,
     (snap) => {
-      registerCustomTags(snap.docs.map((d) => toTagDef(d.id, d.data() as CustomTagDoc)));
-      cachedAll = allTagDefs();
-      cachedCustom = customTagDefs();
+      // ★組み込みの ID のドキュメントは上書き、それ以外は作ったタグ★（Issue #248。config/tags.ts の applyTagDocs）
+      applyTagDocs(snap.docs.map((d) => ({ id: d.id, data: d.data() as CustomTagDoc })));
+      loaded = true;
+      recompute();
       listeners.forEach((l) => l());
     },
     (e) => {
@@ -103,7 +105,28 @@ export function useCustomTags(): TagDef[] {
 
 /** 購読を使わない場所（作成直後・編集の直後など）から手元の辞書を更新したいとき */
 export function refreshTagCache() {
+  recompute();
+}
+
+function recompute() {
   cachedAll = allTagDefs();
   cachedCustom = customTagDefs();
+  cachedOrdered = orderedTagDefs(true);
+  cachedOrderState = loaded ? (isTagOrderSaved() ? "saved" : "unsaved") : "loading";
   listeners.forEach((l) => l());
+}
+
+let cachedOrderState: "loading" | "saved" | "unsaved" = "loading";
+
+/**
+ * 組み込み ∪ カスタムを並び順に（隠した・アーカイブしたものも含む）。タグの管理（/admin/tags）・承認後の写真の
+ * 行の順に使う（Issue #248）。useTags と同じ1本の購読を使う。
+ */
+export function useOrderedTags(): TagDef[] {
+  return useSyncExternalStore(subscribe, () => cachedOrdered, () => SERVER_ORDERED);
+}
+
+/** 並び順が保存済みか（辞書が届く前は "loading"）。未保存なら、承認後の写真の優先順を写す処理を呼ぶ */
+export function useTagOrderState(): "loading" | "saved" | "unsaved" {
+  return useSyncExternalStore(subscribe, () => cachedOrderState, () => "loading" as const);
 }

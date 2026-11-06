@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { useOptionalGuestSessionContext } from "./GuestSessionContext";
 import { prefersReducedMotion } from "@/hooks/useSwipe";
-import { GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
+import { GALLERY_ENABLED, GUESTBOOK_LOGO, GUESTBOOK_PATHS, MOTION_EASING, SHEET_EXPAND_MS } from "@/config/guestbook";
 import { INVITATION_COLORS } from "@/config/invitation";
 import { GUIDE_PATHS, type AppSpace } from "@/config/guide";
 import { ChevronDownIcon, ClipboardIcon, CrownIcon, FlowerIcon } from "@/components/icons";
@@ -16,7 +16,8 @@ const SPACES: { key: AppSpace; icon: ReactNode; label: string; sub: string; href
     key: "guestbook",
     icon: <FlowerIcon className="h-6 w-6" />,
     label: "SNS・写真共有",
-    sub: "タイムライン・ギャラリー",
+    // ギャラリーを出さない間（Issue #270）は説明からも外す（管理者にも同じ文言。説明だけなので出し分けない）
+    sub: GALLERY_ENABLED ? "タイムライン・ギャラリー" : "タイムライン・コミュニティ",
     href: GUESTBOOK_PATHS.home,
   },
   {
@@ -48,7 +49,7 @@ export function SpaceSwitch({ current, notice }: { current: AppSpace | "admin"; 
         className="flex h-11 shrink-0 touch-manipulation items-center gap-0.5 rounded-full px-1 text-stone-900 transition hover:bg-stone-100"
       >
         {/* ロゴ「H&K」（Issue #226）。明朝 500・21px。「&」だけ金で 0.85em、左右に 1px。縦の位置は H・K の並びのまま */}
-        <span aria-hidden className="font-serif text-[21px] font-medium leading-none tracking-[0.06em] text-stone-900">
+        <span aria-hidden className="font-serif text-[length:calc(21px*var(--inv-scale))] font-medium leading-none tracking-[0.06em] text-stone-900">
           {GUESTBOOK_LOGO.left}
           <span style={{ color: INVITATION_COLORS.gold, fontSize: "0.85em", margin: "0 1px" }}>{GUESTBOOK_LOGO.amp}</span>
           {GUESTBOOK_LOGO.right}
@@ -130,6 +131,8 @@ function SpaceSheet({
               <li key={s.key}>
                 <Link
                   href={s.href}
+                  // ★ゲストブックとご案内の切り替えは履歴に積まない★（Issue #273）。管理画面から来たときは積む（戻れるように）
+                  replace={current !== "admin"}
                   onClick={onClose}
                   aria-current={here ? "page" : undefined}
                   className={`flex min-h-16 touch-manipulation items-center gap-3 rounded-2xl border px-4 py-3 transition ${
@@ -138,7 +141,7 @@ function SpaceSheet({
                 >
                   <span aria-hidden className="flex text-stone-700">{s.icon}</span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[15px] font-semibold text-stone-900">{s.label}</span>
+                    <span className="block text-[length:calc(15px*var(--inv-scale))] font-semibold text-stone-900">{s.label}</span>
                     <span className="block text-xs text-stone-500">{s.sub}</span>
                   </span>
                   {here && <span className="shrink-0 text-xs text-stone-500">表示中</span>}
@@ -159,7 +162,7 @@ function SpaceSheet({
             href="/admin"
             onClick={onClose}
             aria-current={current === "admin" ? "page" : undefined}
-            className="mt-3 flex min-h-11 touch-manipulation items-center justify-center gap-1.5 rounded-full text-xs text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+            className="mt-3 flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-center gap-1.5 rounded-full text-xs text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
           >
             <CrownIcon className="h-4 w-4" />管理者画面{current === "admin" && "（表示中）"}
           </Link>

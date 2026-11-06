@@ -124,7 +124,7 @@ export default function CommunityPage() {
                   <p className="text-sm text-stone-700">まだ記録がありません。</p>
                   <Link
                     href={GUESTBOOK_PATHS.opening}
-                    className="mt-3 inline-flex min-h-11 touch-manipulation items-center justify-center rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700"
+                    className="mt-3 inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-center rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700"
                   >
                     挑戦する
                   </Link>
@@ -138,7 +138,7 @@ export default function CommunityPage() {
         {/* オープニング演出の見返し（Issue #131。マイページから移した） */}
         <Link
           href={GUESTBOOK_PATHS.opening}
-          className="-mx-4 flex min-h-11 touch-manipulation items-center justify-between gap-3 border-y border-stone-200 px-4 py-3 transition hover:bg-stone-100/60"
+          className="-mx-4 flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-between gap-3 border-y border-stone-200 px-4 py-3 transition hover:bg-stone-100/60"
         >
           <span className="min-w-0">
             <span className="block text-sm font-medium text-stone-800">オープニングをもう一度見る</span>
@@ -163,7 +163,7 @@ function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers> | null
         <p className="text-sm text-stone-600">
           参加予定 <strong className="text-2xl font-semibold tabular-nums text-stone-900">{data.count}</strong> 名
         </p>
-        <p className="mt-1 text-[11px] text-stone-400">グループを選ぶと、参加予定のメンバーが見られます</p>
+        <p className="mt-1 text-[length:calc(11px*var(--inv-scale))] text-stone-400">グループを選ぶと、参加予定のメンバーが見られます</p>
       </div>
     );
   }
@@ -178,7 +178,7 @@ function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers> | null
           <MemberCell key={i} member={m} />
         ))}
       </ul>
-      <p className="mt-3 text-center text-[11px] text-stone-400">参加予定 {data.count} 名</p>
+      <p className="mt-3 text-center text-[length:calc(11px*var(--inv-scale))] text-stone-400">参加予定 {data.count} 名</p>
     </div>
   );
 }
@@ -189,8 +189,8 @@ function MemberCell({ member }: { member: CommunityMember }) {
       <span className="relative h-12 w-12 overflow-hidden rounded-full bg-stone-200">
         {member.photoURL && <Image src={member.photoURL} alt="" fill sizes="48px" className="object-cover" />}
       </span>
-      <span className="mt-1 w-full truncate text-[11px] text-stone-700">{member.nickname}</span>
-      {member.secondOnly && <span className="text-[10px] leading-tight text-stone-400">2次会から</span>}
+      <span className="mt-1 w-full truncate text-[length:calc(11px*var(--inv-scale))] text-stone-700">{member.nickname}</span>
+      {member.secondOnly && <span className="text-[length:calc(10px*var(--inv-scale))] leading-tight text-stone-400">2次会から</span>}
     </li>
   );
 }
@@ -218,7 +218,7 @@ function RankingPanel({ loaded, label }: { loaded: Loaded<ReactionRanking> | nul
           </>
         )}
       </ol>
-      <p className="mt-2 text-center text-[11px] text-stone-400">
+      <p className="mt-2 text-center text-[length:calc(11px*var(--inv-scale))] text-stone-400">
         記録がある人 {data.total} 人{data.total > RANKING_TOP ? `（上位 ${RANKING_TOP} 人を表示）` : ""}
         {data.anonymous ? "。全員のランキングでは、名前を伏せています" : ""}
       </p>
@@ -252,7 +252,7 @@ function RankRow({ row }: { row: ReactionRankingRow }) {
         ) : (
           row.nickname
         )}
-        {row.isMe && <span className="ml-1.5 rounded-full bg-sky-600 px-1.5 py-0.5 text-[10px] font-medium text-white">あなた</span>}
+        {row.isMe && <span className="ml-1.5 rounded-full bg-sky-600 px-1.5 py-0.5 text-[length:calc(10px*var(--inv-scale))] font-medium text-white">あなた</span>}
       </span>
       <span className="shrink-0 text-base font-semibold tabular-nums text-stone-900">
         {formatReaction(row.reactionMs)}

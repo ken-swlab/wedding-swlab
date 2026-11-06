@@ -8,6 +8,16 @@
 export type GuestbookView = "timeline" | "gallery";
 
 /**
+ * ギャラリーをゲストに出すか（Issue #270）。★公開のときは false★
+ *   ギャラリーの操作（全画面の × と戻るの重なり・左右の矢印・顔の照合）がまだ詰まっていないため。写真が溜まってから
+ *   true にして「写真をまとめて見られるページができました」として出す。true にすれば、今の形にそのまま戻る。
+ *   false の間: 下のタブからギャラリーを外し（4つ）、ギャラリーの URL（?view=gallery）はタイムラインに移す。
+ *   左上のシートの説明からも外す。★管理者には今どおり出す★（中身を詰めるため。useGalleryEnabled）
+ *   タイムラインの写真を押したときの全画面表示は、これとは関係なく使う。
+ */
+export const GALLERY_ENABLED = false;
+
+/**
  * 招待後（/guestbook 以下・/guide 以下）のページのタイトル（Issue #226）。LINE のアプリ内ブラウザの黒いバーに出る。
  * 招待状まわり（/invitation・パスコード〜回答・承認待ち）は、ルートの layout.tsx の「WEDDING INVITATION」のまま。
  * ★ダッシュは em ダッシュ（U+2014）、前後に半角スペース★ ページごとの見出しは足さない（LINE のバーが短い）。
@@ -73,8 +83,10 @@ export function isGuestbookPath(pathname: string): boolean {
 export const COMPOSER_ANCHOR_ID = "composer";
 /** 灰色の「投稿する」を押したときに出す、足りないものの知らせを出しておく時間 (ms) */
 export const COMPOSER_HINT_MS = 3000;
-/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。高画質版の案内は長いので、読める長さにする */
+/** 投稿したあとの知らせ（トースト）を出しておく時間 (ms)。エピソード・新郎新婦あて・失敗の知らせ */
 export const COMPOSER_TOAST_MS = 8000;
+/** 写真付きの投稿の「投稿しました（軽量版）」を出しておく時間 (ms)（Issue #272） */
+export const POSTED_TOAST_MS = 2500;
 /** 投稿の詳細画面の下に固定したコメント入力欄。詳細の「💬」を押すとここにフォーカスする */
 export const COMMENT_INPUT_ID = "comment-input";
 
@@ -178,6 +190,17 @@ export const LIKE_ERROR_MS = 2500;
 
 /** スワイプ: 縦横どちらの操作かを決めるまでの遊び (px) */
 export const SWIPE_SLOP_PX = 10;
+/**
+ * 写真の全画面で、左右にめくる・払う操作を受け付けない画面の端の幅 (px)（Issue #273）。
+ * iPhone の左端からのスワイプ（1ページ戻る）と取り合わないよう、端から始まった指は受け付けない（戻るで全画面が閉じる）。
+ */
+export const SWIPE_EDGE_GUARD_PX = 24;
+/** 投稿画面・コメントの書きかけを端末に残すまでの待ち (ms)。打つたびには書かない（Issue #273） */
+export const DRAFT_SAVE_DELAY_MS = 400;
+/** 閉じて開き直したとき、最後に見ていた画面へ戻すのは、前回からこの時間以内（Issue #273。lib/resume.ts） */
+export const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** 開き直したとき、スクロール位置を戻そうとし続ける時間 (ms)。投稿が読み込まれて高さが足りるのを待つ */
+export const RESUME_SCROLL_WAIT_MS = 3000;
 /** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */
 export const SWIPE_DISMISS_RATIO = 0.25;
 /** これより速く指を払ったら、距離が足りなくても閉じる・送る (px/ms) */
@@ -196,3 +219,30 @@ export const SAVE_BATCH_MAX_BYTES = 50 * 1024 * 1024;
 
 /** 選択モードで、一番下のこの距離 (px) 手前まで来たら過去の写真を読み込み始める */
 export const PICKER_PRELOAD_MARGIN_PX = 800;
+
+/**
+ * タイムライン・ギャラリーで読む投稿の件数（Issue #251。電波が悪くても速く開けるように）。
+ * ★どれも Rules の上限（posts 50）以下にする★ 超えるとクエリ全体が拒否される。
+ * - 最初は 10 件だけ購読する（以前は 50 件。写真付きが多いと、開くだけで重くなっていた）
+ * - 続きは 1 回に 20 件ずつ読む（loadMore）
+ * - タイムラインは、下に残りが PREFETCH 件になったら先に次を読み始める（待ち時間を見せない）
+ * - ギャラリーは、最初に格子が GALLERY_FIRST_TILES 枚になるまで続けて読む
+ */
+export const TIMELINE_FIRST_PAGE = 10;
+export const TIMELINE_NEXT_PAGE = 20;
+export const TIMELINE_PREFETCH_POSTS = 3;
+export const GALLERY_FIRST_TILES = 30;
+/** ギャラリーの格子で、下の端の手前どれだけで先に読むか（画面の高さに対する割合） */
+export const GALLERY_PREFETCH_MARGIN = "0px 0px 100% 0px";
+
+/**
+ * 写真の下絵（Issue #253）から本物の写真へ重ねるフェードの長さ。
+ * ★PlaceholderImage の Tailwind のクラス（duration-200）と同じ値にする★（クラスは定数から組み立てられない）
+ */
+export const PLACEHOLDER_FADE_MS = 200;
+
+/**
+ * 送信中の投稿（Issue #254）を本物に入れ替える前に、本物の写真を読み込んで待つ時間の上限。
+ * 過ぎたら読めていなくても入れ替える（いつまでも「送信中」のままにしない）。
+ */
+export const OUTBOX_PRELOAD_TIMEOUT_MS = 10_000;

@@ -33,6 +33,25 @@ export type MediaItem = {
   height?: number;
   alt?: string;
 
+  // --- 一覧用の小さい版（Issue #251。lib/media-variants.ts）---
+  //   キーは軽量版のキーから決まる（variantKey）。url はキーから組み立てられないとき（配信元が未設定）の予備。
+  //   大きさは軽量版の縦横（width・height）を長辺 828px・400px に縮めたもの（fitWithin）。無い古い投稿は軽量版に落ちる
+  /** タイムライン・投稿の詳細の一覧用（長辺 828px） */
+  feedPath?: string;
+  feedUrl?: string;
+  /** ギャラリーの格子・小さいサムネイル用（長辺 400px） */
+  gridPath?: string;
+  gridUrl?: string;
+  /** 動画の1枚目の画像（長辺 400px）。一覧では動画本体を読まずにこれを出す */
+  posterPath?: string;
+  posterUrl?: string;
+  /**
+   * 写真の「下絵」（Issue #253）。長辺 16px の JPEG の data URL（1024 文字以下。lib/media-variants.ts の isPlaceholder）。
+   * 写真が届く前に、ぼかして枠に敷く。動画はポスターから作る。無い古い投稿は灰色の枠のまま。
+   * ★Rules も形を確かめる★（okPlaceholder）。投稿のデータはゲスト全員が読む
+   */
+  placeholder?: string;
+
   // --- 二段階アップロードの原本 ---
   originalUrl?: string;
   originalPath?: string;

@@ -21,7 +21,8 @@ export type InvitationContent = {
    * 会費（Issue #148）。config/invitation ではなく config/payment から API が足す。未設定なら出さない。
    * ★お車代の額は入れない★（招待状に書かない）
    */
-  fee?: { partyYen: number; secondYen: number };
+  /** secondTentative … 2次会の金額が未定（「（予定）」を付けて出す。Issue #270） */
+  fee?: { partyYen: number; secondYen: number; secondTentative?: boolean };
   /**
    * 確認までの目安（Issue #157 B-4。例: 通常、1〜2 日以内に確認します。）。
    * ★いまは画面に出さない★（Issue #167 で承認待ちを1画面に収めるため外した）。設定済みの config/invitation を

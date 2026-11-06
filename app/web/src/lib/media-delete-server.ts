@@ -40,6 +40,10 @@ function publicObjectsOf(media: MediaItem[]): PublicObject[] {
   for (const m of media) {
     if (typeof m?.storagePath === "string" && m.storagePath) out.push({ key: m.storagePath, kind: "thumb" });
     if (typeof m?.originalPath === "string" && m.originalPath) out.push({ key: m.originalPath, kind: "original" });
+    // 一覧用の小さい版・動画の1枚目の画像（Issue #251）。軽量版と同じ公開バケットの t/ にある
+    for (const k of [m?.feedPath, m?.gridPath, m?.posterPath]) {
+      if (typeof k === "string" && k) out.push({ key: k, kind: "thumb" });
+    }
   }
   return out;
 }
@@ -154,8 +158,11 @@ export async function cleanupRemovedMedia(params: {
     // ★キーは Sentry に出さない（uid が入る）★ 投稿 ID と、media の何番めの軽量版（t）・高画質版（o）かで示す。
     //   キーそのものは、削除前の投稿（Firestore のバックアップ）か、編集なら今の投稿の履歴から引ける
     const where = r.failed.map((key) => {
-      const i = removed.findIndex((m) => m.storagePath === key || m.originalPath === key);
-      return `${i}${removed[i]?.storagePath === key ? "t" : "o"}`;
+      const i = removed.findIndex((m) => m.storagePath === key || m.originalPath === key
+        || m.feedPath === key || m.gridPath === key || m.posterPath === key);
+      const m = removed[i];
+      const at = m?.storagePath === key ? "t" : m?.originalPath === key ? "o" : "v";
+      return `${i}${at}`;
     });
     console.error(`[${logLabel}] 公開バケットに消せなかった写真があります postId=${postId} 位置=${where.join(",")}`);
   }

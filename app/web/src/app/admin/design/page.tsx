@@ -10,6 +10,7 @@ import { ProgramList, ProgramStrip } from "@/components/guestbook/ProgramList";
 import { SAMPLE_INVITATION } from "@/config/wedding";
 import { PostCard } from "@/components/guestbook/PostCard";
 import { Composer } from "@/components/guestbook/Composer";
+import { emptyProgress } from "@/lib/post-draft";
 import { HeartIcon } from "@/components/guestbook/HeartIcon";
 import {
   CHROMA_MAX,
@@ -246,7 +247,16 @@ export default function AdminDesignPage() {
                 {/* 投稿画面の見本（Issue #224）。本番は全画面のシートなので、ここでは高さを決めた枠に入れる。
                     投稿・キャンセルは本番と同じ動き（キャンセルの確認、灰色の「投稿する」の知らせ）まで見られる */}
                 <div className="h-[640px] overflow-hidden rounded-2xl border border-stone-200/80 shadow-sm">
-                  <Composer user={user} tags={session.tags} onUploadOriginals={() => {}} />
+                  <Composer
+                    user={user}
+                    tags={session.tags}
+                    // 見本では送信の列を使わず、その場で送る（本番と同じ処理。高画質版は列に入れない）
+                    onSubmitDraft={(d) =>
+                      void import("@/lib/post-send")
+                        .then(({ sendDraft }) => sendDraft(d, emptyProgress(d), () => {}))
+                        .catch((e: unknown) => alert(e instanceof Error ? e.message : "投稿に失敗しました"))
+                    }
+                  />
                 </div>
                 <div className="rounded-2xl border border-stone-200/80 bg-white p-4 shadow-sm">
                   <p className="text-xs leading-relaxed text-stone-500">

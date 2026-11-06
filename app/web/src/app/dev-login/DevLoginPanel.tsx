@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged, signInWithCustomToken, signOut, type User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, clearDeviceData } from "@/lib/firebase";
 import { DEV_ACCOUNTS } from "@/config/emulator";
 
 /** 開発用ログインの中身（page.tsx の★参照）。テスト用アカウントを選んで入る */
@@ -76,7 +76,8 @@ export function DevLoginPanel() {
             {user && (
               <button
                 type="button"
-                onClick={() => void signOut(auth)}
+                // 本番と同じく、端末に残した Firestore の内容も消す（Issue #251）
+                onClick={() => void clearDeviceData("/dev-login")}
                 disabled={busy !== null}
                 className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-50 disabled:opacity-40"
               >

@@ -24,6 +24,7 @@ import {
   type Attendance,
   type Ceremony,
   type FamilyAttendance,
+  isLegacyFamilyAttendance,
   type InvitationKind,
 } from "@/types/admin";
 import { GUIDE_PATHS } from "@/config/guide";
@@ -78,7 +79,7 @@ function draftFromPrivate(d: Record<string, unknown>): AnswerDraft {
  *   出欠は座席と料理の数に関わる。誤ってタップしたまま保存しないよう、もう一度押してもらう。
  *   アレルギーなどは確認なしで保存する。どちらの変更も管理画面に「変更あり」と出る（answers-server の★参照）。
  * ★親族用の招待状から答えた人（guestPrivate.invitationKind === "family"。Issue #240）は親族用のフォーム★
- *   質問・文字の大きさとも招待状と同じ。種類はサーバーも記録から決める（ここで切り替えても送る形が変わるだけ）。
+ *   質問は招待状と同じ（文字の大きさは (guest)/layout が決める。Issue #243）。種類はサーバーも記録から決める（ここで切り替えても送る形が変わるだけ）。
  */
 export default function GuideQuestionnairePage() {
   const { user, profile, tags } = useGuestSessionContext();
@@ -99,6 +100,8 @@ export default function GuideQuestionnairePage() {
   const [tried, setTried] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const program = useInvitationProgram(!!user);
+  // 以前の選択肢（会食のみ・挙式のみ）で答えていた親族（Issue #262）。未選択に戻して、選び直してもらう
+  const [legacyFamily, setLegacyFamily] = useState<FamilyAttendance | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -107,6 +110,8 @@ export default function GuideQuestionnairePage() {
       .then((snap) => {
         if (!alive) return;
         const a = draftFromPrivate(snap.data() ?? {});
+        const stored = snap.data()?.familyAttendance;
+        setLegacyFamily(isLegacyFamilyAttendance(stored) ? stored : null);
         setKind(snap.data()?.invitationKind === "family" ? "family" : "friend");
         setSaved(a);
         setForm(a);
@@ -191,7 +196,7 @@ export default function GuideQuestionnairePage() {
           ref={formRef}
           onSubmit={onSubmit}
           noValidate
-          className={`rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm ${kind === "family" ? "inv-family inv-scaled" : ""}`}
+          className="rounded-2xl border border-stone-200/80 bg-white p-5 shadow-sm"
         >
           <AnswerFields
             kind={kind}
@@ -200,16 +205,23 @@ export default function GuideQuestionnairePage() {
             program={program?.program}
             missing={tried ? missing : undefined}
             attendanceHint={
-              attendanceChanged &&
-              saved && (
-                <p className="mt-1.5 text-xs text-amber-700">
-                  {attendanceText(kind, saved)} から {attendanceText(kind, form)} に変更します（保存前に確認します）
+              kind === "family" && legacyFamily && form.familyAttendance === "unanswered" ? (
+                // ★以前の4択で答えた人には、選び直しを頼む★（Issue #262。出席は会食から最後まで通しての参加になった）
+                <p role="alert" className="mt-1.5 text-xs text-amber-700">
+                  出欠の選び方が変わりました。もう一度お選びください（以前のご回答：{FAMILY_ATTENDANCE_LABEL[legacyFamily]}）
                 </p>
+              ) : (
+                attendanceChanged &&
+                saved && (
+                  <p className="mt-1.5 text-xs text-amber-700">
+                    {legacyFamily && kind === "family" ? FAMILY_ATTENDANCE_LABEL[legacyFamily] : attendanceText(kind, saved)} から {attendanceText(kind, form)} に変更します（保存前に確認します）
+                  </p>
+                )
               )
             }
           />
 
-          <p className="mt-6 text-[11px] leading-relaxed text-stone-400">
+          <p className="mt-6 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
             ゲストブックに表示するニックネームは、ゲストブックのマイページで変更できます。
           </p>
 
@@ -227,7 +239,7 @@ export default function GuideQuestionnairePage() {
           <button
             type="submit"
             disabled={!canSave}
-            className="mt-6 min-h-11 w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+            className="mt-6 min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full bg-stone-900 px-6 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
           >
             {busy ? "保存中…" : "保存する"}
           </button>
@@ -236,7 +248,7 @@ export default function GuideQuestionnairePage() {
 
       <Link
         href={approved ? GUIDE_PATHS.home : "/pending"}
-        className="mt-4 flex min-h-11 touch-manipulation items-center justify-center rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
+        className="mt-4 flex min-h-[var(--inv-tap)] touch-manipulation items-center justify-center rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
       >
         {approved ? "ご案内に戻る" : "承認待ちの画面に戻る"}
       </Link>
@@ -309,14 +321,14 @@ function ConfirmAttendance({
           <button
             type="button"
             onClick={onCancel}
-            className="min-h-11 touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
           >
             キャンセル
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="min-h-11 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
           >
             変更を確定する
           </button>

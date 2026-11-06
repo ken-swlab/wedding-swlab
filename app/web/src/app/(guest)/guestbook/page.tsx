@@ -13,27 +13,41 @@ import { GalleryGrid } from "@/components/guestbook/GalleryGrid";
 import { PersonFilter } from "@/components/guestbook/PersonFilter";
 import { useGuestDirectory } from "@/hooks/useGuestDirectory";
 import type { Person } from "@/lib/visibility";
-import { PostLightbox } from "@/components/guestbook/PostLightbox";
-import { PostDetailSheet } from "@/components/guestbook/PostDetailSheet";
-import { PhotoPicker } from "@/components/guestbook/PhotoPicker";
+import dynamic from "next/dynamic";
 import {
   UploadStatusBar,
   type PendingOriginal,
 } from "@/components/guestbook/UploadStatusBar";
 import { AuthorNameProvider } from "@/components/guestbook/AuthorNameProvider";
-import { GuestbookShell, selectModeHref, useGuestbookView } from "@/components/guestbook/GuestbookShell";
+import { GuestbookShell, selectModeHref, useGalleryEnabled, useGuestbookView } from "@/components/guestbook/GuestbookShell";
 import {
   GUESTBOOK_PATHS,
   GUESTBOOK_QUERY_PARAM,
   GUESTBOOK_SELECT_PARAM,
+  GUESTBOOK_VIEW_PARAM,
+  GALLERY_FIRST_TILES,
+  GALLERY_PREFETCH_MARGIN,
   postIdFromPath,
 } from "@/config/guestbook";
+import { useNearEnd } from "@/hooks/useNearEnd";
+import { currentConnection, galleryPrefetchCount, isSlowConnection, prefetchImage, whenIdle } from "@/lib/prefetch";
+import { gridSrc, posterSrc } from "@/lib/media-url";
+import { usePostOutboxContext } from "@/components/guestbook/ComposerSheet";
 import { publicName } from "@/lib/names";
 import { SplashScreen } from "@/components/SplashScreen";
 import { ScreenFade, useDarkEntry } from "@/components/ScreenFade";
 import { OPENING_TIMING } from "@/config/opening";
-import { WelcomeMoment } from "@/components/guestbook/WelcomeMoment";
+
+/**
+ * ★最初の画面に要らない部品は、使うときに読む★（Issue #250。最初の JS を小さくする）
+ *   どれも開いたとき・出すときだけ描くので、読み込みは開いた瞬間に始まる（ssr: false。ゲストの画面はログインのあとにだけ描く）。
+ */
+const PostLightbox = dynamic(() => import("@/components/guestbook/PostLightbox").then((m) => m.PostLightbox), { ssr: false });
+const PostDetailSheet = dynamic(() => import("@/components/guestbook/PostDetailSheet").then((m) => m.PostDetailSheet), { ssr: false });
+const PhotoPicker = dynamic(() => import("@/components/guestbook/PhotoPicker").then((m) => m.PhotoPicker), { ssr: false });
+const WelcomeMoment = dynamic(() => import("@/components/guestbook/WelcomeMoment").then((m) => m.WelcomeMoment), { ssr: false });
 import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
+import { CloseHint } from "@/components/guestbook/CloseHint";
 import { getJson, postJson } from "@/lib/api-client";
 import { likePost } from "@/lib/posts";
 import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
@@ -64,12 +78,62 @@ export default function GuestbookPage() {
   const posts = useMemo(() => filterPosts(allPosts, terms), [allPosts, terms]);
   // 送信キューも layout 側に1つだけ（GuestbookDataProvider の★参照）
   const upload = useGuestbookUpload();
+  const outbox = usePostOutboxContext();
 
   // タイムライン / ギャラリーはボトムナビが ?view= で切り替える
   const view = useGuestbookView();
+  // ★ギャラリーを出さない間（Issue #270）は、ギャラリーの URL をタイムラインの URL に書き直す★ 画面はもうタイムライン
+  //   （useGuestbookView）。管理者かどうかが分かってから（authLoading が終わってから）見る。検索語（?q=）は残す
+  const galleryEnabled = useGalleryEnabled();
+  const galleryUrl = params.get(GUESTBOOK_VIEW_PARAM) === "gallery";
+  useEffect(() => {
+    // 詳細シートの表示中（URL が /guestbook/posts/{id}）は書き直さない（シートが閉じてしまう）
+    if (authLoading || galleryEnabled || !galleryUrl || sheetId) return;
+    const next = new URLSearchParams(params.toString());
+    next.delete(GUESTBOOK_VIEW_PARAM);
+    next.delete(GUESTBOOK_SELECT_PARAM);
+    const q = next.toString();
+    router.replace(q ? `${GUESTBOOK_PATHS.home}?${q}` : GUESTBOOK_PATHS.home, { scroll: false });
+  }, [authLoading, galleryEnabled, galleryUrl, sheetId, params, router]);
   const selecting = view === "gallery" && params.get(GUESTBOOK_SELECT_PARAM) === "1";
   // 選択モードの自動読み込みに渡す。毎回作り直すと読み込みの見張りが張り直しになる
   const loadMoreGallery = useCallback(() => void loadMore(), [loadMore]);
+  // ★ギャラリーは、最初に格子が GALLERY_FIRST_TILES 枚になるまで続けて読む★（Issue #251）
+  //   タイムラインは 10 件だけ読むので、写真の無い投稿が多いとギャラリーが数枚しか出ない。
+  //   人・検索で絞っているときは読みに行かない（絞り込みの結果が少ないだけで、遡りが止まらなくなる）
+  // ★タイムラインのうちに、手が空いたら先に読んでおく★（Issue #255。下の warm）
+  const [warm, setWarm] = useState(false);
+  const galleryShort = (view === "gallery" || (warm && galleryEnabled)) && !personUid && !searching && !loading && !error
+    && hasMore && !loadingMore && allPosts.filter((p) => p.media.length > 0).length < GALLERY_FIRST_TILES;
+  useEffect(() => {
+    if (galleryShort) void loadMore();
+  }, [galleryShort, loadMore]);
+
+  /**
+   * よく開く画面の先読み（Issue #255）。タイムラインを開いて落ち着いたら（requestIdleCallback、無ければ 2 秒後）、
+   *   - 下のタブの画面（コミュニティ・通知・マイページ）を router.prefetch で読む
+   *     （タブの Link は prefetch={false}。最初の画面の読み込みと取り合わないよう、ここでまとめて読む）
+   *   - ギャラリーの最初の GALLERY_FIRST_TILES 枚分の投稿のデータを読む（上の galleryShort）
+   *   - ギャラリーの最初の1画面分の写真（grid）を読む（下の effect）
+   * ★電波が悪いときはしない★（lib/prefetch.ts の isSlowConnection）。ギャラリーは開いたときに読む。
+   */
+  const settled = view === "timeline" && !loading && !error && !!user;
+  useEffect(() => {
+    if (!settled || warm || isSlowConnection(currentConnection())) return;
+    return whenIdle(() => {
+      for (const path of [GUESTBOOK_PATHS.community, GUESTBOOK_PATHS.notifications, GUESTBOOK_PATHS.settings]) router.prefetch(path);
+      setWarm(true);
+    });
+  }, [settled, warm, router]);
+  useEffect(() => {
+    // ギャラリーを出さない間（Issue #270）は、ギャラリーの写真を先読みしない
+    if (!warm || !galleryEnabled) return;
+    const count = galleryPrefetchCount(currentConnection(), { width: window.innerWidth, height: window.innerHeight }, 3);
+    for (const p of allPosts.filter((x) => x.media.length > 0).slice(0, count)) {
+      const m = p.media[0];
+      prefetchImage(m.type === "image" ? gridSrc(m) : posterSrc(m));
+    }
+  }, [warm, galleryEnabled, allPosts]);
   // 詳細画面などから戻ったら、そのビューで見ていた位置に戻す
   useScrollRestore(view);
   const directory = useGuestDirectory(view === "gallery" && tags.length > 0);
@@ -83,6 +147,9 @@ export default function GuestbookPage() {
    */
   const [welcome, setWelcome] = useState<WelcomeContent | null>(null);
   const [welcomeRunning, setWelcomeRunning] = useState(false);
+  // 演出を出すかを確かめ終えたか（「↓ を押すとすぐ戻れます」は、演出が済んでから出す。Issue #273）
+  const [welcomeChecked, setWelcomeChecked] = useState(false);
+  const [welcomeDone, setWelcomeDone] = useState(false);
   // 幕（ScreenFade の approved）が開ききる時刻。承認待ちから来たときだけ
   const [curtainUntil] = useState(() => (darkEntry === "approved" ? Date.now() + OPENING_TIMING.curtainOpen : 0));
   const [pin, setPin] = useState<{ content: WelcomeContent; hidden: boolean } | null>(null);
@@ -92,7 +159,9 @@ export default function GuestbookPage() {
     let cancelled = false;
     getJson<WelcomeStatus>("/api/guest/welcome")
       .then((r) => {
-        if (cancelled || !r.show || !r.content) return;
+        if (cancelled) return;
+        setWelcomeChecked(true);
+        if (!r.show || !r.content) return;
         setWelcome(r.content);
         // ★承認待ちから来たときは、幕が開ききってから始める★（Issue #165。幕 → タイムライン → 思い出の写真）
         const wait = Math.max(0, curtainUntil - Date.now());
@@ -100,7 +169,9 @@ export default function GuestbookPage() {
         else setWelcomeRunning(true);
         postJson("/api/guest/welcome", {}).catch((e: unknown) => console.error("[guestbook] 演出の記録に失敗しました", e));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setWelcomeChecked(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -164,6 +235,7 @@ export default function GuestbookPage() {
           onReveal={() => setPin((p) => (p ? { ...p, hidden: false } : p))}
           onDone={({ liked }) => {
             setWelcomeRunning(false);
+            setWelcomeDone(true);
             // スキップ（いいねしていない）なら固定しない
             if (!liked) setPin(null);
           }}
@@ -173,6 +245,8 @@ export default function GuestbookPage() {
       )}
       <GuestbookShell>
           <div className="space-y-4">
+            {/* LINE の中だけ・一度だけ（Issue #273）。承認後の写真の演出が済んでから */}
+            {view === "timeline" && <CloseHint ready={welcomeChecked && (!welcome || welcomeDone)} />}
             <UploadStatusBar upload={upload} serverPending={serverPending} />
 
             {searching && (
@@ -198,6 +272,12 @@ export default function GuestbookPage() {
                     loading={loading}
                     error={error}
                     user={user}
+                    // 検索中は先読みしない（ボタンで読む）
+                    hasMore={hasMore && !searching}
+                    loadingMore={loadingMore}
+                    onNearEnd={loadMoreGallery}
+                    // 送信中の自分の投稿を一番上に出す（Issue #254）。検索中は出さない
+                    outbox={searching ? null : outbox}
                   />
                 )}
                 {!searching && hasMore && posts.length > 0 && (
@@ -223,6 +303,7 @@ export default function GuestbookPage() {
                 footer={
                   hasMore && !personUid && !searching && gallery.length > 0 ? (
                     <div className="pt-4">
+                      <GalleryPrefetch loadingMore={loadingMore} onNearEnd={loadMoreGallery} />
                       <LoadMore loading={loadingMore} onClick={() => void loadMore()} />
                     </div>
                   ) : null
@@ -288,13 +369,19 @@ function SearchSummary({
   );
 }
 
+/** ギャラリーの下の端の手前で、先に続きを読む目印（Issue #251） */
+function GalleryPrefetch({ loadingMore, onNearEnd }: { loadingMore: boolean; onNearEnd: () => void }) {
+  const ref = useNearEnd<HTMLDivElement>(true, loadingMore, onNearEnd, GALLERY_PREFETCH_MARGIN);
+  return <div ref={ref} aria-hidden="true" />;
+}
+
 function LoadMore({ loading, onClick }: { loading: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={loading}
-      className="min-h-11 w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
+      className="min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full border border-stone-200 bg-white text-sm text-stone-500 transition hover:bg-stone-100 disabled:opacity-50"
     >
       {loading ? "読み込み中…" : "もっと見る"}
     </button>

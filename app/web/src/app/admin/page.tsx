@@ -16,7 +16,8 @@ import {
   ATTENDANCE_OPTIONS,
   CEREMONY_LABEL,
   FAMILY_ATTENDANCE_LABEL,
-  FAMILY_ATTENDANCE_OPTIONS,
+  FAMILY_ATTENDANCE_ALL,
+  isLegacyFamilyAttendance,
   PAYMENT_LABEL,
   type Attendance,
   type GuestRow,
@@ -121,8 +122,8 @@ export default function AdminPage() {
 
   function exportCsv() {
     // invitationKind・familyAttendance・stayPrevNight（Issue #240）。親族用の人の「出欠」（友人用）は空にする
-    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "招待状", "出欠", "挙式", "親族の出欠", "前泊", "お酒", "お車代", "アレルギー", "備考", "送金", "タグ", "メモ"];
-    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", r.invitationKind === "family" ? "親族用" : "友人用", r.invitationKind === "family" ? "" : ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.familyAttendance ? FAMILY_ATTENDANCE_LABEL[r.familyAttendance] : "", r.stayPrevNight === null ? "" : r.stayPrevNight ? "あり" : "なし", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, PAYMENT_LABEL[r.paymentStatus], withoutSystemTags(r.tags).map((t) => tagDef(t).label).join(" "), r.aiMemo]);
+    const head = ["uid", "名前", "ニックネーム", "LINE名", "承認", "招待状", "出欠", "挙式", "親族の出欠", "前泊", "お酒", "お車代", "アレルギー", "連絡事項", "送金", "タグ", "メモ"];
+    const body = [...pending, ...approved].map((r) => [r.uid, adminName(r), r.nickname, r.lineDisplayName, r.isApproved ? "済" : "未", r.invitationKind === "family" ? "親族用" : "友人用", r.invitationKind === "family" ? "" : ATTENDANCE_LABEL[r.attendance], r.ceremony ? CEREMONY_LABEL[r.ceremony] : "", r.familyAttendance ? FAMILY_ATTENDANCE_LABEL[r.familyAttendance] : "", r.stayPrevNight === null ? "" : r.stayPrevNight ? "あり" : "なし", r.drinkLevel !== null ? DRINK_LEVELS[r.drinkLevel].label : "", r.carFare === null ? "" : r.carFare ? "希望" : "不要", r.allergy, r.note, r.invitationKind === "family" ? "親族（手渡し）" : PAYMENT_LABEL[r.paymentStatus], withoutSystemTags(r.tags).map((t) => tagDef(t).label).join(" "), r.aiMemo]);
     const csv = [head, ...body].map((c) => c.map((x) => `"${String(x ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }));
@@ -151,6 +152,7 @@ export default function AdminPage() {
             <Link href="/admin/invitation_test" className={NAV_LINK}>招待状テスト →</Link>
             <Link href="/admin/welcome" className={NAV_LINK}>承認後の写真 →</Link>
             <Link href="/admin/tags" className={NAV_LINK}>タグの管理 →</Link>
+            <Link href="/admin/venue-test" className={NAV_LINK}>会場の電波テスト →</Link>
             <Link href="/admin/design" className={NAV_LINK}>デザイン検討 →</Link>
             {/* スマホでは 4 列 × 2 段に折り返す（横スクロールさせない） */}
             <div className="grid w-full grid-cols-4 gap-x-2 gap-y-1 text-sm md:ml-auto md:flex md:w-auto md:items-center md:gap-4">
@@ -164,7 +166,8 @@ export default function AdminPage() {
           {familyStats.total > 0 && (
             <p className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-stone-500">
               <span className="text-stone-400">親族用（承認済み {familyStats.total}人）:</span>
-              {FAMILY_ATTENDANCE_OPTIONS.map((o) => (
+              {/* 以前の選択肢（会食のみ・挙式のみ）は、答えた人がいるときだけ出す（Issue #262） */}
+              {FAMILY_ATTENDANCE_ALL.filter((o) => !isLegacyFamilyAttendance(o.value) || (familyStats.by[o.value] ?? 0) > 0).map((o) => (
                 <span key={o.value}>{o.label} <span className="tabular-nums font-semibold text-stone-800">{familyStats.by[o.value] ?? 0}</span>人</span>
               ))}
               <span>前泊 <span className="tabular-nums font-semibold text-stone-800">{familyStats.stay}</span>人</span>

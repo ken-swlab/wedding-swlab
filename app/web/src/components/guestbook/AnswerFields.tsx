@@ -85,7 +85,8 @@ export function answerDraftMissing(d: AnswerDraft, kind: InvitationKind = "frien
   if (kind === "friend" && attends && d.ceremony === "") out.push("ceremony");
   if (kind === "family" && attends && d.stayPrevNight === null) out.push("stayPrevNight");
   if (attends && d.drinkLevel === null) out.push("drinkLevel");
-  if (attends && d.carFare === null) out.push("carFare");
+  // お車代は友人用だけ（Issue #262。親族用は前日の宿泊の質問が代わり）
+  if (kind === "friend" && attends && d.carFare === null) out.push("carFare");
   if (d.hasAllergy === null || (d.hasAllergy === true && !d.allergy.trim())) out.push("allergy");
   return out;
 }
@@ -120,7 +121,7 @@ export function answerPayload(d: AnswerDraft, kind: InvitationKind = "friend") {
     firstKana: d.firstKana.trim(),
     ...choice,
     drinkLevel: attends ? d.drinkLevel : null,
-    carFare: attends ? d.carFare : null,
+    carFare: kind === "friend" && attends ? d.carFare : null,
     hasAllergy: d.hasAllergy === true,
     allergy: d.hasAllergy ? d.allergy.trim() : "",
     note: d.note.trim(),
@@ -134,10 +135,11 @@ const inputClass =
   "mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50/50 px-3 py-2.5 text-base text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-400 focus:bg-white";
 
 /**
- * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・お酒・お車代・アレルギー・備考）。
+ * 出欠の回答の入力欄（お名前・ふりがな・ご出欠・挙式・お酒・お車代・アレルギー・連絡事項）。
  * 招待状（OnboardingForm）と /guide/questionnaire で共通。送信ボタンと送信処理は呼び出し側が持つ。
  * afterName: ふりがなの下に差し込む欄（招待状のニックネーム）。
- * kind が family なら親族用の質問（Issue #240）: ご出欠は会食・挙式の4択、前日のご宿泊を聞き、挙式から／パーティーからは聞かない。
+ * kind が family なら親族用の質問（Issue #240）: ご出欠は「出席／欠席」の2択（Issue #262）、出席なら前日のご宿泊を聞く。
+ *   挙式から／パーティーから・お車代は聞かない。
  */
 export function AnswerFields({
   kind = "friend",
@@ -298,7 +300,8 @@ export function AnswerFields({
           </Section>
         )}
 
-        {attends && (
+        {/* お車代は友人用だけ（Issue #262。親族用は前日の宿泊の質問が代わり） */}
+        {!family && attends && (
           <Section label="お車代について" required field="carFare" error={lack("carFare") ? "お車代を受け取るかを選んでください" : undefined}>
             {/* ★条件や金額は書かない★（Issue #148。希望する人にはお渡しする、というスタンス） */}
             <p className="text-[length:calc(13px*var(--inv-scale))] leading-relaxed text-stone-500">
@@ -313,8 +316,7 @@ export function AnswerFields({
                 いいえ
               </Choice>
             </div>
-            {/* 親族用には出さない（Issue #240。親族は会費なしの前提で、差し引く会費がない） */}
-            {!family && <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] text-stone-400">お車代は会費から差し引いてお渡しします。</p>}
+            <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] text-stone-400">お車代は会費から差し引いてお渡しします。</p>
           </Section>
         )}
 
@@ -343,17 +345,26 @@ export function AnswerFields({
         </Section>
       </Group>
 
-      <Group no={4} title="メッセージ">
-        <Section label="備考・連絡事項">
+      {/*
+        ★お祝いの言葉を書く欄ではない★（Issue #262）当日の運営に関わる連絡のための欄。
+          お祝いのメッセージは、承認後のタイムラインに書いてもらう。保存先（note）・文字数の上限は今のまま。
+      */}
+      <Group no={4} title="連絡事項">
+        {/* 「任意」は Section が名前の横に付ける（名前に入れると「連絡事項（任意） 任意」と二重になる）。読み上げは aria-label で「連絡事項（任意）」 */}
+        <Section label="連絡事項">
           <p className="text-[length:calc(13px*var(--inv-scale))] leading-relaxed text-stone-500">
-            その他、新郎新婦へ伝えておきたい事や連絡事項があればご記入ください。
+            当日の運営に関わるご連絡があればご記入ください。
+          </p>
+          <p className="mt-0.5 text-[length:calc(11.5px*var(--inv-scale))] leading-relaxed text-stone-500">
+            お祝いのメッセージは、承認後のタイムラインでぜひお寄せください。
           </p>
           <textarea
             value={value.note}
             onChange={(e) => onChange({ note: e.target.value })}
             rows={3}
             maxLength={ANSWER_NOTE_MAX}
-            aria-label="備考・連絡事項"
+            aria-label="連絡事項（任意）"
+            placeholder="例：到着が遅れます／車椅子を使います／お子さま用の椅子が必要です"
             className={`${inputClass} resize-none leading-relaxed`}
           />
         </Section>

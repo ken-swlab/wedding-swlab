@@ -110,4 +110,15 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   widenClientFileUpload: true,
   sourcemaps: { deleteSourcemapsAfterUpload: true },
+  /**
+   * ★使わない部品を最初の JS から外す★（Issue #250）Session Replay は入れない決まり（instrumentation-client.ts の★）なので、
+   *   Replay の部品（iframe・Shadow DOM・圧縮用の Worker）と、デバッグ用のコードを外す。
+   *   tracing は外さない（Web Vitals を集めるのに使う）。
+   */
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+    excludeReplayWorker: true,
+  },
 });

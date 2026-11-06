@@ -1,15 +1,16 @@
 "use client";
 
+import { takeFiles } from "@/lib/file-input";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
-import { compressForTimeline } from "@/lib/image";
+import { compressForTimeline, makeImageVariants, makePosterPlaceholder, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import {
   MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, extOf, isStorageConfigured,
-  reserveOriginalKey, uploadThumb, uploadVideo,
+  reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
 } from "@/lib/media";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
 import { updatePost, type EditedMedia } from "@/lib/posts";
 import { MAX_POST_LENGTH } from "@/lib/text";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
@@ -17,6 +18,7 @@ import type { EnqueueItem } from "@/hooks/useUpload";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { TagBadge } from "./TagBadge";
 import { displayVisibleTags } from "@/config/tags";
+import { scopeForDisplay } from "@/lib/visibility-scope";
 import type { MediaItem, Post } from "@/types";
 import { CameraIcon } from "@/components/icons";
 
@@ -31,6 +33,10 @@ type Picked = {
   compressed?: ReencodedJpeg;
   width?: number;
   height?: number;
+  /** 一覧用の小さい版（Issue #251。Composer と同じ） */
+  variants?: ImageVariants;
+  /** 動画の1枚目の画像（Issue #251。Composer と同じ） */
+  poster?: Promise<ReencodedJpeg | null>;
 };
 
 /** 送信済みの1件（保存の API だけ失敗してやり直すときに、同じ写真を二重に送らない） */
@@ -102,10 +108,11 @@ export function PostEditor({
   }, [busy, onClose]);
 
   async function onPick(files: FileList | null) {
-    if (!files?.length) return;
+    // ★先に取り出してから入力欄を空にする★（Issue #278。lib/file-input.ts の takeFiles）
+    const list = takeFiles(files, fileRef.current);
+    if (list.length === 0) return;
     setError(null);
-    const incoming = Array.from(files).slice(0, MAX_MEDIA_PER_POST - total);
-    if (fileRef.current) fileRef.current.value = "";
+    const incoming = list.slice(0, MAX_MEDIA_PER_POST - total);
 
     const drafts: Picked[] = incoming.map((file) => {
       const previewUrl = URL.createObjectURL(file);
@@ -116,6 +123,7 @@ export function PostEditor({
         previewUrl,
         isVideo: file.type.startsWith("video/"),
         compressing: !file.type.startsWith("video/"),
+        poster: file.type.startsWith("video/") && file.size <= MAX_ORIGINAL_BYTES ? makeVideoPoster(file).catch(() => null) : undefined,
       };
     });
     setAdded((p) => [...p, ...drafts]);
@@ -130,7 +138,8 @@ export function PostEditor({
       }
       try {
         const { blob, width, height } = await compressForTimeline(d.file);
-        setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, compressed: blob, width, height } : x)));
+        const variants = await makeImageVariants(blob);
+        setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, compressed: blob, width, height, variants } : x)));
       } catch {
         setAdded((p) => p.map((x) => (x.id === d.id ? { ...x, compressing: false, error: "画像を処理できませんでした" } : x)));
       }
@@ -151,14 +160,21 @@ export function PostEditor({
     let result: Sent;
     if (p.isVideo) {
       const v = await uploadVideo(p.file, ext);
-      result = { media: { type: "video", storagePath: v.key, alt: p.file.name } };
+      const poster = await (p.poster ?? Promise.resolve(null));
+      const extra = poster ? await uploadVariants(v.key, { poster }) : {};
+      const placeholder = poster ? await makePosterPlaceholder(poster) : null;
+      result = { media: { type: "video", storagePath: v.key, alt: p.file.name, posterPath: extra.posterPath, placeholder: placeholder ?? undefined } };
     } else {
       // ★軽量版は必ず canvas で作り直したものだけを送る★（Composer の★参照。Issue #66）
       if (!p.compressed) throw new Error("写真の準備ができていません。写真を選び直してください");
       const t = await uploadThumb(p.compressed);
       const originalPath = await reserveOriginalKey(ext, p.file.type || "image/jpeg");
+      const v = p.variants ? await uploadVariants(t.key, p.variants) : {};
       result = {
-        media: { type: "image", storagePath: t.key, width: p.width, height: p.height, alt: p.file.name, originalPath },
+        media: {
+          type: "image", storagePath: t.key, width: p.width, height: p.height, alt: p.file.name, originalPath,
+          feedPath: v.feedPath, gridPath: v.gridPath, placeholder: p.variants?.placeholder,
+        },
         original: { thumbPath: t.key, originalPath, fileName: p.file.name, bytes: p.file.size, file: p.file },
       };
     }
@@ -228,7 +244,7 @@ export function PostEditor({
           type="button"
           onClick={onClose}
           disabled={busy}
-          className="min-h-11 touch-manipulation rounded-full px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
+          className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
         >
           キャンセル
         </button>
@@ -237,7 +253,7 @@ export function PostEditor({
           type="button"
           onClick={() => void onSave()}
           disabled={!canSave}
-          className="my-1.5 min-h-11 touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+          className="my-1.5 min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
         >
           {busy ? "保存中…" : preparing ? "準備中…" : "保存"}
         </button>
@@ -262,9 +278,13 @@ export function PostEditor({
             {kept.map((m) => (
               <div key={m.storagePath} className="relative aspect-square overflow-hidden rounded-xl bg-stone-100">
                 {m.type === "video" ? (
-                  <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  posterSrc(m) ? (
+                    <Image src={posterSrc(m)!} alt="" fill sizes="25vw" className="object-cover" />
+                  ) : (
+                    <video src={thumbSrc(m)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                  )
                 ) : (
-                  <Image src={thumbSrc(m)} alt="" fill sizes="25vw" className="object-cover" />
+                  <Image src={gridSrc(m)} alt="" fill sizes="25vw" className="object-cover" />
                 )}
                 <RemoveButton
                   disabled={busy}
@@ -287,7 +307,7 @@ export function PostEditor({
                   </div>
                 )}
                 {p.error && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[10px] leading-tight text-rose-700">
+                  <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
                     {p.error}
                   </div>
                 )}
@@ -314,7 +334,7 @@ export function PostEditor({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy || !storageReady || total >= MAX_MEDIA_PER_POST}
-            className="mt-3 inline-flex min-h-11 touch-manipulation items-center gap-1.5 rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
+            className="mt-3 inline-flex min-h-[var(--inv-tap)] touch-manipulation items-center gap-1.5 rounded-full border border-stone-200 px-4 text-sm text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
           >
             <CameraIcon className="h-[18px] w-[18px]" />
             写真・動画を追加
@@ -326,7 +346,8 @@ export function PostEditor({
           <div className="mt-5 rounded-xl bg-stone-50 p-3">
             <p className="text-xs font-medium text-stone-500">公開範囲</p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {displayVisibleTags(post.visibleToTags).map((t) => (
+              {/* 個別のタグがあれば「全員」は出さない（Issue #272。投稿画面の1行と同じ決まり） */}
+              {scopeForDisplay(displayVisibleTags(post.visibleToTags)).map((t) => (
                 <TagBadge key={t} id={t} />
               ))}
             </div>

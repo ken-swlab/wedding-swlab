@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { Post } from "@/types";
-import { thumbSrc } from "@/lib/media-url";
+import { gridSrc } from "@/lib/media-url";
 import {
   canShareFiles,
   downloadFiles,
@@ -99,7 +99,7 @@ export function PhotoPicker({
         <button
           type="button"
           onClick={onExit}
-          className="min-h-11 touch-manipulation rounded-full px-4 text-sm text-stone-500 transition hover:bg-stone-100"
+          className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-4 text-sm text-stone-500 transition hover:bg-stone-100"
         >
           キャンセル
         </button>
@@ -123,7 +123,7 @@ export function PhotoPicker({
                 className="relative aspect-square touch-manipulation bg-stone-100"
               >
                 <Image
-                  src={thumbSrc(p.media)}
+                  src={gridSrc(p.media)}
                   alt=""
                   fill
                   sizes="33vw"
@@ -173,7 +173,7 @@ export function PhotoPicker({
                 type="button"
                 onClick={() => setSelected(allSelected ? new Set() : new Set(photos.map((p) => p.key)))}
                 disabled={photos.length === 0}
-                className="min-h-11 touch-manipulation rounded-full px-3 text-sm text-sky-700 transition hover:bg-sky-50 disabled:opacity-40"
+                className="min-h-[var(--inv-tap)] touch-manipulation rounded-full px-3 text-sm text-sky-700 transition hover:bg-sky-50 disabled:opacity-40"
               >
                 {allSelected ? "すべて解除" : "すべて選択"}
               </button>
@@ -184,7 +184,7 @@ export function PhotoPicker({
                 type="button"
                 onClick={startSave}
                 disabled={selected.size === 0}
-                className="min-h-11 touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
+                className="min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 px-5 text-sm font-medium text-white transition hover:bg-stone-700 disabled:opacity-40"
               >
                 保存
               </button>
@@ -381,7 +381,7 @@ function SaveDialog({ photos, onClose }: { photos: PhotoEntry[]; onClose: (done:
             <button
               type="button"
               onClick={() => void onShare()}
-              className="min-h-11 touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
+              className="min-h-[var(--inv-tap)] touch-manipulation rounded-full bg-stone-900 text-sm font-medium text-white transition hover:bg-stone-700"
             >
               {phase.files.length}枚を保存する
             </button>
@@ -390,7 +390,7 @@ function SaveDialog({ photos, onClose }: { photos: PhotoEntry[]; onClose: (done:
             <button
               type="button"
               onClick={retryFailed}
-              className="min-h-11 touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
+              className="min-h-[var(--inv-tap)] touch-manipulation rounded-full border border-stone-200 text-sm text-stone-700 transition hover:bg-stone-100"
             >
               読み込めなかった{failed.length}枚をやり直す
             </button>
@@ -398,7 +398,7 @@ function SaveDialog({ photos, onClose }: { photos: PhotoEntry[]; onClose: (done:
           <button
             type="button"
             onClick={close}
-            className="min-h-11 touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
+            className="min-h-[var(--inv-tap)] touch-manipulation rounded-full text-sm text-stone-500 transition hover:bg-stone-100"
           >
             {phase.kind === "done" ? "閉じる" : "やめる"}
           </button>

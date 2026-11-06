@@ -98,7 +98,7 @@ export default function OpeningReplayPage() {
             <button
               type="button"
               onClick={() => setView({ ...view, kind: "playing" })}
-              className="mt-5 min-h-11 w-full touch-manipulation rounded-full bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-700"
+              className="mt-5 min-h-[var(--inv-tap)] w-full touch-manipulation rounded-full bg-stone-900 px-4 text-sm font-medium text-white transition hover:bg-stone-700"
             >
               {view.recordedMs !== null ? "もう一度見る" : "挑戦する"}
             </button>
@@ -110,7 +110,7 @@ export default function OpeningReplayPage() {
         )}
         <div className="mt-3 flex flex-wrap items-center justify-center">
           {/* ランキングとオープニングの導線はコミュニティにある（Issue #174） */}
-          <Link href={GUESTBOOK_PATHS.community} className="inline-flex min-h-11 items-center px-4 text-sm text-stone-500">
+          <Link href={GUESTBOOK_PATHS.community} className="inline-flex min-h-[var(--inv-tap)] items-center px-4 text-sm text-stone-500">
             コミュニティに戻る（ランキング）
           </Link>
         </div>

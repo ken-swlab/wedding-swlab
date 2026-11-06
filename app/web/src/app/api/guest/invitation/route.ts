@@ -79,7 +79,9 @@ async function handle(req: Request) {
     const { opening, ...invitation } = config;
     // 会費は config/payment から（Issue #148）。★お車代の額は返さない★（招待状に出さない）
     const payment = await paymentConfig();
-    const fee = payment ? { partyYen: payment.partyYen, secondYen: payment.secondYen } : undefined;
+    const fee = payment
+      ? { partyYen: payment.partyYen, secondYen: payment.secondYen, ...(payment.secondTentative ? { secondTentative: true } : {}) }
+      : undefined;
     res = { kind, cleared, registered, ready: true, invitation: fee ? { ...invitation, fee } : invitation, opening };
   } else {
     res = { kind, cleared, registered, ready: false };

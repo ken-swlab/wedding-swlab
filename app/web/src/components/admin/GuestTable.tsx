@@ -145,11 +145,15 @@ export function GuestTable({ mode, rows, preGuests = [], linkedUids, onSave, onA
   function allergyTextarea(row: GuestRow, card: boolean) {
     return <textarea value={field(row, "allergy")} onChange={(e) => patch(row.uid, { allergy: e.target.value })} rows={2} maxLength={500} placeholder="—" aria-label="アレルギー" className={card ? CARD_TEXTAREA : CELL_TEXTAREA} />;
   }
-  /** 備考はゲスト本人が書く欄。管理画面からは編集しない */
+  /** 連絡事項（Issue #262。以前の「備考」）はゲスト本人が書く欄。管理画面からは編集しない */
   function noteText(row: GuestRow, card: boolean) {
-    return row.note ? <p className={`mt-1 whitespace-pre-wrap break-words leading-relaxed text-stone-500 ${card ? "text-xs" : "text-[10px]"}`}>備考: {row.note}</p> : null;
+    return row.note ? <p className={`mt-1 whitespace-pre-wrap break-words leading-relaxed text-stone-500 ${card ? "text-xs" : "text-[10px]"}`}>連絡事項: {row.note}</p> : null;
   }
   function paymentSelect(row: GuestRow, card: boolean) {
+    // ★親族用から入った人は会費を手渡しでいただく★（Issue #243）送金の確認の対象にしないので、選ぶ欄を出さない
+    if (row.invitationKind === "family") {
+      return <p className={`w-full ${card ? "rounded-lg px-3 py-2.5 text-sm" : "rounded-md px-2 py-1 text-xs"} bg-stone-100 font-medium text-stone-600`}>親族（手渡し）</p>;
+    }
     return <select value={field(row, "paymentStatus")} onChange={(e) => patch(row.uid, { paymentStatus: e.target.value as PaymentStatus })} aria-label="送金" className={`w-full ${card ? `${CARD_SELECT} min-w-0` : "rounded-md px-2 py-1 text-xs font-medium"} ${PAYMENT_STYLE[field(row, "paymentStatus")]}`}>{PAYMENT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>;
   }
   function tagPicker(row: GuestRow) {
