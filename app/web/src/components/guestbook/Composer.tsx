@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
 import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
@@ -98,6 +99,9 @@ export function Composer({
   const [hint, setHint] = useState<{ text: string; key: string } | null>(null);
   /** 公開範囲を選ぶシート */
   const [scopeOpen, setScopeOpen] = useState(false);
+  // 公開範囲のシートも、戻る（左端のスワイプ）で閉じる（Issue #273）
+  const closeScope = useCallback(() => setScopeOpen(false), []);
+  useBackToClose(scopeOpen, closeScope);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---

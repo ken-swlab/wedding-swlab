@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import type { UploadApi } from "@/hooks/useUpload";
 import { postJson } from "@/lib/api-client";
 import { useGuestSessionContext } from "./GuestSessionContext";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import { PhotoFineIcon, PhotoQuickIcon } from "@/components/icons";
 
 type PhotoIntroApi = {
@@ -44,6 +45,9 @@ export function PhotoIntroProvider({ upload, children }: { upload: UploadApi; ch
     );
   }, []);
   const api = useMemo<PhotoIntroApi>(() => ({ showIfFirst, open: () => setOpen(true) }), [showIfFirst]);
+  // 戻る（左端のスワイプ）でも閉じる（Issue #273）
+  const closeSheet = useCallback(() => setOpen(false), []);
+  useBackToClose(open, closeSheet);
 
   const canSendNow = upload.remaining > 0 && !upload.running;
   return (

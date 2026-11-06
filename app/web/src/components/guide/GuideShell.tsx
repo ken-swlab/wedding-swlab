@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useHistoryFloor } from "@/hooks/useHistoryOverlay";
 import { SpaceSwitch } from "@/components/guestbook/SpaceSwitch";
 import { GUIDE_PATHS } from "@/config/guide";
 import { useTags } from "@/lib/tags-client";
@@ -31,6 +32,11 @@ const NAV: { key: string; label: string; icon: ReactNode; href: string | null; a
 export function GuideShell({ children }: { children: ReactNode }) {
   // ★タグの辞書の購読をここでも始める★（Issue #231。GuestbookShell と同じ。購読は1本のまま）
   useTags();
+  // ★タブの画面では、戻る（左端のスワイプ）で招待状やログインの画面へ行かない★（Issue #273。useHistoryFloor）
+  const pathname = usePathname();
+  const search = useSearchParams().toString();
+  const tabRoot = NAV.some((item) => item.href === pathname);
+  useHistoryFloor(tabRoot, search ? `${pathname}?${search}` : pathname);
   return (
     <div className="min-h-dvh bg-stone-50">
       <header className="sticky top-0 z-40 border-b border-stone-200 bg-stone-50/94 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -78,6 +84,8 @@ function GuideNav() {
             <li key={item.key} className="flex-1">
               <Link
                 href={item.href}
+                // ★タブの切り替えは履歴に積まない★（Issue #273。左端のスワイプで前のタブに戻らない）
+                replace
                 aria-current={here ? "page" : undefined}
                 // 選んでいるタブは墨の太字（Issue #236）
                 className={`${tab} transition ${on ? "font-bold text-stone-900" : "text-stone-400 hover:text-stone-600"}`}

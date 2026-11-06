@@ -18,6 +18,7 @@ import { useGuestSessionContext } from "./GuestSessionContext";
 import { CameraIcon } from "@/components/icons";
 import { usePostOutbox, type PostOutbox } from "@/hooks/usePostOutbox";
 import { usePhotoIntro } from "./PhotoIntroSheet";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 
 type ComposerSheetApi = { open: () => void };
 
@@ -51,6 +52,16 @@ export function ComposerSheetProvider({
   const { user, tags, profile } = useGuestSessionContext();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  /**
+   * ★戻る（左端のスワイプ）で閉じたときは、書きかけを残す★（Issue #273。確認は出さない）
+   *   投稿画面を消さずに隠しておき（parked）、次に開いたら続きから書ける。キャンセル・投稿したときは消す。
+   */
+  const [parked, setParked] = useState(false);
+  const closeByBack = useCallback(() => {
+    setOpen(false);
+    setParked(true);
+  }, []);
+  useBackToClose(open, closeByBack);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextId = useRef(0);
 
@@ -80,23 +91,32 @@ export function ComposerSheetProvider({
   const outbox = usePostOutbox({ enqueue, notify, onPhotosPosted: showIfFirst });
 
   const onPosted = useCallback(() => {
-    setOpen(false);
     const onTimeline = window.location.pathname === GUESTBOOK_PATHS.home && window.location.search === "";
-    if (onTimeline) window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
-    else router.push(GUESTBOOK_PATHS.home);
+    // ★閉じたあと（積んだ履歴を戻したあと）に動く★（Issue #273）戻すと、ブラウザがスクロール位置を開いたときの位置に戻し、
+    //   router.push と重なると移った先を取り消してしまう。戻し終わり（popstate）か、少し待ってから動く
+    afterHistoryBack(() => {
+      if (onTimeline) window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+      else router.push(GUESTBOOK_PATHS.home);
+    });
+    setOpen(false);
+    setParked(false);
   }, [router]);
+  const onCancel = useCallback(() => {
+    setOpen(false);
+    setParked(false);
+  }, []);
 
   return (
     <ComposerSheetContext.Provider value={api}>
       <PostOutboxContext.Provider value={outbox}>{children}</PostOutboxContext.Provider>
-      {open && user && (
+      {(open || parked) && user && (
         <AuthorNameProvider value={profile ? publicName(profile) : "ゲスト"}>
-          <SheetFrame>
+          <SheetFrame visible={open}>
             <Composer
               user={user}
               tags={tags}
               onSubmitDraft={outbox.submit}
-              onClose={() => setOpen(false)}
+              onClose={onCancel}
               onPosted={onPosted}
             />
           </SheetFrame>
@@ -105,6 +125,24 @@ export function ComposerSheetProvider({
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((list) => list.filter((t) => t.id !== id))} />
     </ComposerSheetContext.Provider>
   );
+}
+
+/**
+ * 積んだ履歴を戻したあとに fn を動かす（Issue #273）。戻し終わり（popstate）か、戻さなかったとき用に少し待ってから。
+ */
+function afterHistoryBack(fn: () => void) {
+  let done = false;
+  const run = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener("popstate", onPop);
+    clearTimeout(timer);
+    // ブラウザがスクロール位置を戻し終えてから
+    requestAnimationFrame(fn);
+  };
+  const onPop = () => run();
+  window.addEventListener("popstate", onPop);
+  const timer = setTimeout(run, 400);
 }
 
 /** 送信中の投稿の列（Issue #254）。Provider の外では null */
@@ -123,21 +161,23 @@ export function useComposerSheet(): ComposerSheetApi {
  *   上のバー（投稿する）は枠の上端に残り、入力欄はキーボードの上に収まる。
  * ★表示中は後ろのページをスクロールさせない★（閉じたら元の位置のまま）
  */
-function SheetFrame({ children }: { children: ReactNode }) {
+function SheetFrame({ visible, children }: { visible: boolean; children: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   useVisualViewportFrame(frame);
 
   useEffect(() => {
+    if (!visible) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = prev;
     };
-  }, []);
+  }, [visible]);
 
   if (typeof document === "undefined") return null;
+  // ★隠している間（戻るで閉じた書きかけ）は hidden★ 見えない入力欄にフォーカスやタップが届かない
   return createPortal(
-    <div ref={frame} role="dialog" aria-modal="true" aria-label="新しい投稿" className="fixed inset-x-0 top-0 z-[60] h-dvh">
+    <div ref={frame} role="dialog" aria-modal="true" aria-label="新しい投稿" hidden={!visible} className="fixed inset-x-0 top-0 z-[60] h-dvh">
       <div className="composer-sheet-in mx-auto h-full max-w-xl overflow-hidden bg-white shadow-xl">{children}</div>
     </div>,
     document.body,

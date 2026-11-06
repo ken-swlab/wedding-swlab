@@ -14,6 +14,7 @@ import {
   type SwipeState,
 } from "@/hooks/useSwipe";
 import { useDoubleTap } from "@/hooks/useDoubleTap";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import { useHeartBursts } from "./HeartBurst";
 import {
   MOTION_EASING,
@@ -230,6 +231,10 @@ export function MediaLightbox({
     [index, onClose, sizes, thumbRect, view.w, view.h],
   );
 
+  // ★戻る（iPhone の左端からのスワイプ）で閉じる★（Issue #273。開いている間は履歴を1つ積む）
+  const closeByBack = useCallback(() => close(), [close]);
+  useBackToClose(true, closeByBack);
+
   /** 前後の写真へ送る（端なら元の位置へ戻す） */
   const page = useCallback(
     (next: number, dx = 0) => {
@@ -276,6 +281,8 @@ export function MediaLightbox({
   }
 
   const wasSwiping = useSwipe(root, {
+    // 画面の端から始まった指は、iPhone の「戻る」に任せる（Issue #273。戻るで閉じる）
+    guardEdges: true,
     canStart: (t) => {
       if (busy.current || isSwipeExempt(t)) return false;
       onVideo.current = !!t.closest("video");
