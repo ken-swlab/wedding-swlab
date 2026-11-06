@@ -1,6 +1,8 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
+import { readCommentDraft, saveCommentDraft } from "@/lib/composer-draft";
+import { DRAFT_SAVE_DELAY_MS } from "@/config/guestbook";
 import type { User } from "firebase/auth";
 import { useComments } from "@/hooks/useComments";
 import { createComment, deleteComment } from "@/lib/comments";
@@ -108,7 +110,12 @@ export function useCommentForm(
   const authorName = useAuthorName();
   // アイコンは本人が設定したもの（guests.photoURL）。Auth の photoURL は LINE の画像のまま
   const authorPhotoURL = useGuestSessionContext().profile?.photoURL || user.photoURL;
-  const [text, setText] = useState("");
+  // ★書きかけは端末に残す★（Issue #273。lib/composer-draft.ts）閉じて開き直しても、続きから書ける。送ったら（空になったら）消える
+  const [text, setText] = useState(() => readCommentDraft(user.uid, post.id));
+  useEffect(() => {
+    const t = setTimeout(() => saveCommentDraft(user.uid, post.id, text), DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [user.uid, post.id, text]);
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const ownInput = useRef<HTMLTextAreaElement>(null);

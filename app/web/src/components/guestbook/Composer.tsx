@@ -2,6 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackToClose } from "@/hooks/useHistoryOverlay";
+import {
+  clearComposerDraft,
+  readComposerText,
+  readDraftFiles,
+  removeDraftFile,
+  saveComposerText,
+  saveDraftFile,
+} from "@/lib/composer-draft";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
 import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
@@ -17,7 +25,7 @@ import { useAuthorName } from "./AuthorNameProvider";
 import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { TagChips } from "./TagChips";
-import { COMPOSER_HINT_MS } from "@/config/guestbook";
+import { COMPOSER_HINT_MS, DRAFT_SAVE_DELAY_MS } from "@/config/guestbook";
 import { CameraIcon } from "@/components/icons";
 
 type Picked = {
@@ -88,7 +96,14 @@ export function Composer({
   /** 投稿が成立した（フォームは片付け済み） */
   onPosted?: () => void;
 }) {
-  const [text, setText] = useState("");
+  /**
+   * ★書きかけを端末に残す★（Issue #273。lib/composer-draft.ts）閉じて開き直しても、続きから書ける。
+   *   本文・公開範囲・エピソードは開いたときに戻し、写真は端末から読み直して、選んだときと同じ処理（圧縮など）をし直す。
+   *   投稿したら・「下書きを捨てますか？」で捨てたら消す。
+   */
+  const [saved] = useState(() => readComposerText(user.uid));
+  const [restored, setRestored] = useState(() => saved !== null);
+  const [text, setText] = useState(saved?.text ?? "");
   const [picked, setPicked] = useState<Picked[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +120,8 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---
-  const [episodeOn, setEpisodeOn] = useState(false);
-  const [theme, setTheme] = useState<string>("");
+  const [episodeOn, setEpisodeOn] = useState(saved?.episodeOn ?? false);
+  const [theme, setTheme] = useState<string>(saved?.theme ?? "");
 
   /**
    * ★「新郎新婦」は、自分がそのタグを持っていなくても選べる★（新郎新婦あての投稿。Issue #97）
@@ -119,9 +134,19 @@ export function Composer({
     () => allTags.filter((t) => t.selectable && !t.archived && !t.system && (tags.includes(t.id) || t.id === COUPLE_TAG)),
     [allTags, tags],
   );
-  const [selected, setSelected] = useState<string[]>(() =>
-    tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1),
-  );
+  // 書きかけの公開範囲は、今も選べるタグだけを戻す（無くなったタグ・外れたタグは使わない）
+  const [selected, setSelected] = useState<string[]>(() => {
+    const keep = (saved?.selected ?? []).filter((t) => t === COUPLE_TAG || tags.includes(t));
+    if (keep.length > 0) return keep;
+    return tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1);
+  });
+
+  // 本文・公開範囲・エピソードを残す（打つたびに書かず、少し待ってから）
+  useEffect(() => {
+    const t = setTimeout(() => saveComposerText(user.uid, { text, selected, episodeOn, theme }), DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [user.uid, text, selected, episodeOn, theme]);
+
 
   // @メンションの候補は、選んでいる公開範囲が見える人だけ（範囲を変えると候補も変わる）
   const textInput = useRef<HTMLTextAreaElement>(null);
@@ -140,14 +165,19 @@ export function Composer({
 
   async function onPick(files: FileList | null) {
     if (!files?.length) return;
+    if (fileRef.current) fileRef.current.value = "";
+    await addFiles(Array.from(files));
+  }
+
+  /** ids … 端末に残した書きかけから戻すとき、その ID（もう残してあるので、残し直さない） */
+  async function addFiles(files: File[], ids?: string[]) {
     setError(null);
 
     const room = MAX_MEDIA_PER_POST - picked.length;
-    const incoming = Array.from(files).slice(0, room);
-    if (fileRef.current) fileRef.current.value = "";
+    const incoming = files.slice(0, room);
 
-    const drafts: Picked[] = incoming.map((file) => ({
-      id: crypto.randomUUID(),
+    const drafts: Picked[] = incoming.map((file, i) => ({
+      id: ids?.[i] ?? crypto.randomUUID(),
       file,
       previewUrl: URL.createObjectURL(file),
       isVideo: file.type.startsWith("video/"),
@@ -155,6 +185,8 @@ export function Composer({
       poster: file.type.startsWith("video/") && file.size <= MAX_ORIGINAL_BYTES ? makeVideoPoster(file).catch(() => null) : undefined,
     }));
     setPicked((p) => [...p, ...drafts]);
+    // 書きかけとして端末に残す（戻したものは残してあるので、新しく選んだものだけ）
+    if (!ids) drafts.forEach((d, i) => void saveDraftFile(user.uid, d.id, Date.now() + i, d.file));
 
     // 選んだ直後に圧縮まで済ませておく。投稿ボタンを押した時点で
     // 待ち時間がほぼゼロになり「送れた感」が出る。
@@ -185,6 +217,33 @@ export function Composer({
       if (target) URL.revokeObjectURL(target.previewUrl);
       return p.filter((x) => x.id !== id);
     });
+    void removeDraftFile(id);
+  }
+
+  // 残した写真・動画を読み直す（開いたときに1回だけ）
+  useEffect(() => {
+    let cancelled = false;
+    void readDraftFiles(user.uid).then((files) => {
+      if (cancelled || files.length === 0) return;
+      setRestored(true);
+      void addFiles(files.map((f) => f.file), files.map((f) => f.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // 開いたときに1回だけ
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 書きかけを消して、空の投稿画面にする（「書きかけを消す」） */
+  function discardDraft() {
+    picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPicked([]);
+    setText("");
+    setEpisodeOn(false);
+    setTheme("");
+    setRestored(false);
+    void clearComposerDraft(user.uid);
   }
 
   /**
@@ -244,6 +303,7 @@ export function Composer({
   function onCancel() {
     if (busy) return;
     if (hasDraft && !confirm("下書きを捨てますか？")) return;
+    void clearComposerDraft(user.uid);
     onClose();
   }
 
@@ -282,6 +342,8 @@ export function Composer({
       episode: episodeOn ? { theme } : null,
     };
     onSubmitDraft(draft);
+    // 送信の列に渡したので、端末の書きかけは消す（送れなかったときは列が「もう一度送る」を出す）
+    void clearComposerDraft(user.uid);
 
     // フォームを片付ける（写真の URL は列に渡したので解放しない）
     setText("");
@@ -333,6 +395,15 @@ export function Composer({
 
       {/* ---- 本体（ここだけスクロールする） ---- */}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4">
+        {/* 前回の書きかけを戻したとき（Issue #273） */}
+        {restored && hasDraft && (
+          <div role="status" className="mb-3 flex items-center justify-between gap-3 border-b border-stone-200 pb-2">
+            <p className="text-xs text-stone-500">書きかけがあります。続きから書けます。</p>
+            <button type="button" onClick={discardDraft} className="min-h-[var(--inv-tap)] shrink-0 touch-manipulation px-1 text-xs text-stone-500 underline underline-offset-4">
+              書きかけを消す
+            </button>
+          </div>
+        )}
         <input
           ref={fileRef}
           type="file"

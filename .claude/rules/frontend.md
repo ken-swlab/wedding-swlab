@@ -15,7 +15,7 @@ paths:
 
 ## ログインとセッション
 - `useLiffAuth`: LIFF → `liff.getIDToken()` → `POST /api/auth/line` → `signInWithCustomToken`。`@line/liff` は動的 import（SSR で読まない）。`/invitation` はページを開いただけではログインを始めない。
-- `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）・`textScale`（Issue #243）・`photoIntroSeen`（Issue #272）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
+- `useGuestSession`: claims の `tags` / `admin` と、`guests/{uid}`・`guestPrivate/{uid}` の `isActive`・`invitationKind`（Issue #240）・`textScale`（Issue #243）・`photoIntroSeen`（Issue #272）・`closeHintSeen`（Issue #273）を購読する。`claimsUpdatedAt` が増えたらトークンを取り直す（承認やタグ変更がこれで画面に届く）。Context ではないので、呼ぶたびに購読が増える点に注意。
 - 管理者かどうかは `claims.admin === true` だけで決める。
 - 起動（Issue #250）: ゲストの画面は Firebase のログイン（端末に残ったもの）だけを見て出し、LINE の確認（`liff.init`）は待たない。LINE アプリの中では、最初の画面のあとに `useLineAccountCheck` が LINE のアカウントと uid を比べ、違えばサインアウトして招待状からログインし直させる。`useGuestSession` は前回のプロフィール（guests の公開して困らない値だけ）を端末に覚え、届くまではそれで行き先を決める（届いた値で上書きする）。
 - 最初の画面に要らない部品は `next/dynamic` で使うときに読む（投稿画面・写真のビューア・投稿の詳細・写真の選択・承認後の演出・投稿の編集・画像の圧縮のライブラリ）。重い部品を足すときも同じにする。Sentry は名前を付けて import する（`import * as Sentry` は使わない部品まで最初の JS に入る）。
@@ -26,6 +26,7 @@ paths:
 - 投稿は送信を待たない（Issue #254）: 投稿画面（Composer）は「投稿する」で `PostDraft`（ID は `newPostId()` で先に決める）を送信の列 `usePostOutbox`（`ComposerSheetProvider` に1つ）に渡してすぐ閉じる。送信の処理は `lib/post-send.ts`（送るときに `import()`）、タイムラインは `PendingPostCard` を一番上に出し、同じ ID の本物は列から外れるまで出さない（本物の写真を読み込んでから入れ替える）。送れなければ「もう一度送る」「取り消す」と、`online` で自動の再送。**送信中の投稿は端末に保存しない**（閉じると消える。送っている間は閉じる前に確認を出す）。
 - ギャラリーは `config/guestbook.ts` の `GALLERY_ENABLED`（いまは `false`。Issue #270）でゲストから隠す: 下のタブは4つ、`?view=gallery` はタイムラインに書き直し、ギャラリーの先読みもしない。管理者には出す（`useGalleryEnabled`）。`true` で元の形に戻る。
 - 「戻る」の履歴（Issue #273。`hooks/useHistoryOverlay.ts`）: **タブの切り替え（下のタブ・ご案内のタブ・H&K の▾）は `replace`**（履歴に積まない）。タブの画面は `useHistoryFloor` で「床」の履歴を1つ下に置き、戻るで床に来たら `history.forward()` で戻す（招待状・ログインの画面へ戻らない）。**重なる画面（写真の全画面・投稿画面・公開範囲・説明のシート）は `useBackToClose`** で、開くときに同じ URL の履歴を1つ積み、戻るで閉じる（× で閉じたら積んだ履歴を戻す）。投稿の詳細は URL の履歴（`PostDetailSheet`）。投稿画面を戻るで閉じたときは、書きかけを残して隠す。写真の全画面のスワイプは、画面の左右 24px（`SWIPE_EDGE_GUARD_PX`）から始まった指を受け付けない。新しく重なる画面を作るときも `useBackToClose` を使う。
+- 閉じても元の場所に戻る（Issue #273）: `(guest)/layout.tsx` が最後に見ていた画面（パスとスクロール位置）を localStorage に覚え（`lib/resume.ts`。画面を移るたびと `visibilitychange`・`pagehide`）、承認済みの人がこのページで最初にゲストブックのトップ（`/guestbook`。クエリなし）に入ってきたら、そこへ移す（24 時間以内だけ。スクロールは `useResumeScroll`）。投稿画面・コメントの書きかけは `lib/composer-draft.ts`（本文は localStorage、写真は IndexedDB の `wedding-drafts`。`wedding-uploads` とは別）。送信・捨てる・サインアウト（`clearDeviceData`）で消す。LINE の中だけ、承認後の演出のあとに一度「↓ を押すとすぐ戻れます」（`CloseHint`。閉じた印は `guestPrivate.closeHintSeen`）。
 - 先読み（Issue #255。`lib/prefetch.ts`）: タイムラインは見えている投稿の次の 3 件の一覧の写真（feed）、ギャラリーは次の1画面分（grid）を `new Image()` で読む。全画面の写真は先読みしない。タイムラインが落ち着いたら（`whenIdle`）下のタブの画面を `router.prefetch` し、ギャラリーの最初の 30 枚分のデータと1画面分の写真を読む。**下のタブの `Link` は `prefetch={false}`**（最初の画面と取り合わないよう、ここでまとめて読む）。電波が悪い（`saveData`・`2g`）ときは写真を1件だけにし、画面の先読みはしない。
 - API は `src/lib/api-client.ts` の `getJson` / `postJson` / `putJson` で呼ぶ（`res.json()` を直接呼ばない。5xx には問い合わせ用の ID が付く）。素の `fetch` は例外だけ: ログイン前の `/api/auth/line`、待たない顔検出、AI のストリーム（`src/lib/ai-stream.ts`）と音声（`src/lib/tts.ts`）。
 - ブラウザに秘密を置かない。`NEXT_PUBLIC_*` は誰でも読める前提で扱う。パスコードや招待コードをクライアントのコードに書かない。

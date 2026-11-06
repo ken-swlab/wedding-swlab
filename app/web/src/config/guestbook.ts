@@ -195,6 +195,12 @@ export const SWIPE_SLOP_PX = 10;
  * iPhone の左端からのスワイプ（1ページ戻る）と取り合わないよう、端から始まった指は受け付けない（戻るで全画面が閉じる）。
  */
 export const SWIPE_EDGE_GUARD_PX = 24;
+/** 投稿画面・コメントの書きかけを端末に残すまでの待ち (ms)。打つたびには書かない（Issue #273） */
+export const DRAFT_SAVE_DELAY_MS = 400;
+/** 閉じて開き直したとき、最後に見ていた画面へ戻すのは、前回からこの時間以内（Issue #273。lib/resume.ts） */
+export const RESUME_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+/** 開き直したとき、スクロール位置を戻そうとし続ける時間 (ms)。投稿が読み込まれて高さが足りるのを待つ */
+export const RESUME_SCROLL_WAIT_MS = 3000;
 /** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */
 export const SWIPE_DISMISS_RATIO = 0.25;
 /** これより速く指を払ったら、距離が足りなくても閉じる・送る (px/ms) */
