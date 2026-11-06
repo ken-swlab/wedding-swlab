@@ -17,6 +17,7 @@ import type { EnqueueItem } from "@/hooks/useUpload";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
 import { TagBadge } from "./TagBadge";
 import { displayVisibleTags } from "@/config/tags";
+import { scopeForDisplay } from "@/lib/visibility-scope";
 import type { MediaItem, Post } from "@/types";
 import { CameraIcon } from "@/components/icons";
 
@@ -343,7 +344,8 @@ export function PostEditor({
           <div className="mt-5 rounded-xl bg-stone-50 p-3">
             <p className="text-xs font-medium text-stone-500">公開範囲</p>
             <div className="mt-1.5 flex flex-wrap gap-1">
-              {displayVisibleTags(post.visibleToTags).map((t) => (
+              {/* 個別のタグがあれば「全員」は出さない（Issue #272。投稿画面の1行と同じ決まり） */}
+              {scopeForDisplay(displayVisibleTags(post.visibleToTags)).map((t) => (
                 <TagBadge key={t} id={t} />
               ))}
             </div>

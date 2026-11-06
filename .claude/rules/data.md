@@ -34,7 +34,7 @@ paths:
 - 個人情報は `guestPrivate`（本人も見てよいもの）か `guestAdmin`（管理者だけ）へ。`guests` に足してよいのは公開して困らない値だけ。ゲスト向けの表示名は `src/lib/names.ts` の `publicName`（本名は出さない）。
 - 投稿の非表示は `/api/admin/posts/visibility` だけで行う（`status: "hidden"` を直接書かない）。コメントも `visibleToTags: []`・`hidden: true` にして、横断購読（`/screen`）から外す。戻すときは親の `visibleToTags` を写し直す。
 - 親族用の招待状（`/invitation/family`。Issue #240）から答えた人は `guestPrivate.invitationKind: "family"`（未設定は友人用）。記録は最初の回答のときだけ（register）で、あとから変えない。親族用の出欠は `familyAttendance` と `stayPrevNight`。回答フォームで選べるのは「出席（`both`）／欠席（`declined`）」の2つだけ（Issue #262。親族は会食から最後まで通して参加する前提）で、サーバーもこの2つしか受け付けない。以前の `meal_only` / `ceremony_only` は保存済みの回答にだけ残り、回答フォームでは未選択に戻して選び直してもらい、管理画面では「出席（旧：会食のみ）」と出す（`types/admin.ts` の `FAMILY_ATTENDANCE_LEGACY`）。親族用はお車代を聞かず `carFare: null`。**`attendance` は友人用だけ**（親族用の人は `unanswered` のまま。会費の計算は `attendance` だけを見る）。欠席の判定（仲間・顔の名寄せなど）は両方を見る。承認のとき `family` タグを自動で付ける（update-guest）。親族は会費を手渡しでいただくので、会費の API（`/api/guest/payment`）は 403「親族の方は会費の対象外です」を返し、画面は「会費」タブを出さない（Issue #243）。
-- 文字の大きさの設定は `guestPrivate.textScale`（`large` / `normal`。未設定なら親族用は大きく）。書くのは `/api/guest/preferences` だけ（Issue #243）。
+- 文字の大きさの設定は `guestPrivate.textScale`（`large` / `normal`。未設定なら親族用は大きく）。書くのは `/api/guest/preferences` だけ（Issue #243）。「写真は2回に分けて届けます」の説明を見た印 `guestPrivate.photoIntroSeen`（`true` だけ。Issue #272）も同じ API で書く。
 - アクセス停止は `guestPrivate.isActive === false`。判定は `!== false`（未設定を停止扱いにしない）。
 
 ## Rules のテスト（infra/firestore/test。Issue #101）

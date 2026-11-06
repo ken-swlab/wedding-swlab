@@ -265,3 +265,26 @@ export function MapPinIcon(p: IconProps) {
     </Svg>
   );
 }
+
+/** 写真は2回に分けて届けます（Issue #272）: 軽量版 = 小さな写真と稲妻 */
+export function PhotoQuickIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="3" y="8" width="11" height="9" rx="1.5" />
+      <path d="M3.5 15l3-3 2.5 2.5 1.5-1.5 3 3" />
+      <path d="M18.5 3.5l-2.5 5h3.5l-2.5 5" />
+    </Svg>
+  );
+}
+
+/** 写真は2回に分けて届けます（Issue #272）: 高画質版 = 大きな写真と星 */
+export function PhotoFineIcon(p: IconProps) {
+  return (
+    <Svg {...p}>
+      <rect x="2.5" y="6" width="16" height="14" rx="1.8" />
+      <circle cx="8" cy="11" r="1.6" />
+      <path d="M3 18l5-5 4 4 2.5-2.5 4 4" />
+      <path d="M20 1.8l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" />
+    </Svg>
+  );
+}

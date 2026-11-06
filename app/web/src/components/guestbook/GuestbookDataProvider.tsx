@@ -6,6 +6,7 @@ import { useUpload, type UploadApi } from "@/hooks/useUpload";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { MyReactionsProvider } from "./MyReactionsContext";
 import { ComposerSheetProvider } from "./ComposerSheet";
+import { PhotoIntroProvider } from "./PhotoIntroSheet";
 
 type GuestbookData = ReturnType<typeof usePosts> & {
   /** ギャラリーの人物の絞り込み。詳細画面から戻っても残す */
@@ -59,7 +60,10 @@ export function GuestbookDataProvider({ children }: { children: ReactNode }) {
     <GuestbookDataContext.Provider value={value}>
       <GuestbookUploadContext.Provider value={upload}>
         <MyReactionsProvider uid={user?.uid}>
-          <ComposerSheetProvider enqueue={upload.enqueue}>{children}</ComposerSheetProvider>
+          {/* 「写真は2回に分けて届けます」の説明（Issue #272）。投稿の列（ComposerSheetProvider）と帯（UploadStatusBar）から出す */}
+          <PhotoIntroProvider upload={upload}>
+            <ComposerSheetProvider enqueue={upload.enqueue}>{children}</ComposerSheetProvider>
+          </PhotoIntroProvider>
         </MyReactionsProvider>
       </GuestbookUploadContext.Provider>
     </GuestbookDataContext.Provider>

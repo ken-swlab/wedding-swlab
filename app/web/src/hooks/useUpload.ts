@@ -157,7 +157,7 @@ export function useUpload(uid?: string) {
         } catch (e) {
           setError(
             isQuotaError(e)
-              ? "端末の空き容量が足りず、高画質版を保存できませんでした。先に「本アップロードを開始」で送信してからお試しください。"
+              ? "端末の空き容量が足りず、高画質版を用意できませんでした。先に上の「高画質版を送る」で送ってからお試しください。"
               : e instanceof Error
                 ? e.message
                 : "写真の一時保存に失敗しました",
