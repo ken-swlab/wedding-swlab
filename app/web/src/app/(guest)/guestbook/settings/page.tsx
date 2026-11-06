@@ -1,5 +1,6 @@
 "use client";
 
+import { takeFiles } from "@/lib/file-input";
 import Image from "next/image";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { GuestbookShell } from "@/components/guestbook/GuestbookShell";
@@ -174,9 +175,8 @@ export default function SettingsPage() {
 
   /** 写真を選んだら切り取り画面を開く。ここではまだ何も送らない */
   async function onPickIcon(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    // 同じ写真をもう一度選んでも change が来るように空にしておく
-    e.target.value = "";
+    // 同じ写真をもう一度選んでも change が来るように空にしておく（★先に取り出してから★ Issue #278。lib/file-input.ts）
+    const file = takeFiles(e.target.files, e.target)[0];
     if (!file) return;
     setIconBusy(true);
     setMessage(null);
