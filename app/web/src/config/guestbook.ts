@@ -190,6 +190,11 @@ export const LIKE_ERROR_MS = 2500;
 
 /** スワイプ: 縦横どちらの操作かを決めるまでの遊び (px) */
 export const SWIPE_SLOP_PX = 10;
+/**
+ * 写真の全画面で、左右にめくる・払う操作を受け付けない画面の端の幅 (px)（Issue #273）。
+ * iPhone の左端からのスワイプ（1ページ戻る）と取り合わないよう、端から始まった指は受け付けない（戻るで全画面が閉じる）。
+ */
+export const SWIPE_EDGE_GUARD_PX = 24;
 /** スワイプで閉じる・戻る・写真を送る距離（画面の幅・高さに対する比） */
 export const SWIPE_DISMISS_RATIO = 0.25;
 /** これより速く指を払ったら、距離が足りなくても閉じる・送る (px/ms) */

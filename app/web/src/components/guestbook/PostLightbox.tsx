@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import { useAuthorProfile } from "@/lib/profiles-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
@@ -135,6 +136,9 @@ export function PostLightbox({
     closedRef.current = true;
     onClose();
   }, [onClose]);
+
+  // ★戻る（iPhone の左端からのスワイプ）で閉じる★（Issue #273）
+  useBackToClose(true, close);
 
   const onKey = useCallback(
     (e: KeyboardEvent) => {

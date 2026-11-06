@@ -9,6 +9,7 @@ import { SearchBar } from "./SearchBar";
 import { PullToRefresh } from "./PullToRefresh";
 import { SpaceSwitch } from "./SpaceSwitch";
 import { useBackdropLocation } from "@/hooks/useBackdropLocation";
+import { useHistoryFloor } from "@/hooks/useHistoryOverlay";
 import { useTags } from "@/lib/tags-client";
 import { useCompactChrome } from "@/hooks/useCompactChrome";
 import { useUnreadNotificationCount } from "@/hooks/useNotifications";
@@ -109,6 +110,11 @@ export function GuestbookShell({ children }: { children: ReactNode }) {
   const { pathname } = useBackdropLocation();
   const view = useGuestbookView();
   const { compact, expand } = useCompactChrome(`${pathname}:${view}`);
+  // ★タブの画面では、戻る（左端のスワイプ）で招待状やログインの画面へ行かない★（Issue #273。useHistoryFloor）
+  const { params } = useBackdropLocation();
+  const search = params.toString();
+  const tabRoot = NAV.some((item) => item.href.split("?")[0] === pathname);
+  useHistoryFloor(tabRoot, search ? `${pathname}?${search}` : pathname);
   const motion = { "--chrome-ms": `${CHROME_MORPH_MS}ms`, "--chrome-ease": CHROME_MORPH_EASING } as CSSProperties;
 
   return (
@@ -298,6 +304,8 @@ function BottomNav({ compact, onExpand }: { compact: boolean; onExpand: () => vo
               <li key={item.key} className="flex-1">
                 <Link
                   href={item.href}
+                  // ★タブの切り替えは履歴に積まない★（Issue #273。左端のスワイプで前のタブに戻らない）
+                  replace
                   // ★画面の先読みは、タイムラインが落ち着いてから guestbook/page.tsx がまとめて行う★（Issue #255）
                   //   既定（見えたらすぐ先読み）だと、最初の画面の読み込みと取り合い、電波が悪いときも読んでしまう
                   prefetch={false}

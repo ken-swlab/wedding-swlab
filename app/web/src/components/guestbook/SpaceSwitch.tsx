@@ -131,6 +131,8 @@ function SpaceSheet({
               <li key={s.key}>
                 <Link
                   href={s.href}
+                  // ★ゲストブックとご案内の切り替えは履歴に積まない★（Issue #273）。管理画面から来たときは積む（戻れるように）
+                  replace={current !== "admin"}
                   onClick={onClose}
                   aria-current={here ? "page" : undefined}
                   className={`flex min-h-16 touch-manipulation items-center gap-3 rounded-2xl border px-4 py-3 transition ${
