@@ -1,5 +1,6 @@
 "use client";
 
+import { takeFiles } from "@/lib/file-input";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -107,10 +108,11 @@ export function PostEditor({
   }, [busy, onClose]);
 
   async function onPick(files: FileList | null) {
-    if (!files?.length) return;
+    // ★先に取り出してから入力欄を空にする★（Issue #278。lib/file-input.ts の takeFiles）
+    const list = takeFiles(files, fileRef.current);
+    if (list.length === 0) return;
     setError(null);
-    const incoming = Array.from(files).slice(0, MAX_MEDIA_PER_POST - total);
-    if (fileRef.current) fileRef.current.value = "";
+    const incoming = list.slice(0, MAX_MEDIA_PER_POST - total);
 
     const drafts: Picked[] = incoming.map((file) => {
       const previewUrl = URL.createObjectURL(file);

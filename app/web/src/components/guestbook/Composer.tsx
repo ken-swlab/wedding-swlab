@@ -1,5 +1,6 @@
 "use client";
 
+import { takeFiles } from "@/lib/file-input";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useBackToClose } from "@/hooks/useHistoryOverlay";
 import {
@@ -163,10 +164,11 @@ export function Composer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ★先に取り出してから入力欄を空にする★（Issue #278。lib/file-input.ts の takeFiles）
   async function onPick(files: FileList | null) {
-    if (!files?.length) return;
-    if (fileRef.current) fileRef.current.value = "";
-    await addFiles(Array.from(files));
+    const list = takeFiles(files, fileRef.current);
+    if (list.length === 0) return;
+    await addFiles(list);
   }
 
   /** ids … 端末に残した書きかけから戻すとき、その ID（もう残してあるので、残し直さない） */
