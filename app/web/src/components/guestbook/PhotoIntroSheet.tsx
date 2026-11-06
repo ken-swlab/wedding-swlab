@@ -19,6 +19,8 @@ const PhotoIntroContext = createContext<PhotoIntroApi | null>(null);
 
 /**
  * 「写真は2回に分けて届けます」の説明（Issue #272）。軽量版と高画質版の役割を一言で伝える。
+ * ★軽量版＝当日（タイムライン・スクリーン・エンドロール）、高画質版＝あとで保存・思い出★（Issue #280）
+ *   高画質版の説明に「上映」「エンドロール」を使わない（当日の上映には軽量版を使うため）。
  *
  * ★写真付きで初めて投稿したときだけ出す★ 見た印は本人の設定（guestPrivate.photoIntroSeen。POST /api/guest/preferences）。
  *   端末を変えても二度出さない。印を書けなくても、このページを開いている間は出さない（localSeen）。
@@ -99,10 +101,10 @@ function PhotoIntroSheet({ onClose, onSendNow }: { onClose: () => void; onSendNo
         </h2>
         <ol className="mt-4 space-y-4">
           <IntroRow icon={<PhotoQuickIcon className="h-7 w-7" />} step="①" title="軽量版">
-            いま、すぐにタイムラインに載せました。電波が弱くても、通信量を気にせず届きます。
+            いま、すぐにタイムラインに載せました。当日のスクリーンやエンドロールにも、この写真を使います。
           </IntroRow>
           <IntroRow icon={<PhotoFineIcon className="h-7 w-7" />} step="②" title="高画質版">
-            元のきれいな写真です。当日の上映やエンドロール、あとでのダウンロードに使います。Wi-Fi のときに送ってください。
+            元のきれいな写真です。あとでみんなが写真を保存するときや、2人の思い出に残すために使います。会が終わってからでも大丈夫なので、Wi-Fi のときに送ってください。
           </IntroRow>
         </ol>
         <button
