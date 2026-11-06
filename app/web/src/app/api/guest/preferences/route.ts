@@ -23,7 +23,8 @@ async function _POST(req: Request) {
 
 /**
  * 本人の表示の設定（Issue #243）。文字の大きさ（textScale: "large" | "normal"）と、
- * 「写真は2回に分けて届けます」の説明を見た印（photoIntroSeen: true。Issue #272。一度見たら戻さないので true だけ受ける）。
+ * 「写真は2回に分けて届けます」の説明を見た印（photoIntroSeen: true。Issue #272）と、「↓ を押すとすぐ戻れます」の一言を
+ * 閉じた印（closeHintSeen: true。Issue #273）。どちらも一度見たら戻さないので true だけ受ける。
  * どちらか1つ以上を送る。
  *
  * ★保存先は guestPrivate（本人と管理者だけが読める）★ ゲストどうしで見える guests には置かない。
@@ -44,13 +45,13 @@ async function handle(req: Request) {
     return fail("ログインし直してください", 401);
   }
 
-  let body: { textScale?: unknown; photoIntroSeen?: unknown };
+  let body: { textScale?: unknown; photoIntroSeen?: unknown; closeHintSeen?: unknown };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return fail("リクエストが不正です", 400);
   }
-  const update: { textScale?: TextScale; photoIntroSeen?: true } = {};
+  const update: { textScale?: TextScale; photoIntroSeen?: true; closeHintSeen?: true } = {};
   if (body.textScale !== undefined) {
     if (typeof body.textScale !== "string" || !(TEXT_SCALES as readonly string[]).includes(body.textScale)) {
       return fail("文字の大きさの指定が不正です", 400);
@@ -60,6 +61,10 @@ async function handle(req: Request) {
   if (body.photoIntroSeen !== undefined) {
     if (body.photoIntroSeen !== true) return fail("指定が不正です", 400);
     update.photoIntroSeen = true;
+  }
+  if (body.closeHintSeen !== undefined) {
+    if (body.closeHintSeen !== true) return fail("指定が不正です", 400);
+    update.closeHintSeen = true;
   }
   if (Object.keys(update).length === 0) return fail("変える設定がありません", 400);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { clearDeviceData } from "@/lib/firebase";
 import { useGuestSession } from "@/hooks/useGuestSession";
@@ -12,6 +12,9 @@ import { recallInvitationKind } from "@/lib/invitation-kind-local";
 import { useTextScale } from "@/hooks/useTextScale";
 import { useLineAccountCheck } from "@/hooks/useLineAccountCheck";
 import { effectiveTextScale } from "@/config/text-scale";
+import { readLastScreen, saveLastScreen } from "@/lib/resume";
+import { useResumeScroll } from "@/hooks/useResumeScroll";
+
 
 /**
  * ★ゲスト画面の振り分けをここ1箇所に集める★
@@ -57,6 +60,28 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
    */
   const pendingMayEdit = pathname === GUIDE_PATHS.questionnaire && profile?.isRegistered === true;
 
+  const approved = ready && !!user && isActive && !!profile?.isRegistered && !!profile.isApproved && tags.length > 0;
+  /**
+   * ★開き直したら、最後に見ていた画面へ★（Issue #273。lib/resume.ts）承認済みの人が、このページで最初にゲストブックの
+   *   トップへ入ってきたときだけ。行き先（dest）を初めから戻る先にするので、トップを一瞬はさまない。
+   */
+  //   ★決めるのは、承認済みと分かった最初の1回だけ（decided）★ この layout はゲストの画面を移っても作り直されない。
+  //   ★戻すのは、最初にゲストブックのトップ（/guestbook。クエリなし）に入ってきたときだけ★ LIFF の入口・招待状・
+  //   トップ（/）はどれも /guestbook へ移る。リッチメニューなどで別の画面を直接開いたときは、その画面のまま。
+  const [decided, setDecided] = useState(false);
+  const [resume, setResume] = useState<{ path: string; y: number } | null>(null);
+  // スクロール位置を戻す先（戻る先に着いたあとも、位置を戻し終えるまで持つ）
+  const [resumeScroll, setResumeScroll] = useState<{ path: string; y: number } | null>(null);
+  if (approved && !decided) {
+    setDecided(true);
+    const atHome = pathname === GUESTBOOK_PATHS.home && (typeof window === "undefined" || window.location.search === "");
+    const last = atHome && user ? readLastScreen(user.uid) : null;
+    if (last) {
+      setResume(last);
+      setResumeScroll(last);
+    }
+  }
+
   let dest: string | null = null;
   if (ready) {
     // 未ログインは招待状へ。この端末で親族用を開いていたら親族用へ（Issue #240。使い勝手のためだけ）
@@ -69,8 +94,31 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
     else if (mayStayOnOnboarding) dest = "/onboarding";
     else if (!(profile.isApproved && tags.length > 0)) dest = pendingMayEdit ? pathname : "/pending";
     // 承認済みなら /guestbook 以下の画面（通知・設定・投稿の詳細）と、案内モード（/guide 以下）にも留まれる
+    else if (resume) dest = resume.path;
     else dest = isGuestbookPath(pathname) || isGuidePath(pathname) ? pathname : GUESTBOOK_PATHS.home;
   }
+  // 戻る先に着いたら、ふつうの振り分けに戻す（そのあとのタブの移動を戻る先へ引き戻さない）
+  if (resume && pathname === resume.path) setResume(null);
+
+  // 最後に見ていた画面を覚える（画面を移るたびと、見えなくなるとき。Issue #273）
+  //   ★戻る先へ移るまでは覚えない★（入口のトップで上書きしない）
+  const uid = approved && !resume ? user?.uid : undefined;
+  useEffect(() => {
+    if (!uid) return;
+    saveLastScreen(uid, pathname, window.scrollY);
+    const save = () => saveLastScreen(uid, window.location.pathname, window.scrollY);
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", save);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", save);
+    };
+  }, [uid, pathname]);
+  // 戻った先で、スクロール位置も戻す
+  useResumeScroll(pathname, resumeScroll);
 
   useEffect(() => {
     if (!ready) return;
@@ -83,7 +131,7 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
   }, [ready, dest, pathname, router, user, isActive]);
 
   // 遷移が終わるまで同じ画面を出し続けて白画面を挟まない
-  if (!ready || !dest || pathname !== dest) {
+  if (!ready || !dest || pathname !== dest || (approved && !decided)) {
     return <SplashScreen phase="booting" />;
   }
   return <GuestSessionProvider value={session}>{children}</GuestSessionProvider>;

@@ -90,6 +90,8 @@ export type GuestSession = {
    * 写真付きで初めて投稿したときだけ出す。読めない・未設定は false
    */
   photoIntroSeen: boolean;
+  /** 「閉じるときは、左上の ↓ を押すと…」の一言を閉じたか（guestPrivate.closeHintSeen。Issue #273）。読めない・未設定は false */
+  closeHintSeen: boolean;
   /** guestPrivate を読み終えたか（invitationKind・textScale が確かか） */
   privateReady: boolean;
   tags: string[];
@@ -112,7 +114,7 @@ export function useGuestSession(): GuestSession {
    *   切り替わりの一瞬に前のユーザーのプロフィールが見えてしまう。
    */
   const [profileState, setProfileState] = useState<{ uid: string; profile: GuestProfile | null } | null>(null);
-  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean; invitationKind: "friend" | "family"; textScale: TextScale | null; photoIntroSeen: boolean } | null>(null);
+  const [activeState, setActiveState] = useState<{ uid: string; isActive: boolean; invitationKind: "friend" | "family"; textScale: TextScale | null; photoIntroSeen: boolean; closeHintSeen: boolean } | null>(null);
   const lastSeen = useRef(0);
 
   const readClaims = useCallback(async (u: User | null, force = false) => {
@@ -207,10 +209,11 @@ export function useGuestSession(): GuestSession {
           invitationKind: snap.data()?.invitationKind === "family" ? "family" : "friend",
           textScale: (TEXT_SCALES as readonly unknown[]).includes(snap.data()?.textScale) ? (snap.data()?.textScale as TextScale) : null,
           photoIntroSeen: snap.data()?.photoIntroSeen === true,
+          closeHintSeen: snap.data()?.closeHintSeen === true,
         }),
       // 読めないときは停止と決めつけない（Rules の一時的な失敗で閉め出さない）
       // ★読めないときは「説明を見た」扱いにする★ 毎回出してしまうより、出さないほうが害が少ない
-      () => setActiveState({ uid: user.uid, isActive: true, invitationKind: "friend", textScale: null, photoIntroSeen: true }),
+      () => setActiveState({ uid: user.uid, isActive: true, invitationKind: "friend", textScale: null, photoIntroSeen: true, closeHintSeen: true }),
     );
   }, [user]);
 
@@ -224,8 +227,9 @@ export function useGuestSession(): GuestSession {
   const textScale = user && activeState?.uid === user.uid ? activeState.textScale : null;
   // 読み終える前は「見た」扱い（読み終えてから出すかを決める）
   const photoIntroSeen = user && activeState?.uid === user.uid ? activeState.photoIntroSeen : true;
+  const closeHintSeen = user && activeState?.uid === user.uid ? activeState.closeHintSeen : true;
   // guestPrivate を読み終えたか（文字の大きさを決められるか）
   const privateReady = !!user && activeState?.uid === user.uid;
 
-  return { user, isActive, invitationKind, textScale, photoIntroSeen, privateReady, tags, isAdmin, loading, profile, profileLoading, refreshTags };
+  return { user, isActive, invitationKind, textScale, photoIntroSeen, closeHintSeen, privateReady, tags, isAdmin, loading, profile, profileLoading, refreshTags };
 }

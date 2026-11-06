@@ -47,6 +47,7 @@ const PostDetailSheet = dynamic(() => import("@/components/guestbook/PostDetailS
 const PhotoPicker = dynamic(() => import("@/components/guestbook/PhotoPicker").then((m) => m.PhotoPicker), { ssr: false });
 const WelcomeMoment = dynamic(() => import("@/components/guestbook/WelcomeMoment").then((m) => m.WelcomeMoment), { ssr: false });
 import { WelcomePinned } from "@/components/guestbook/WelcomeCard";
+import { CloseHint } from "@/components/guestbook/CloseHint";
 import { getJson, postJson } from "@/lib/api-client";
 import { likePost } from "@/lib/posts";
 import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
@@ -146,6 +147,9 @@ export default function GuestbookPage() {
    */
   const [welcome, setWelcome] = useState<WelcomeContent | null>(null);
   const [welcomeRunning, setWelcomeRunning] = useState(false);
+  // 演出を出すかを確かめ終えたか（「↓ を押すとすぐ戻れます」は、演出が済んでから出す。Issue #273）
+  const [welcomeChecked, setWelcomeChecked] = useState(false);
+  const [welcomeDone, setWelcomeDone] = useState(false);
   // 幕（ScreenFade の approved）が開ききる時刻。承認待ちから来たときだけ
   const [curtainUntil] = useState(() => (darkEntry === "approved" ? Date.now() + OPENING_TIMING.curtainOpen : 0));
   const [pin, setPin] = useState<{ content: WelcomeContent; hidden: boolean } | null>(null);
@@ -155,7 +159,9 @@ export default function GuestbookPage() {
     let cancelled = false;
     getJson<WelcomeStatus>("/api/guest/welcome")
       .then((r) => {
-        if (cancelled || !r.show || !r.content) return;
+        if (cancelled) return;
+        setWelcomeChecked(true);
+        if (!r.show || !r.content) return;
         setWelcome(r.content);
         // ★承認待ちから来たときは、幕が開ききってから始める★（Issue #165。幕 → タイムライン → 思い出の写真）
         const wait = Math.max(0, curtainUntil - Date.now());
@@ -163,7 +169,9 @@ export default function GuestbookPage() {
         else setWelcomeRunning(true);
         postJson("/api/guest/welcome", {}).catch((e: unknown) => console.error("[guestbook] 演出の記録に失敗しました", e));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setWelcomeChecked(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -227,6 +235,7 @@ export default function GuestbookPage() {
           onReveal={() => setPin((p) => (p ? { ...p, hidden: false } : p))}
           onDone={({ liked }) => {
             setWelcomeRunning(false);
+            setWelcomeDone(true);
             // スキップ（いいねしていない）なら固定しない
             if (!liked) setPin(null);
           }}
@@ -236,6 +245,8 @@ export default function GuestbookPage() {
       )}
       <GuestbookShell>
           <div className="space-y-4">
+            {/* LINE の中だけ・一度だけ（Issue #273）。承認後の写真の演出が済んでから */}
+            {view === "timeline" && <CloseHint ready={welcomeChecked && (!welcome || welcomeDone)} />}
             <UploadStatusBar upload={upload} serverPending={serverPending} />
 
             {searching && (
