@@ -1,5 +1,6 @@
 "use client";
 
+import { useBootMark } from "@/hooks/useBootMark";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PasscodeStep } from "@/components/guestbook/PasscodeStep";
 import { InvitationView } from "@/components/guestbook/InvitationView";
@@ -87,6 +88,8 @@ export function InvitationFlow({ kind = "friend", ...props }: InvitationFlowProp
    *   ★外側の div は段階が変わっても同じものを使う★ 付け外しで中身を作り直すと、段階の切り替わりの演出（prev）が消える。
    */
   const className = [kind === "family" ? "inv-family" : "", props.step.kind === "opening" ? "" : "inv-scaled"].filter(Boolean).join(" ");
+  // 起動の計測: 最初の中身（入口・パスコードなど。読み込み中のスプラッシュ以外）が出た（Issue #277）
+  useBootMark("first-content", props.step.kind !== "loading");
   return (
     <div className={className || undefined}>
       <FlowSteps {...props} family={kind === "family"} />

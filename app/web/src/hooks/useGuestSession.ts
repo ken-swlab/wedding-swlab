@@ -3,6 +3,7 @@
 import { TEXT_SCALES, type TextScale } from "@/config/text-scale";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
+import { bootMark } from "@/lib/boot-timing";
 import { doc, onSnapshot } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
@@ -133,6 +134,8 @@ export function useGuestSession(): GuestSession {
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u);
+      // 起動の計測: Firebase のログインが済んだ（端末に残ったログインの復元を含む。Issue #277）
+      if (u) bootMark("firebase-login");
       // 前回のプロフィール（端末に覚えた値）で先に画面を決める。本物は guests の購読が届いたら上書きする
       if (u) {
         const cached = readCachedProfile(u.uid);

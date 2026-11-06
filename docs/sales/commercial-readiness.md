@@ -40,7 +40,7 @@ Vercel の公式の資料（[Fair use guidelines](https://vercel.com/docs/limits
 | Firewall のルール（CLAUDE.md ルール 19） | ルールの数や機能の制約がゆるむ。`api-flood-guard` に一定時間の遮断を足すか、ログだけにしている `bot-protection` を上げるか。**Worker の webhook（`/api/hooks/`）と LINE のリンクプレビューを止めない**条件は変わらない |
 | 利用量の上限と通知（Spend Management） | 従量の課金になる。外から大量に呼ばれたときの上限を、先に決める。画像の最適化を使わない設定（ルール 9）は、課金を外から増やされないために、そのまま保つ |
 | ログの保持 | 1 日で足りるか。事故の調査には短い（[incident-response.md](../ops/incident-response.md) §4）。Observability Plus か、ログの外部への転送を足すか |
-| 関数のリージョン | データベース（東京）に近づけるか。いまの場所は未確認（[data-inventory.md](../privacy/data-inventory.md) §7） |
+| 関数のリージョン | 東京（`hnd1`）を指定した（Issue #277。`app/web/vercel.json`）。データベース（東京）と同じ地域。本番での反映は確認待ち（[data-inventory.md](../privacy/data-inventory.md) §7） |
 | メンバーと権限 | 閲覧だけの席を、提供先やレビュアーに渡すか（[certification-roadmap.md](certification-roadmap.md) §4） |
 | 文書 | `CLAUDE.md` の「Vercel Hobby」の記述と、ルール 9・17・19 の前提。[security-answers.md](security-answers.md) の「ホスティング」「ログの保持」 |
 

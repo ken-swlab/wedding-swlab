@@ -14,6 +14,7 @@ import { useLineAccountCheck } from "@/hooks/useLineAccountCheck";
 import { effectiveTextScale } from "@/config/text-scale";
 import { readLastScreen, saveLastScreen } from "@/lib/resume";
 import { useResumeScroll } from "@/hooks/useResumeScroll";
+import { useBootMark } from "@/hooks/useBootMark";
 
 
 /**
@@ -131,6 +132,10 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
   }, [ready, dest, pathname, router, user, isActive]);
 
   // 遷移が終わるまで同じ画面を出し続けて白画面を挟まない
+  // 起動の計測: 最初の中身（スプラッシュ以外）が出た（Issue #277。lib/boot-timing.ts）
+  const showing = !!ready && !!dest && pathname === dest && !(approved && !decided);
+  useBootMark("first-content", showing);
+
   if (!ready || !dest || pathname !== dest || (approved && !decided)) {
     return <SplashScreen phase="booting" />;
   }

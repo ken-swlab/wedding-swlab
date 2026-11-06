@@ -5,6 +5,7 @@ import { safeMessage } from "@/lib/public-error";
 import { isPasscodeCleared } from "@/lib/passcode-server";
 import { invitationConfig } from "@/lib/invitation-server";
 import { paymentConfig } from "@/lib/payment-server";
+import { createServerTiming } from "@/lib/server-timing";
 import type { InvitationStatus } from "@/types/invitation";
 import type { InvitationKind } from "@/types/admin";
 import { storedInvitationKind } from "@/lib/answers-server";
@@ -55,11 +56,27 @@ async function handle(req: Request) {
     return fail("ログインし直してください", 401);
   }
 
-  const [publicSnap, privateSnap, adminSnap] = await Promise.all([
-    db.collection("guests").doc(uid).get(),
-    db.collection("guestPrivate").doc(uid).get(),
-    db.collection("guestAdmin").doc(uid).get(),
-  ]);
+  /**
+   * ★招待状の中身・会費の読み込みも、ゲスト情報と同時に始める★（Issue #277。順番に待たない）
+   *   種類（?kind=）が URL で分かるときだけ。★読んだ中身を返すのは、パスコードを通った人にだけ★（下の cleared の判定は変えない）。
+   *   中身は 60 秒キャッシュ（invitation-server.ts・payment-server.ts）なので、通っていない人の分を読んでも重くない。
+   */
+  const timing = createServerTiming();
+  const kindParam = new URL(req.url).searchParams.get("kind");
+  const kindHint: InvitationKind | null = kindParam === "family" || kindParam === "friend" ? kindParam : null;
+  const configEarly = kindHint ? timing.time("config", invitationConfig(kindHint)) : null;
+  const paymentEarly = kindHint === "friend" ? timing.time("payment", paymentConfig()) : null;
+  configEarly?.catch(() => {});
+  paymentEarly?.catch(() => {});
+
+  const [publicSnap, privateSnap, adminSnap] = await timing.time(
+    "guest_read",
+    Promise.all([
+      db.collection("guests").doc(uid).get(),
+      db.collection("guestPrivate").doc(uid).get(),
+      db.collection("guestAdmin").doc(uid).get(),
+    ]),
+  );
 
   if (privateSnap.get("isActive") === false) {
     return fail("このアカウントはご利用いただけません", 403);
@@ -68,9 +85,8 @@ async function handle(req: Request) {
   const registered = publicSnap.get("isRegistered") === true;
   const cleared = isAdmin || isPasscodeCleared(publicSnap, adminSnap);
   // ★?kind= が無ければ、回答のときに記録した種類★（承認待ち・回答の修正・登録フォームの当日の流れを、本人の招待状に合わせる）
-  const kindParam = new URL(req.url).searchParams.get("kind");
-  const kind: InvitationKind = kindParam === "family" || kindParam === "friend" ? kindParam : storedInvitationKind(privateSnap);
-  const config = cleared ? await invitationConfig(kind) : null;
+  const kind: InvitationKind = kindHint ?? storedInvitationKind(privateSnap);
+  const config = cleared ? await (configEarly ?? timing.time("config", invitationConfig(kind))) : null;
   let res: InvitationStatus;
   if (config && kind === "family") {
     const { opening, ...invitation } = config;
@@ -78,7 +94,7 @@ async function handle(req: Request) {
   } else if (config) {
     const { opening, ...invitation } = config;
     // 会費は config/payment から（Issue #148）。★お車代の額は返さない★（招待状に出さない）
-    const payment = await paymentConfig();
+    const payment = await (paymentEarly ?? timing.time("payment", paymentConfig()));
     const fee = payment
       ? { partyYen: payment.partyYen, secondYen: payment.secondYen, ...(payment.secondTentative ? { secondTentative: true } : {}) }
       : undefined;
@@ -86,7 +102,11 @@ async function handle(req: Request) {
   } else {
     res = { kind, cleared, registered, ready: false };
   }
-  return NextResponse.json({ ok: true, ...res }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json(
+    { ok: true, ...res },
+    // どの読み込みに時間がかかったか（名前と時間だけ。Issue #277）
+    { headers: { "Cache-Control": "private, no-store", "Server-Timing": timing.header() } },
+  );
 }
 
 // ---- 共通の関所（認証・メンテナンス・レートリミット・監査ログ・Sentry）----

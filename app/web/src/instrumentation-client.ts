@@ -1,7 +1,13 @@
 // ★名前を付けて import する★（Issue #250）`import * as Sentry` だと使っていない部品（Session Replay・Feedback など）まで
 //   最初の JS に入る。使うものだけを書く
-import { captureRouterTransitionStart, init, SDK_VERSION } from "@sentry/nextjs";
+import { captureException, captureRouterTransitionStart, init, SDK_VERSION } from "@sentry/nextjs";
 import { scrubBreadcrumb, scrubEvent, sentryMajorIsSafe } from "@/lib/sentry-scrub";
+import { bootMark } from "@/lib/boot-timing";
+import { markSentryReady } from "@/lib/sentry-ready";
+import { SENTRY_INIT_TIMEOUT_MS } from "@/config/startup";
+
+// 起動の計測: アプリの JS が動き始めた（Issue #277。lib/boot-timing.ts）
+bootMark("js");
 
 /**
  * ブラウザの Sentry 初期化
@@ -17,7 +23,23 @@ import { scrubBreadcrumb, scrubEvent, sentryMajorIsSafe } from "@/lib/sentry-scr
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 const version: string | undefined = SDK_VERSION;
 
-if (dsn && sentryMajorIsSafe(version)) {
+/**
+ * ★初期化は、最初の画面が出たあと（ブラウザの手が空いたとき）に行う★（Issue #277）
+ *   起動の一番忙しいときに Sentry の準備（計測の部品の取り付けなど）をしない。遅くとも SENTRY_INIT_TIMEOUT_MS で行う。
+ * ★それまでのエラーは取りこぼさない★ 初期化の前に起きたエラー（error・unhandledrejection）を控えておき、
+ *   初期化したあとで送る。ページの読み込みの記録（Web Vitals）は、初期化のときにページを開いた時刻から作られる。
+ */
+const early: unknown[] = [];
+const onEarlyError = (e: ErrorEvent) => {
+  if (early.length < 20) early.push(e.error ?? new Error(e.message));
+};
+const onEarlyRejection = (e: PromiseRejectionEvent) => {
+  if (early.length < 20) early.push(e.reason);
+};
+
+function startSentry() {
+  window.removeEventListener("error", onEarlyError);
+  window.removeEventListener("unhandledrejection", onEarlyRejection);
   init({
     dsn,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV,
@@ -37,6 +59,15 @@ if (dsn && sentryMajorIsSafe(version)) {
       "ResizeObserver loop completed with undelivered notifications",
     ],
   });
+  for (const e of early.splice(0)) captureException(e);
+  markSentryReady();
+}
+
+if (typeof window !== "undefined" && dsn && sentryMajorIsSafe(version)) {
+  window.addEventListener("error", onEarlyError);
+  window.addEventListener("unhandledrejection", onEarlyRejection);
+  if (typeof window.requestIdleCallback === "function") window.requestIdleCallback(startSentry, { timeout: SENTRY_INIT_TIMEOUT_MS });
+  else window.setTimeout(startSentry, 1);
 }
 
 export const onRouterTransitionStart = captureRouterTransitionStart;
