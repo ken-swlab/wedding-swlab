@@ -210,6 +210,8 @@ function afterPosted(
     const photoUrls = prog.media.filter((m): m is MediaItem => m?.type === "image").map((m) => m.url);
     void postJson("/api/episodes", {
       theme: draft.episode.theme,
+      // 投稿にもお題（promptId）を付けるため（サーバーが本人の投稿か確かめて付ける。Issue #284）
+      postId,
       originalText: draft.text,
       photoUrls,
       visibleToTags: draft.visibleToTags,

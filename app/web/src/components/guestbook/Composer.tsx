@@ -16,7 +16,17 @@ import type { User } from "firebase/auth";
 import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
 import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
-import { EPISODE_THEMES, themeDef } from "@/config/episodes";
+import {
+  EPISODE_COUNT_MIN,
+  EPISODE_NOTE,
+  EPISODE_PROMPTS,
+  PLACEHOLDER_AFTER_EVENT,
+  PLACEHOLDER_BEFORE_EVENT,
+  isCurrentPromptId,
+  promptDef,
+  withPromptHashtag,
+} from "@/config/episode-prompts";
+import { useEpisodeIntro } from "@/hooks/useEpisodeIntro";
 import { compressForTimeline, makeImageVariants, makeVideoPoster, type ImageVariants } from "@/lib/image";
 import { MAX_MEDIA_PER_POST, MAX_ORIGINAL_BYTES, isStorageConfigured } from "@/lib/media";
 import { newPostId, type PostDraft } from "@/lib/post-draft";
@@ -27,7 +37,6 @@ import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { TagChips } from "./TagChips";
 import { COMPOSER_HINT_MS, DRAFT_SAVE_DELAY_MS } from "@/config/guestbook";
-import { CameraIcon } from "@/components/icons";
 
 type Picked = {
   id: string;
@@ -45,26 +54,9 @@ type Picked = {
   poster?: Promise<ReencodedJpeg | null>;
 };
 
-const DEFAULT_PLACEHOLDER = "おふたりへのメッセージや、当日の写真をどうぞ 🌿";
 
 /** 投稿したあとの知らせ。投稿画面は閉じるので、タイムラインのトーストで出す（ComposerSheet） */
 export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; text: string; sub?: string; ms?: number };
-
-/**
- * お題のラベルをハッシュタグとして末尾に足す。
- * 既に書かれていれば何もしない。全角の ＃ も NFKC で吸収する。
- * 「その他」はタグにしても意味がないので付けない。
- */
-function withThemeHashtag(raw: string, themeId: string): string {
-  if (!themeId || themeId === "other") return raw;
-
-  const label = themeDef(themeId).label;
-  const flat = (s: string) => s.normalize("NFKC").replace(/\s+/g, "");
-  if (flat(raw).includes(`#${flat(label)}`)) return raw;
-
-  const body = raw.trimEnd();
-  return body ? `${body}\n\n#${label}` : `#${label}`;
-}
 
 /**
  * 投稿画面（Issue #224）。全画面のシート（ComposerSheet）の中身として出す。
@@ -76,7 +68,9 @@ function withThemeHashtag(raw: string, themeId: string): string {
  *   （シートの枠は useVisualViewportFrame で見えている範囲に合わせる）。
  * ★「投稿する」は押せないときも押せる★ 灰色のまま押されたら、何が足りないかを下に短く出す
  *   （disabled にすると、押しても何も起きず理由が分からない）。
- * ★写真を主役にする★ 上から「写真・動画を選ぶ（大きな枠）」→「一言」→「公開範囲（1行）」→「思い出エピソード」。
+ * ★一投稿目のハードルを下げる★（Issue #284）上から「持ち寄りの一文」→「お題チップ（横1行）」→「本文」→「エピソードの注意書き
+ *   （お題を選んだときだけ）」→「写真（小さなタイル。任意）」→「公開範囲（1行）」。お題を選ぶ＝思い出エピソード（チェックボックスは廃止）。
+ *   書く前に赤字のエラーは出さない（お題を選んで本文が空なら、「投稿する」が灰色のまま）。
  *   公開範囲のチップは、1行を押したときだけ下からのシートで出す（チップが一番目立っていた）。
  * ★「投稿する」で onSubmitDraft に渡し、すぐ onPosted を呼ぶ（呼び出し側が閉じる）★（Issue #254）
  *   送信とその知らせ（高画質版・エピソード・新郎新婦あて）は、送信の列（usePostOutbox）が受け持つ。
@@ -121,8 +115,13 @@ export function Composer({
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---
-  const [episodeOn, setEpisodeOn] = useState(saved?.episodeOn ?? false);
-  const [theme, setTheme] = useState<string>(saved?.theme ?? "");
+  /**
+   * ★お題を選ぶ＝思い出エピソードとして保存する★（Issue #284。チェックボックスは廃止）
+   *   書きかけに残っていた旧お題（チップに無いもの）は戻さない。
+   */
+  const [theme, setTheme] = useState<string>(() => (saved?.theme && isCurrentPromptId(saved.theme) ? saved.theme : ""));
+  const episodeOn = theme !== "";
+  const intro = useEpisodeIntro();
 
   /**
    * ★「新郎新婦」は、自分がそのタグを持っていなくても選べる★（新郎新婦あての投稿。Issue #97）
@@ -242,7 +241,6 @@ export function Composer({
     picked.forEach((p) => URL.revokeObjectURL(p.previewUrl));
     setPicked([]);
     setText("");
-    setEpisodeOn(false);
     setTheme("");
     setRestored(false);
     void clearComposerDraft(user.uid);
@@ -265,10 +263,11 @@ export function Composer({
   const needsThemeText = episodeOn && !text.trim();
   const canSubmit =
     !busy && !preparing && !hasError && selected.length > 0 &&
-    (!episodeOn || (Boolean(theme) && !needsThemeText)) &&
+    !needsThemeText &&
     (text.trim().length > 0 || picked.length > 0);
 
-  const placeholder = episodeOn && theme ? themeDef(theme).prompt : DEFAULT_PLACEHOLDER;
+  // お題を選んでいればそのお題の問いかけ、選んでいなければ、式の前と開催日以降で変える（Issue #284 の 3・5）
+  const placeholder = theme ? (promptDef(theme)?.placeholder ?? PLACEHOLDER_BEFORE_EVENT) : intro.afterEvent ? PLACEHOLDER_AFTER_EVENT : PLACEHOLDER_BEFORE_EVENT;
   const hasDraft = text.trim().length > 0 || picked.length > 0 || episodeOn;
 
   /** 投稿できない理由（押せる状態なら null） */
@@ -278,7 +277,6 @@ export function Composer({
     if (preparing) return "写真を準備しています。少しお待ちください";
     if (hasError) return "処理できなかった写真を外してください";
     if (selected.length === 0) return "公開範囲を1つ以上選んでください";
-    if (episodeOn && !theme) return "思い出エピソードのお題を選んでください";
     if (needsThemeText) return "エピソードには一言が必要です（写真だけでは登録できません）";
     return null;
   }
@@ -327,7 +325,7 @@ export function Composer({
     setError(null);
     setHint(null);
     // お題を選んでいればハッシュタグを付ける。投稿本文とエピソード本文で同じテキストを使う
-    const finalText = episodeOn ? withThemeHashtag(text, theme) : text;
+    const finalText = episodeOn ? withPromptHashtag(text, theme) : text;
     const draft: PostDraft = {
       postId: newPostId(),
       uid: user.uid,
@@ -351,7 +349,6 @@ export function Composer({
     setText("");
     mention.reset();
     setPicked([]);
-    setEpisodeOn(false);
     setTheme("");
     setBusy(false);
     // 呼び出し側が画面を閉じ、タイムラインの一番上（送信中の投稿）を見せる
@@ -415,78 +412,45 @@ export function Composer({
           onChange={(e) => void onPick(e.target.files)}
         />
 
-        {/* 1. 写真・動画（主役）。選ぶ前は幅いっぱいの大きな枠、選んだあとはサムネイルと「＋ 追加」 */}
-        {picked.length === 0 ? (
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={pickDisabled}
-            title={storageReady ? undefined : "Storage バケットが未設定です"}
-            className="flex h-40 w-full touch-manipulation flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-300 bg-stone-50 text-stone-600 transition hover:bg-stone-100 disabled:opacity-40"
-          >
-            <CameraIcon className="h-8 w-8" />
-            <span className="text-sm font-medium">写真・動画を選ぶ</span>
-            <span className="text-[length:calc(11px*var(--inv-scale))] text-stone-400">{MAX_MEDIA_PER_POST}枚まで</span>
-          </button>
-        ) : (
-          <div>
-            <div className="grid grid-cols-3 gap-2">
-              {picked.map((p) => (
-                <div key={p.id} className="group relative aspect-square overflow-hidden rounded-xl bg-stone-100">
-                  {p.isVideo ? (
-                    <video src={p.previewUrl} muted playsInline className="h-full w-full object-cover" />
-                  ) : (
-                    // 端末の中の画像（blob:）のプレビュー。next/image を通す意味がないので <img> を使う
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.previewUrl} alt="" className="h-full w-full object-cover" />
-                  )}
-
-                  {p.compressing && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-stone-300 border-t-stone-700" />
-                    </div>
-                  )}
-                  {p.error && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
-                      {p.error}
-                    </div>
-                  )}
-
-                  {/* 24px だと指で外しやすく「反応しない」と感じられるため、
-                      見た目は据え置きで当たり判定だけ広げる */}
-                  <button
-                    type="button"
-                    onClick={() => remove(p.id)}
-                    disabled={busy}
-                    aria-label="この写真を外す"
-                    className="absolute right-0 top-0 flex h-11 w-11 touch-manipulation items-center justify-center text-white"
-                  >
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs transition active:bg-black/80">
-                      ×
-                    </span>
-                  </button>
-                </div>
-              ))}
-              {picked.length < MAX_MEDIA_PER_POST && (
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  disabled={pickDisabled}
-                  className="flex aspect-square touch-manipulation flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-stone-300 bg-stone-50 text-sm text-stone-600 hover:bg-stone-100 disabled:opacity-40"
-                >
-                  <span aria-hidden className="text-xl leading-none">＋</span>
-                  追加
-                </button>
-              )}
-            </div>
-            <p className="mt-1.5 text-right text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">
-              {picked.length}/{MAX_MEDIA_PER_POST}
+        {/* 1. 持ち寄りの一文（Issue #284 の 2）。1行目は明朝（目に留めるもの）、2行目と件数はゴシックの小さめの補足 */}
+        <div>
+          <p className="font-serif text-[length:calc(16px*var(--inv-scale))] text-stone-900">みんなで思い出を持ち寄ろう。</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-stone-500">ふたりとの話でも、仲間との懐かしい話でも。</p>
+          {intro.count !== null && intro.count >= EPISODE_COUNT_MIN && (
+            <p className="mt-1 text-xs text-stone-500">
+              いま <span className="tabular-nums">{intro.count}</span>件の思い出が集まっています
             </p>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* 2. 一言 */}
-        <div className="relative mt-4">
+        {/* 2. お題チップ（横スクロール1行。Issue #284 の 3）。もう一度押すと外れる。選べるのは1つだけ。
+            ★無彩色★ 未選択は薄い枠とグレーの文字、選択中は墨の枠と墨の太字（テラコッタは押して投稿する場所だけ） */}
+        <div
+          role="group"
+          aria-label="お題"
+          className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {EPISODE_PROMPTS.map((p) => {
+            const on = theme === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setTheme(on ? "" : p.id)}
+                aria-pressed={on}
+                disabled={busy}
+                className={`relative min-h-9 shrink-0 touch-manipulation whitespace-nowrap rounded-full bg-white px-3 py-1 text-xs ring-1 ring-inset transition after:absolute after:-inset-y-1 after:inset-x-0 after:content-[''] ${
+                  on ? "font-bold text-stone-900 ring-stone-900" : "font-medium text-stone-500 ring-tagline hover:bg-stone-50"
+                }`}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 3. 本文。★一番長いプレースホルダーが切れずに見える高さ★（Issue #284 の 6。13 mini の幅で5行） */}
+        <div className="relative mt-3">
           <textarea
             ref={textInput}
             value={text}
@@ -499,18 +463,80 @@ export function Composer({
             onKeyDown={(e) => {
               if (e.key === "Escape") mention.suggestions.close();
             }}
-            rows={episodeOn ? 5 : 3}
+            rows={5}
             maxLength={2000}
             placeholder={placeholder}
             aria-label="一言"
             // ★文字は 16px 以上★ iOS は 16px 未満の入力欄にフォーカスすると画面を拡大する
-            className="w-full resize-none rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-base leading-relaxed text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
+            className="min-h-[calc(5lh+1.5rem)] w-full resize-none rounded-xl border border-stone-200 bg-stone-50/50 p-3 text-base leading-relaxed text-stone-800 outline-none placeholder:text-stone-400 focus:border-stone-300 focus:bg-white"
           />
           {/* 候補は入力欄のすぐ下に重ねる（キーボードには隠れない） */}
           <MentionSuggestions state={mention.suggestions} className="top-full" />
         </div>
 
-        {/* 3. 公開範囲（1行にたたむ。押すとタグを選ぶシート） */}
+        {/* 4. エピソードの注意書き（お題を選んでいるときだけ。Issue #284 の 7） */}
+        {episodeOn && (
+          <p className="mt-1.5 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">{EPISODE_NOTE}</p>
+        )}
+
+        {/* 5. 写真・動画（任意。小さな正方形のタイル。Issue #284 の 1）。選んだ写真も同じ列に並べる */}
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-2">
+            {picked.map((p) => (
+              <div key={p.id} className="group relative h-20 w-20 overflow-hidden rounded-xl bg-stone-100">
+                {p.isVideo ? (
+                  <video src={p.previewUrl} muted playsInline className="h-full w-full object-cover" />
+                ) : (
+                  // 端末の中の画像（blob:）のプレビュー。next/image を通す意味がないので <img> を使う
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.previewUrl} alt="" className="h-full w-full object-cover" />
+                )}
+
+                {p.compressing && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/70">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-stone-300 border-t-stone-700" />
+                  </div>
+                )}
+                {p.error && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-rose-50/90 p-1 text-center text-[length:calc(10px*var(--inv-scale))] leading-tight text-rose-700">
+                    {p.error}
+                  </div>
+                )}
+
+                {/* 24px だと指で外しやすく「反応しない」と感じられるため、
+                    見た目は据え置きで当たり判定だけ広げる */}
+                <button
+                  type="button"
+                  onClick={() => remove(p.id)}
+                  disabled={busy}
+                  aria-label="この写真を外す"
+                  className="absolute right-0 top-0 flex h-11 w-11 touch-manipulation items-center justify-center text-white"
+                >
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-black/55 text-xs transition active:bg-black/80">
+                    ×
+                  </span>
+                </button>
+              </div>
+            ))}
+            {picked.length < MAX_MEDIA_PER_POST && (
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                disabled={pickDisabled}
+                aria-label="写真・動画を選ぶ"
+                title={storageReady ? undefined : "Storage バケットが未設定です"}
+                className="flex h-20 w-20 touch-manipulation items-center justify-center rounded-xl border border-dashed border-stone-300 bg-stone-50 text-stone-500 hover:bg-stone-100 disabled:opacity-40"
+              >
+                <span aria-hidden className="text-2xl leading-none">＋</span>
+              </button>
+            )}
+          </div>
+          <p className="mt-1 text-[length:calc(11px*var(--inv-scale))] text-stone-400">
+            写真・動画（任意・{MAX_MEDIA_PER_POST}枚まで）{picked.length > 0 && <span className="tabular-nums">　{picked.length}/{MAX_MEDIA_PER_POST}</span>}
+          </p>
+        </div>
+
+        {/* 6. 公開範囲（1行にたたむ。押すとタグを選ぶシート） */}
         <button
           type="button"
           onClick={() => setScopeOpen(true)}
@@ -523,80 +549,6 @@ export function Composer({
           </span>
           <span aria-hidden className="shrink-0 text-stone-400">›</span>
         </button>
-
-        {/* 4. 思い出エピソード（チェックしたときに、お題と説明を開く） */}
-        <div className={`mt-4 rounded-xl border transition ${
-          // 無彩色（Issue #236。ピンクはいいねにだけ使う）
-          episodeOn ? "border-stone-300 bg-stone-50" : "border-stone-200 bg-stone-50/40"
-        }`}>
-          <label className="flex cursor-pointer items-start gap-2.5 p-3">
-            <input
-              type="checkbox"
-              checked={episodeOn}
-              onChange={(e) => {
-                setEpisodeOn(e.target.checked);
-                if (!e.target.checked) setTheme("");
-              }}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-stone-900"
-            />
-            <span className="min-w-0">
-              <span className="block text-sm font-medium text-stone-800">
-                思い出エピソードも投稿する
-              </span>
-              <span className="block text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
-                おふたりが確認したうえで、当日のムービーや
-                おもてなしAIの会話に使わせていただきます。
-              </span>
-            </span>
-          </label>
-
-          {episodeOn && (
-            <div className="border-t border-stone-200 p-3">
-              <p className="mb-1.5 text-xs font-medium text-stone-600">
-                お題を選んでください
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {EPISODE_THEMES.map((t) => {
-                  const on = theme === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setTheme(t.id)}
-                      aria-pressed={on}
-                      className={`min-h-9 touch-manipulation rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition ${
-                        // お題のチップも無彩色（Issue #236）。選んでいるものは墨の枠と文字
-                        on ? "bg-white font-semibold text-stone-900 ring-stone-900" : "bg-white text-stone-400 ring-tagline hover:bg-stone-50"
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {theme && (
-                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-500">
-                  {themeDef(theme).prompt}
-                  {theme !== "other" && (
-                    <span className="mt-0.5 block text-stone-400">
-                      投稿時に <span className="text-sky-600">#{themeDef(theme).label}</span> が付きます
-                    </span>
-                  )}
-                </p>
-              )}
-
-              {needsThemeText && (
-                <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] text-amber-700">
-                  エピソードには本文が必要です。写真だけでは登録できません。
-                </p>
-              )}
-              <p className="mt-2 text-[length:calc(11px*var(--inv-scale))] leading-relaxed text-stone-400">
-                エピソードも公開範囲（{scopeLabel}）の方にだけ使われます。
-              </p>
-            </div>
-          )}
-        </div>
 
         {error && <p role="alert" className="mt-4 text-sm text-rose-600">{error}</p>}
       </div>
