@@ -2,8 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { getJson } from "@/lib/api-client";
+import { useMemo, useState } from "react";
 import { GuestbookShell } from "@/components/guestbook/GuestbookShell";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { TagChips } from "@/components/guestbook/TagChips";
@@ -12,41 +11,25 @@ import { GUESTBOOK_PATHS } from "@/config/guestbook";
 import { COMMUNITY_ALL_TAG } from "@/config/community";
 import { RANKING_TOP } from "@/config/reaction";
 import { tagDef } from "@/config/tags";
+import { useCachedJson } from "@/hooks/useCachedJson";
+import { COMMUNITY_CACHE_KIND, communityOptions, communityPath } from "@/lib/community-client";
 import { formatReaction } from "@/lib/opening-names";
 import { useTags } from "@/lib/tags-client";
-import type { CommunityMember, CommunityMembers } from "@/types/community";
-import type { ReactionStatus } from "@/types/invitation";
+import type { CommunityMember, CommunityMembers, CommunityResponse } from "@/types/community";
 import type { ReactionRanking, ReactionRankingRow } from "@/types/reaction";
 
-/** 読み込んだ結果はタグと一緒に持ち、タグを切り替えたら描画時に「読み込み中」へ戻す */
-type Loaded<T> = { tag: string; data: T | null; error: string | null };
-
-/** タグを指定して API を読む。タグが変わったら読み直す */
-function useByTag<T>(path: string, uid: string | undefined, tag: string | null): Loaded<T> | null {
-  const [loaded, setLoaded] = useState<Loaded<T> | null>(null);
-  useEffect(() => {
-    if (!uid || !tag) return;
-    let cancelled = false;
-    getJson<T>(`${path}?tag=${encodeURIComponent(tag)}`)
-      .then((data) => {
-        if (!cancelled) setLoaded({ tag, data, error: null });
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setLoaded({ tag, data: null, error: e instanceof Error ? e.message : "読み込みに失敗しました" });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [path, uid, tag]);
-  return loaded && loaded.tag === tag ? loaded : null;
-}
+/** 表示する部分（undefined はまだ読み込み中） */
+type Loaded<T> = { data: T | undefined; error: string | null };
 
 /**
  * コミュニティ（Issue #174）。上からグループの切り替え・仲間（参加予定のメンバー）・ランキング・オープニングへの導線。
  * 以前マイページから開いていたランキング（Issue #132）とオープニングの見返し（Issue #131）をここへ移した。
  *
+ * ★API は1本★（GET /api/guest/community?tag=。Issue #286）仲間・ランキング・自分の記録をまとめて受け取る。
+ * ★前回の結果をすぐ出し、裏で読み直して差し替える★（useCachedJson）一度見たグループは、開き直しても切り替えてもすぐ出る。
+ *   読み直しに失敗しても、前回の結果を出したまま。自分の記録を送った直後は、送った側がキャッシュを捨てる。
  * ★グループ（タグ）の切り替えは、投稿の公開範囲の選択と同じ部品（TagChips）★
- *   並びは「全員」→ 自分が持っているコミュニティのタグ。承認済・新郎新婦・CTF などの仕組み用のタグは出さない。
+ *   並びは「全員」→ 自分が持っているコミュニティのタグ（lib/community-client.ts の communityOptions）。
  *   選んだグループは、仲間とランキングの両方に効く。
  * ★「全員」では、仲間は人数だけ、ランキングは本人以外の名前とアイコンを伏せる★ 伏せるのはサーバー（API）。
  * ★見られる範囲はサーバーが決める★ 持っていないタグを指定しても API が 403 を返す。ここの出し分けは使い勝手のため。
@@ -57,33 +40,18 @@ export default function CommunityPage() {
   const { user, tags, isAdmin } = useGuestSessionContext();
   const { allTags } = useTags();
 
-  const options = useMemo(() => {
-    const mine = allTags.filter((t) => t.community && !t.archived && (isAdmin || tags.includes(t.id)));
-    return isAdmin || tags.includes(COMMUNITY_ALL_TAG) ? [tagDef(COMMUNITY_ALL_TAG), ...mine] : mine;
-  }, [allTags, tags, isAdmin]);
+  const options = useMemo(() => communityOptions(allTags, tags, isAdmin), [allTags, tags, isAdmin]);
 
   const [picked, setPicked] = useState<string | null>(null);
   // 選んだタグが一覧に無い（まだ選んでいない・タグが外れた）ときは、先頭を使う
   const tag = picked && options.some((o) => o.id === picked) ? picked : (options[0]?.id ?? null);
 
   const uid = user?.uid;
-  const members = useByTag<CommunityMembers>("/api/guest/community/members", uid, tag);
-  const ranking = useByTag<ReactionRanking>("/api/guest/reaction/ranking", uid, tag);
-
+  const view = useCachedJson<CommunityResponse>(uid, COMMUNITY_CACHE_KIND, tag, tag ? communityPath(tag) : "");
+  const members: Loaded<CommunityMembers> = { data: view.data?.members, error: view.error };
+  const ranking: Loaded<ReactionRanking> = { data: view.data?.ranking, error: view.error };
   // 自分の記録の有無（「挑戦する」を出すかどうか）。ランキングの me は、そのグループにいる人にしか入らない
-  const [myRecord, setMyRecord] = useState<number | null | undefined>(undefined);
-  useEffect(() => {
-    if (!uid) return;
-    let cancelled = false;
-    getJson<ReactionStatus>("/api/guest/reaction")
-      .then((r) => {
-        if (!cancelled) setMyRecord(r.reactionMs);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [uid]);
+  const myRecord = view.data ? view.data.myRecord : undefined;
 
   if (!user) return <SplashScreen phase="booting" />;
 
@@ -152,8 +120,8 @@ export default function CommunityPage() {
 }
 
 /** 仲間。全員は人数だけ、グループはアイコンとニックネームの一覧 */
-function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers> | null; all: boolean }) {
-  if (!loaded) return <div className="h-24 animate-pulse rounded-2xl bg-stone-200/60" />;
+function MembersPanel({ loaded, all }: { loaded: Loaded<CommunityMembers>; all: boolean }) {
+  if (loaded.data === undefined && !loaded.error) return <div className="h-24 animate-pulse rounded-2xl bg-stone-200/60" />;
   if (loaded.error) return <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loaded.error}</p>;
   const data = loaded.data;
   if (!data) return null;
@@ -196,8 +164,8 @@ function MemberCell({ member }: { member: CommunityMember }) {
 }
 
 /** ランキング（Issue #132 の画面から移した） */
-function RankingPanel({ loaded, label }: { loaded: Loaded<ReactionRanking> | null; label: string }) {
-  if (!loaded) return <div className="h-40 animate-pulse rounded-2xl bg-stone-200/60" />;
+function RankingPanel({ loaded, label }: { loaded: Loaded<ReactionRanking>; label: string }) {
+  if (loaded.data === undefined && !loaded.error) return <div className="h-40 animate-pulse rounded-2xl bg-stone-200/60" />;
   if (loaded.error) return <p role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{loaded.error}</p>;
   const data = loaded.data;
   if (!data || data.rows.length === 0) {

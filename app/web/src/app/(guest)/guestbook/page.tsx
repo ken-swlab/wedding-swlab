@@ -30,6 +30,9 @@ import {
   postIdFromPath,
 } from "@/config/guestbook";
 import { useNearEnd } from "@/hooks/useNearEnd";
+import { prefetchCachedJson } from "@/hooks/useCachedJson";
+import { COMMUNITY_CACHE_KIND, PAYMENT_CACHE_KIND, communityOptions, communityPath } from "@/lib/community-client";
+import { useTags } from "@/lib/tags-client";
 import { currentConnection, galleryPrefetchCount, isSlowConnection, prefetchImage, whenIdle } from "@/lib/prefetch";
 import { gridSrc, posterSrc } from "@/lib/media-url";
 import { usePostOutboxContext } from "@/components/guestbook/ComposerSheet";
@@ -53,7 +56,8 @@ import { likePost } from "@/lib/posts";
 import type { WelcomeContent, WelcomeStatus } from "@/types/welcome";
 
 export default function GuestbookPage() {
-  const { user, tags, loading: authLoading, profile, profileLoading } = useGuestSessionContext();
+  const { user, tags, isAdmin, loading: authLoading, profile, profileLoading } = useGuestSessionContext();
+  const { allTags } = useTags();
   // 承認待ち（黒）から来たら、光が広がってタイムラインが現れる（Issue #157 B-5）
   const darkEntry = useDarkEntry();
 
@@ -115,6 +119,7 @@ export default function GuestbookPage() {
    *     （タブの Link は prefetch={false}。最初の画面の読み込みと取り合わないよう、ここでまとめて読む）
    *   - ギャラリーの最初の GALLERY_FIRST_TILES 枚分の投稿のデータを読む（上の galleryShort）
    *   - ギャラリーの最初の1画面分の写真（grid）を読む（下の effect）
+   *   - コミュニティの最初のグループ（並び順の先頭）を1回だけ読む（Issue #286。会費は公開するまで管理者だけ）
    * ★電波が悪いときはしない★（lib/prefetch.ts の isSlowConnection）。ギャラリーは開いたときに読む。
    */
   const settled = view === "timeline" && !loading && !error && !!user;
@@ -122,8 +127,15 @@ export default function GuestbookPage() {
     if (!settled || warm || isSlowConnection(currentConnection())) return;
     return whenIdle(() => {
       for (const path of [GUESTBOOK_PATHS.community, GUESTBOOK_PATHS.notifications, GUESTBOOK_PATHS.settings]) router.prefetch(path);
+      // コミュニティの最初のグループと、管理者だけ会費（公開するまで）を読んでおく（Issue #286。結果は画面側のキャッシュへ）
+      const uid = user?.uid;
+      const first = communityOptions(allTags, tags, isAdmin)[0];
+      if (uid && first) prefetchCachedJson(uid, COMMUNITY_CACHE_KIND, first.id, communityPath(first.id));
+      if (uid && isAdmin) prefetchCachedJson(uid, PAYMENT_CACHE_KIND, "self", "/api/guest/payment");
       setWarm(true);
     });
+    // ★1回だけ★（warm が true になったら走らない）。タグの辞書が後から届いても読み直さない
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settled, warm, router]);
   useEffect(() => {
     // ギャラリーを出さない間（Issue #270）は、ギャラリーの写真を先読みしない

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
 import { ApiError, getJson, postJson } from "@/lib/api-client";
+import { invalidateCache } from "@/lib/client-cache";
+import { COMMUNITY_CACHE_KIND, PAYMENT_CACHE_KIND } from "@/lib/community-client";
 import { PasscodeError, parsePasscodeFeedback } from "@/lib/passcode-feedback";
 import { InvitationFlow, type InvitationStep } from "@/components/guestbook/InvitationFlow";
 import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
@@ -134,7 +136,10 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
       onOpeningReaction={(reactionMs) => {
         if (view.kind !== "opening" || view.recordedMs !== null) return;
         // 保存は演出を止めずに行う。失敗しても先へ進める（記録が無い人は、あとでマイページから挑戦できる）
-        postJson("/api/guest/reaction", { reactionMs }).catch((e: unknown) => console.error("[invitation] リアクションタイムの保存に失敗しました", e));
+        postJson("/api/guest/reaction", { reactionMs })
+          // 記録を送れたら、コミュニティの前回の結果を捨てる（自分の順位をすぐ出す。Issue #286）
+          .then(() => invalidateCache(COMMUNITY_CACHE_KIND))
+          .catch((e: unknown) => console.error("[invitation] リアクションタイムの保存に失敗しました", e));
       }}
       onOpeningEnd={(result) => {
         // 今回のタイムを承認待ちへ渡す（記録と違えば、承認待ちに小さく添える。Issue #199）
@@ -149,6 +154,8 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
           program={view.kind === "open" ? view.invitation.program : null}
           onSubmit={async (answer) => {
             await postJson("/api/guest/register", answer);
+            // 出欠・お車代が変わると会費の内訳も変わる。前回の結果を捨てる（Issue #286）
+            invalidateCache(PAYMENT_CACHE_KIND);
             // ★ここは初回の送信だけ★（登録済みの人は開いた時点でゲストブックへ移る）。エントリー完了を出し、
             //   2.2 秒かタップで承認待ちへ（(guest)/layout が /pending に振り分ける。Issue #149・#156）
             window.scrollTo({ top: 0 });

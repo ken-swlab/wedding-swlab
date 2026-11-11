@@ -88,10 +88,16 @@ export async function clearDeviceData(dest: string): Promise<void> {
   } catch (e) {
     console.warn("[firebase] 端末に保存した内容を消せませんでした", e);
   }
-  // 投稿画面・コメントの書きかけと、最後に見ていた画面も消す（Issue #273。次の人に見せない）
+  // 投稿画面・コメントの書きかけと、最後に見ていた画面と、画面側のキャッシュも消す（Issue #273・#286。次の人に見せない）
   try {
-    const [{ clearAllDrafts }, { clearLastScreen }] = await Promise.all([import("./composer-draft"), import("./resume")]);
+    const [{ clearAllDrafts }, { clearLastScreen }, { clearClientCache }] = await Promise.all([
+      import("./composer-draft"),
+      import("./resume"),
+      import("./client-cache"),
+    ]);
     clearLastScreen();
+    // コミュニティ・会費の前回の結果（cache:v1:。Issue #286）
+    clearClientCache();
     await clearAllDrafts();
   } catch (e) {
     console.warn("[firebase] 書きかけを消せませんでした", e);
