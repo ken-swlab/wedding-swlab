@@ -119,7 +119,7 @@
 
 - バックアップ: 最長 14 週間（期間が過ぎると自動的に消えます）
 - 操作の記録: 400 日間（お名前やご回答の内容は含みません。改ざんを防ぐため、この期間は消せない設定にしています）
-- お使いの端末: 電波が悪いときでも前回の画面を出せるよう、本サイトで表示した内容（タイムライン・ご自身のご回答など）を、お使いのブラウザに保存します。アクセスを停止したときと、別の LINE アカウントでログインし直したときに消します。それ以外は、ブラウザのサイトのデータを消すと消えます。一度表示した写真も、ブラウザに最長 1 年残ることがあります。
+- お使いの端末: 電波が悪いときでも前回の画面を出せるよう、本サイトで表示した内容（タイムライン・ご自身のご回答・コミュニティの仲間とランキングなど）を、お使いのブラウザに保存します。アクセスを停止したときと、別の LINE アカウントでログインし直したときに消します。それ以外は、ブラウザのサイトのデータを消すと消えます。一度表示した写真も、ブラウザに最長 1 年残ることがあります。
 
 #### 7. 安全のための取り組み
 
@@ -158,8 +158,8 @@
 | 2 原本と EXIF | `infra/workers/exif-stripper`、`.claude/rules/media.md` |
 | 2 操作の記録・IP | `src/lib/audit.ts`（値は残さない。IP は HMAC） |
 | 2 顔 | `src/app/api/faces/detect/route.ts`、`src/lib/rekognition.ts`（`indexFace`） |
-| 2・4 リアクションタイム | `src/app/api/guest/reaction/route.ts`（記録は 1 回だけ）。ランキングは `src/app/api/guest/reaction/ranking/route.ts`（自分が持つタグだけ。返すのはニックネーム・アイコン・タイム） |
-| 4 参加予定の表示 | `src/app/api/guest/community/members/route.ts`（自分が持つタグだけ。欠席以外の人のニックネーム・アイコン・2次会のみか。「全員」は人数だけ）。回答フォームの注意書きは `src/config/community.ts` |
+| 2・4 リアクションタイム | `src/app/api/guest/reaction/route.ts`（記録は 1 回だけ）。ランキングは `src/app/api/guest/community/route.ts`（自分が持つタグだけ。返すのはニックネーム・アイコン・タイム。集計は `src/lib/community-server.ts` で 2 分使い回すが、見られるかの確認は毎回） |
+| 4 参加予定の表示 | `src/app/api/guest/community/route.ts`（ランキングと同じ API。自分が持つタグだけ。欠席以外の人のニックネーム・アイコン・2次会のみか。「全員」は人数だけ）。回答フォームの注意書きは `src/config/community.ts` |
 | 4 見える範囲 | `infra/firestore/firestore.rules`、`.claude/rules/data.md` |
 | 4 写真の URL | 公開バケット（認証なし）。Referer の制限（抑止。偽装すれば開ける）は案だけで、まだ置いていない。【】の文は、置いたら残し、置かなければ消す（[../security/media-referer.md](../security/media-referer.md)）。[data-inventory.md](data-inventory.md) §3 |
 | 5 外部のサービス | [subprocessors.md](subprocessors.md) |

@@ -1,4 +1,4 @@
-/** ランキングの1行。★uid・本名・LINE の情報は入れない★（GET /api/guest/reaction/ranking） */
+/** ランキングの1行。★uid・本名・LINE の情報は入れない★（GET /api/guest/community） */
 export type ReactionRankingRow = {
   /** 順位。1/100 秒で同じタイムは同じ順位 */
   rank: number;
@@ -11,7 +11,7 @@ export type ReactionRankingRow = {
   isMe: boolean;
 };
 
-/** GET /api/guest/reaction/ranking?tag= の応答 */
+/** ランキングの部分（GET /api/guest/community?tag= の ranking） */
 export type ReactionRanking = {
   tag: string;
   /** 本人以外の名前とアイコンを伏せたか（「全員」のとき。Issue #174） */

@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { postJson } from "@/lib/api-client";
+import { invalidateCache } from "@/lib/client-cache";
+import { PAYMENT_CACHE_KIND } from "@/lib/community-client";
 import { GuideShell } from "@/components/guide/GuideShell";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import {
@@ -159,6 +161,8 @@ export default function GuideQuestionnairePage() {
     setError(null);
     try {
       await postJson("/api/guest/questionnaire", payload);
+      // 出欠・お車代が変わると会費の内訳も変わる。前回の結果を捨てる（Issue #286）
+      invalidateCache(PAYMENT_CACHE_KIND);
       const next: AnswerDraft = { ...form, ...payload };
       setSaved(next);
       setForm(next);

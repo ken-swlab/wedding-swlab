@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getJson, postJson } from "@/lib/api-client";
+import { invalidateCache } from "@/lib/client-cache";
+import { COMMUNITY_CACHE_KIND } from "@/lib/community-client";
 import { Opening } from "@/components/opening/Opening";
 import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { SplashScreen } from "@/components/SplashScreen";
@@ -65,7 +67,10 @@ export default function OpeningReplayPage() {
         note={view.recordedMs === null ? OPENING_NOTE.record : OPENING_NOTE.replay(formatReaction(view.recordedMs))}
         onReaction={(reactionMs) => {
           if (!challenge) return;
-          postJson("/api/guest/reaction", { reactionMs }).catch((e: unknown) => console.error("[opening] リアクションタイムの保存に失敗しました", e));
+          postJson("/api/guest/reaction", { reactionMs })
+          // 記録を送れたら、コミュニティの前回の結果を捨てる（自分の順位をすぐ出す。Issue #286）
+          .then(() => invalidateCache(COMMUNITY_CACHE_KIND))
+          .catch((e: unknown) => console.error("[opening] リアクションタイムの保存に失敗しました", e));
         }}
         onFinish={() => {
           markOpeningSeen();

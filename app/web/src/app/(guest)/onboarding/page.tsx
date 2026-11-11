@@ -7,6 +7,8 @@ import { OnboardingForm } from "@/components/guestbook/OnboardingForm";
 import { SplashScreen } from "@/components/SplashScreen";
 import { GuestShell } from "@/components/guestbook/GuestShell";
 import { getJson, postJson } from "@/lib/api-client";
+import { invalidateCache } from "@/lib/client-cache";
+import { PAYMENT_CACHE_KIND } from "@/lib/community-client";
 import type { InvitationStatus } from "@/types/invitation";
 import { useInvitationProgram } from "@/hooks/useInvitationProgram";
 import { ProgramStrip } from "@/components/guestbook/ProgramList";
@@ -79,6 +81,8 @@ export default function OnboardingPage() {
         onSubmit={async (answer) => {
           const first = !profile.isRegistered;
           await postJson("/api/guest/register", answer);
+          // 出欠・お車代が変わると会費の内訳も変わる。前回の結果を捨てる（Issue #286）
+          invalidateCache(PAYMENT_CACHE_KIND);
           if (first) setFinished(true);
           else router.replace("/guestbook");
         }}

@@ -3,7 +3,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { DUMMY_PAYMENT, PAYMENT_STATUSES, PAYMENT_STATUS_LABEL, type PaymentStatus } from "@/config/payment";
-import { getJson } from "@/lib/api-client";
+import { useCachedJson } from "@/hooks/useCachedJson";
+import { PAYMENT_CACHE_KIND } from "@/lib/community-client";
+import { useGuestSessionContext } from "@/components/guestbook/GuestSessionContext";
 import { ATTENDANCE_OPTIONS, type Attendance } from "@/types/admin";
 import type { PaymentStatusResponse } from "@/types/payment";
 import { PaymentBreakdown } from "./PaymentBreakdown";
@@ -28,6 +30,8 @@ type Preview = { attendance: Attendance; carFare: boolean } | null;
  * 会費タブ（Issue #73 のモック → #148 で内訳だけ本物）。
  *   内訳と合計は GET /api/guest/payment から受け取る本物の計算（金額は config/payment）。
  *   送金先と送金状況はまだモック（useState だけで持ち、Firestore にも API にも繋がない）。
+ *   ★前回の結果をすぐ出し、裏で読み直す★（useCachedJson。Issue #286）出欠・お車代を変えたら、変えた側がキャッシュを捨てる。
+ *   ★管理者のプレビュー（?attendance=）はキャッシュしない★（本人の本当の内訳ではないため）
  *
  * ★管理者だけに出す★ 送金先はダミー（config/payment.ts）。ゲストが本物と思って送金しないよう、
  *   呼び出し側（/guide/payment）で isAdmin のときだけ描画する。送金先を本物にしたらゲストにも出す。
@@ -35,25 +39,11 @@ type Preview = { attendance: Attendance; carFare: boolean } | null;
 export function PaymentMock() {
   const [status, setStatus] = useState<PaymentStatus>("unpaid");
   const [preview, setPreview] = useState<Preview>(null);
-  const [data, setData] = useState<PaymentStatusResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const q = preview ? `?attendance=${preview.attendance}&carFare=${preview.carFare ? 1 : 0}` : "";
-    getJson<PaymentStatusResponse>(`/api/guest/payment${q}`)
-      .then((r) => {
-        if (cancelled) return;
-        setData(r);
-        setError(null);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "読み込みに失敗しました");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [preview]);
+  const { user } = useGuestSessionContext();
+  const q = preview ? `?attendance=${preview.attendance}&carFare=${preview.carFare ? 1 : 0}` : "";
+  const { data, error } = useCachedJson<PaymentStatusResponse>(user?.uid, PAYMENT_CACHE_KIND, preview ? `preview${q}` : "self", `/api/guest/payment${q}`, {
+    cache: preview === null,
+  });
 
   return (
     <>

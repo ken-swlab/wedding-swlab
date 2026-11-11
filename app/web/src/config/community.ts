@@ -10,6 +10,13 @@ export const COMMUNITY_ALL_TAG = RANKING_ALL_TAG;
 /** 1つのタグで読むゲストの上限（サーバーの集計）。1つの式の人数を十分に超える値 */
 export const COMMUNITY_GUEST_LIMIT = 500;
 
+/**
+ * タグごとの集計（仲間の一覧・ランキング）を、サーバーで使い回す時間（秒。Issue #286。lib/server-memo.ts）。
+ * この間にほかの人が同じタグを開いても、ゲスト全員分を読み直さない。出欠やニックネームの変更は、この時間だけ遅れて出る
+ * （自分の記録だけは毎回読み、遅れずに出す）。
+ */
+export const COMMUNITY_CACHE_TTL_SEC = 120;
+
 /** 回答フォームの「ご出欠」の下に出す注意書き。★参加予定を同じグループのゲストに見せるので外さない★ */
 export const COMMUNITY_ATTENDANCE_NOTICE =
   "参加される場合、同じグループのゲストに、ニックネームとアイコンが「参加予定」として表示されます。";
