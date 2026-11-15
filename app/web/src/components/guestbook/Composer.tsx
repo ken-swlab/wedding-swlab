@@ -1,8 +1,7 @@
 "use client";
 
 import { takeFiles } from "@/lib/file-input";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useBackToClose } from "@/hooks/useHistoryOverlay";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   clearComposerDraft,
   readComposerText,
@@ -11,10 +10,9 @@ import {
   saveComposerText,
   saveDraftFile,
 } from "@/lib/composer-draft";
-import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
-import { ALL_TAG, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
-import { COUPLE_TAG, displayVisibleTags, isTagPending, tagDef, withoutSystemTags } from "@/config/tags";
+import { ALL_TAG, defaultScope, toggleScope } from "@/lib/visibility-scope";
+import { COUPLE_TAG } from "@/config/tags";
 import { useTags } from "@/lib/tags-client";
 import {
   EPISODE_COUNT_MIN,
@@ -35,7 +33,7 @@ import { useMentionInput } from "@/hooks/useMentionInput";
 import { useAuthorName } from "./AuthorNameProvider";
 import { MentionSuggestions } from "./MentionSuggestions";
 import { useGuestSessionContext } from "./GuestSessionContext";
-import { TagChips } from "./TagChips";
+import { ScopePicker } from "./ScopePicker";
 import { COMPOSER_HINT_MS, DRAFT_SAVE_DELAY_MS } from "@/config/guestbook";
 
 type Picked = {
@@ -68,10 +66,10 @@ export type ComposerNotice = { kind: "upload" | "episode" | "couple" | "error"; 
  *   （シートの枠は useVisualViewportFrame で見えている範囲に合わせる）。
  * ★「投稿する」は押せないときも押せる★ 灰色のまま押されたら、何が足りないかを下に短く出す
  *   （disabled にすると、押しても何も起きず理由が分からない）。
- * ★一投稿目のハードルを下げる★（Issue #284）上から「持ち寄りの一文」→「お題チップ（横1行）」→「本文」→「エピソードの注意書き
- *   （お題を選んだときだけ）」→「写真（小さなタイル。任意）」→「公開範囲（1行）」。お題を選ぶ＝思い出エピソード（チェックボックスは廃止）。
+ * ★一投稿目のハードルを下げる★（Issue #284）上から「持ち寄りの一文」→「お題チップ（折り返す）」→「本文」→「エピソードの注意書き
+ *   （お題を選んだときだけ）」→「写真（小さなタイル。任意）」→「公開範囲（文字とチェック）」。お題を選ぶ＝思い出エピソード（チェックボックスは廃止）。
  *   書く前に赤字のエラーは出さない（お題を選んで本文が空なら、「投稿する」が灰色のまま）。
- *   公開範囲のチップは、1行を押したときだけ下からのシートで出す（チップが一番目立っていた）。
+ * ★公開範囲はシートに隠さず、文字とチェックでそのまま出す★（Issue #299。ScopePicker）範囲を見ないまま投稿しないように。
  * ★「投稿する」で onSubmitDraft に渡し、すぐ onPosted を呼ぶ（呼び出し側が閉じる）★（Issue #254）
  *   送信とその知らせ（高画質版・エピソード・新郎新婦あて）は、送信の列（usePostOutbox）が受け持つ。
  */
@@ -107,11 +105,6 @@ export function Composer({
    * 出したときの入力（key）と一緒に持ち、入力が変わったら（理由が変わりうるので）描画時に出さない。
    */
   const [hint, setHint] = useState<{ text: string; key: string } | null>(null);
-  /** 公開範囲を選ぶシート */
-  const [scopeOpen, setScopeOpen] = useState(false);
-  // 公開範囲のシートも、戻る（左端のスワイプ）で閉じる（Issue #273）
-  const closeScope = useCallback(() => setScopeOpen(false), []);
-  useBackToClose(scopeOpen, closeScope);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // --- 思い出エピソード ---
@@ -134,18 +127,24 @@ export function Composer({
     () => allTags.filter((t) => t.selectable && !t.archived && !t.system && (tags.includes(t.id) || t.id === COUPLE_TAG)),
     [allTags, tags],
   );
-  // 書きかけの公開範囲は、今も選べるタグだけを戻す（無くなったタグ・外れたタグは使わない）
-  const [selected, setSelected] = useState<string[]>(() => {
+  /**
+   * 公開範囲。chosen は書きかけから戻したもの・本人が選び直したもの（無ければ null）。
+   * ★null の間は初期値（defaultScope）を毎回計算する★（Issue #299）初期値は「持っているタグのうち、タグの管理の並び順で
+   *   いちばん上」。カスタムタグの名前・並び順はタグ辞書が届いてから分かるので、開いた時点の1回だけで決めると「全員」になってしまう。
+   *   書きかけにも chosen だけを残す（辞書が届く前の初期値を、次に開いたときの範囲として固めない）。
+   * 書きかけの公開範囲は、今も選べるタグだけを戻す（無くなったタグ・外れたタグは使わない）。
+   */
+  const [chosen, setChosen] = useState<string[] | null>(() => {
     const keep = (saved?.selected ?? []).filter((t) => t === COUPLE_TAG || tags.includes(t));
-    if (keep.length > 0) return keep;
-    return tags.includes("all") ? ["all"] : withoutSystemTags(tags).slice(0, 1);
+    return keep.length > 0 ? keep : null;
   });
+  const selected = useMemo(() => chosen ?? defaultScope(tags, allTags), [chosen, tags, allTags]);
 
   // 本文・公開範囲・エピソードを残す（打つたびに書かず、少し待ってから）
   useEffect(() => {
-    const t = setTimeout(() => saveComposerText(user.uid, { text, selected, episodeOn, theme }), DRAFT_SAVE_DELAY_MS);
+    const t = setTimeout(() => saveComposerText(user.uid, { text, selected: chosen ?? [], episodeOn, theme }), DRAFT_SAVE_DELAY_MS);
     return () => clearTimeout(t);
-  }, [user.uid, text, selected, episodeOn, theme]);
+  }, [user.uid, text, chosen, episodeOn, theme]);
 
 
   // @メンションの候補は、選んでいる公開範囲が見える人だけ（範囲を変えると候補も変わる）
@@ -254,7 +253,7 @@ export function Composer({
    */
   const canAll = available.some((t) => t.id === ALL_TAG);
   function toggleTag(id: string) {
-    setSelected((s) => toggleScope(s, id, canAll));
+    setChosen(toggleScope(selected, id, canAll));
   }
   const coupleOnly = selected.length === 1 && selected[0] === COUPLE_TAG;
 
@@ -306,12 +305,6 @@ export function Composer({
     void clearComposerDraft(user.uid);
     onClose();
   }
-
-  const scopeLabel = coupleOnly
-    ? "新郎新婦だけ"
-    : selected.length > 0
-      ? scopeNames(selected)
-      : "未選択";
 
   /**
    * 「投稿する」（Issue #254）。★送信は待たない★ 押した時点の投稿（PostDraft）を送信の列に渡し、すぐ閉じる。
@@ -423,13 +416,10 @@ export function Composer({
           )}
         </div>
 
-        {/* 2. お題チップ（横スクロール1行。Issue #284 の 3）。もう一度押すと外れる。選べるのは1つだけ。
+        {/* 2. お題チップ（Issue #284 の 3）。もう一度押すと外れる。選べるのは1つだけ。
+            ★折り返す★（Issue #299）横スクロールだと右の方のお題（水泳・秘蔵写真）が見えなかった。幅 320px では3行になってよい。
             ★無彩色★ 未選択は薄い枠とグレーの文字、選択中は墨の枠と墨の太字（テラコッタは押して投稿する場所だけ） */}
-        <div
-          role="group"
-          aria-label="お題"
-          className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
+        <div role="group" aria-label="お題" className="mt-3 flex flex-wrap gap-x-1.5 gap-y-2">
           {EPISODE_PROMPTS.map((p) => {
             const on = theme === p.id;
             return (
@@ -536,93 +526,14 @@ export function Composer({
           </p>
         </div>
 
-        {/* 6. 公開範囲（1行にたたむ。押すとタグを選ぶシート） */}
-        <button
-          type="button"
-          onClick={() => setScopeOpen(true)}
-          disabled={busy}
-          className="mt-4 flex min-h-[max(3rem,var(--inv-tap))] w-full touch-manipulation items-center gap-3 rounded-xl border border-stone-200 px-3 text-left hover:bg-stone-50 disabled:opacity-40"
-        >
-          <span className="shrink-0 text-sm text-stone-500">公開範囲</span>
-          <span className={`min-w-0 flex-1 truncate text-right text-sm font-medium ${selected.length > 0 ? "text-stone-900" : "text-amber-700"}`}>
-            {scopeLabel}
-          </span>
-          <span aria-hidden className="shrink-0 text-stone-400">›</span>
-        </button>
+        {/* 6. 公開範囲（文字とチェック。Issue #299）。罫線で区切る（カードにしない） */}
+        <div className="mt-4 border-t border-stone-200 pt-3">
+          <ScopePicker options={available} selected={selected} onSelect={toggleTag} disabled={busy} />
+        </div>
 
         {error && <p role="alert" className="mt-4 text-sm text-rose-600">{error}</p>}
       </div>
 
-      {scopeOpen && (
-        <ScopeSheet
-          options={available}
-          selected={selected}
-          coupleOnly={coupleOnly}
-          onSelect={toggleTag}
-          onClose={() => setScopeOpen(false)}
-        />
-      )}
     </div>
   );
-}
-
-/**
- * 公開範囲を選ぶシート（投稿画面の上に、下から出す）。チップは今までと同じ TagChips（ランキングと共通）。
- * 選び方（「新郎新婦」は単独だけ）は Composer の toggleTag のまま。
- */
-function ScopeSheet({
-  options,
-  selected,
-  coupleOnly,
-  onSelect,
-  onClose,
-}: {
-  options: Parameters<typeof TagChips>[0]["options"];
-  selected: string[];
-  coupleOnly: boolean;
-  onSelect: (id: string) => void;
-  onClose: () => void;
-}) {
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="composer-scope-title"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40"
-    >
-      <div
-        className="composer-sheet-in w-full max-w-xl rounded-t-2xl bg-white px-4 pt-2 shadow-xl"
-        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-      >
-        <div className="flex items-center justify-between">
-          <p id="composer-scope-title" className="text-[length:calc(16px*var(--inv-scale))] font-semibold text-stone-900">公開範囲</p>
-          <button type="button" onClick={onClose} className="min-h-[var(--inv-tap)] touch-manipulation px-2 text-sm font-medium text-stone-900">
-            完了
-          </button>
-        </div>
-        <p className="mb-3 text-xs leading-relaxed text-stone-500">
-          {coupleOnly
-            ? "あなたと新郎新婦だけに表示されます"
-            : selected.length > 0
-              ? `${scopeNames(selected)} に表示されます`
-              : "1つ以上選んでください"}
-        </p>
-        {/* チップの見た目と操作は、ランキングのグループの切り替えと共通（TagChips の★参照） */}
-        <TagChips options={options} selected={selected} onSelect={onSelect} label="公開範囲" />
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-/**
- * 公開範囲の名前（「全員・新郎友人」）。★名前がまだ分からないカスタムタグは ID を出さず「…」にする★（Issue #231）
- *   Composer は useTags を呼んでいるので、辞書が届いたら描き直されて名前になる。
- */
-function scopeNames(selected: readonly string[]): string {
-  return scopeForDisplay(displayVisibleTags(selected)).map((t) => (isTagPending(t) ? "…" : tagDef(t).label)).join("・");
 }
