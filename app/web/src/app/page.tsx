@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useGuestSession } from "@/hooks/useGuestSession";
 import { SplashScreen } from "@/components/SplashScreen";
+import { entryDestination } from "@/lib/entry-destination";
 
 /**
  * ★ここではログインを開始しない★
@@ -27,7 +28,8 @@ export default function Home() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(user ? "/guestbook" : "/invitation");
+    // リッチメニューから来たら、押した画面へ（Issue #303。lib/entry-destination.ts）
+    router.replace(user ? entryDestination() : "/invitation");
   }, [loading, user, router]);
 
   // 遷移が終わるまで同じ画面を出し続けて白画面を挟まない
