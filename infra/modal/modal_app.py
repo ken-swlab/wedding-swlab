@@ -87,7 +87,7 @@ LOCK_FILE = pathlib.Path(__file__).parent / "requirements.lock.txt"
 
 
 def _build_image() -> modal.Image:
-    base = modal.Image.debian_slim(python_version="3.10").apt_install(
+    base = modal.Image.debian_slim(python_version="3.11").apt_install(
         "git", "curl", "build-essential", "cmake", "pkg-config"
     )
 
