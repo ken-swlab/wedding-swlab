@@ -17,19 +17,9 @@ import { AuthorAvatar } from "./AuthorAvatar";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { HeartIcon } from "./HeartIcon";
 import { postJson } from "@/lib/api-client";
-import { useAuthorProfile } from "@/lib/profiles-client";
+import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
+import { relativeTime } from "@/lib/post-time";
 import { CommentIcon } from "@/components/icons";
-
-function relativeTime(post: Post): string {
-  if (!post.createdAt) return "送信中…";
-  const d = post.createdAt.toDate();
-  const min = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (min < 1) return "たった今";
-  if (min < 60) return `${min}分前`;
-  if (min < 1440) return `${Math.floor(min / 60)}時間前`;
-  // 「10/9 18:25」「1/2 9:05」。月・日・時はゼロ埋めせず、分だけ 2 桁にする（Issue #79）
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
 
 /** カードのタップで詳細へ行かない要素。ここに当たったタップはその要素自身の操作 */
 const INTERACTIVE = "a, button, input, textarea, select, label, video";
@@ -68,6 +58,8 @@ export function PostCard({
   const href = postPath(post.id);
   // 名前とアイコンは最新を出す（投稿に保存した値は投稿したときのもの。profiles-client の★参照）
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
+  // ★新郎新婦の投稿は時刻を出さず、日付だけ★（Issue #301。lib/post-time.ts）
+  const when = relativeTime(post.createdAt?.toDate() ?? null, { dateOnly: useDateOnly(post.authorUid), withClock: true });
 
   // ★いいね済みかは自分のいいねの一覧（クエリ1回）で決める★（Issue #212。useMyReaction のコメント参照）
   //   一覧で分からないときに1件ずつ読むのは詳細画面だけ（タイムラインで読むと投稿の数だけ読みが走る）。
@@ -193,11 +185,11 @@ export function PostCard({
           <div className="flex items-baseline gap-2">
             <p className="truncate text-sm font-semibold text-stone-900">{author.name}</p>
             {detail ? (
-              <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{relativeTime(post)}</time>
+              <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{when}</time>
             ) : (
               // キーボードや読み上げでも詳細へ行けるよう、時刻をリンクにしておく
               <Link href={href} onClick={onLinkClick} className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400 hover:underline">
-                <time>{relativeTime(post)}</time>
+                <time>{when}</time>
               </Link>
             )}
             {/* 本人が本文か写真を編集した投稿。日時・回数・理由は出さない（Issue #94） */}

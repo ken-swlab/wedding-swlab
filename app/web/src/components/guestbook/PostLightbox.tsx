@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useBackToClose } from "@/hooks/useHistoryOverlay";
-import { useAuthorProfile } from "@/lib/profiles-client";
+import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
+import { fullDate } from "@/lib/post-time";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { User } from "firebase/auth";
 import { likePost, toggleReaction } from "@/lib/posts";
@@ -16,13 +17,6 @@ import { displayVisibleTags } from "@/config/tags";
 import { CommentArea } from "./CommentArea";
 import type { Post } from "@/types";
 import { bestSrc } from "@/lib/media-url";
-
-function fullDate(post: Post) {
-  if (!post.createdAt) return "";
-  return post.createdAt.toDate().toLocaleString("ja-JP", {
-    month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
 
 /**
  * 横スクロール + scroll-snap。ライブラリ無しでネイティブな指ざわりになる。
@@ -119,6 +113,8 @@ export function PostLightbox({
   onClose: () => void;
 }) {
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
+  // ★新郎新婦の投稿は時刻を出さず、日付だけ★（Issue #301。lib/post-time.ts）
+  const dateOnly = useDateOnly(post.authorUid);
   // 自分のいいねの一覧で分かればそれを使い、分からなければ1件を読む（Issue #212。useMyReaction の★参照）
   const { reacted, setReacted, loaded, certain } = useMyReaction(post.id, user.uid, true);
   const [busy, setBusy] = useState(false);
@@ -219,7 +215,7 @@ export function PostLightbox({
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-white">{author.name}</p>
-            <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/40">{fullDate(post)}</p>
+            <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/40">{fullDate(post.createdAt?.toDate() ?? null, dateOnly)}</p>
           </div>
           <button
             type="button"
