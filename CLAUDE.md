@@ -98,6 +98,8 @@ cd app/web && npx next analyze --output   # 本番の JS の大きさ（Turbopac
 
 ## Issue の実装
 
+Issue を実装する前に docs/product-decisions.md を読み、その決めごとに従う。Issue に新しい決めごとがあれば、この文書も同じ PR で更新する。
+
 「Issue #N を実装して」と言われたら `implement-issue` スキル（`/implement-issue N`）に従う。要点: `gh issue view N --comments` で読む → 曖昧・矛盾・上のルールとの衝突があれば書く前に質問 → `issue-N-<短い英語>` ブランチで Issue の範囲だけ変える → 型チェック・lint・ビルドを通す（Rules を変えたら Rules のテストも）→ ファイルを指定してコミット（`git add .` / `-A` は使わない）→ PR。`main` への直接 push とマージはオーナーの明示的な指示があるときだけ。オーナーの作業（terraform apply・環境変数・Worker のデプロイ）が要るなら PR に手順を書く。
 
 ## コードの書き方
