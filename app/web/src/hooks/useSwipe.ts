@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type RefObject } from "react";
-import { SWIPE_EDGE_GUARD_PX, SWIPE_SLOP_PX } from "@/config/guestbook";
+import { PINCH_ZOOMED_SCALE, SWIPE_EDGE_GUARD_PX, SWIPE_SLOP_PX } from "@/config/guestbook";
 
 export type SwipeAxis = "x" | "y";
 
@@ -87,7 +87,8 @@ export function useSwipe(
         return;
       }
       reset();
-      if ((window.visualViewport?.scale ?? 1) > 1.01) return;
+      // ★拡大中は始めない★ 1本指の移動は、拡大した写真を動かす操作（ブラウザに任せる。Issue #302）
+      if ((window.visualViewport?.scale ?? 1) > PINCH_ZOOMED_SCALE) return;
       const target = e.target instanceof Element ? e.target : null;
       if (target && h.current.canStart && !h.current.canStart(target)) return;
       const x = e.touches[0].clientX;

@@ -195,6 +195,11 @@ export const SWIPE_SLOP_PX = 10;
  * iPhone の左端からのスワイプ（1ページ戻る）と取り合わないよう、端から始まった指は受け付けない（戻るで全画面が閉じる）。
  */
 export const SWIPE_EDGE_GUARD_PX = 24;
+/**
+ * ピンチで拡大していると見なす倍率（visualViewport.scale がこれより大きい）。Issue #302。
+ * 拡大中は、写真のビューアの写真送り・閉じる操作（useSwipe）を止め、1本指の移動をブラウザに任せる（usePinchZoomed）。
+ */
+export const PINCH_ZOOMED_SCALE = 1.01;
 /** 投稿画面・コメントの書きかけを端末に残すまでの待ち (ms)。打つたびには書かない（Issue #273） */
 export const DRAFT_SAVE_DELAY_MS = 400;
 /** 閉じて開き直したとき、最後に見ていた画面へ戻すのは、前回からこの時間以内（Issue #273。lib/resume.ts） */
