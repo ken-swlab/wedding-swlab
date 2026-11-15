@@ -1,5 +1,6 @@
 "use client";
 
+import { usePinchZoomed } from "@/hooks/usePinchZoomed";
 import Image from "next/image";
 import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
 import { fullDate } from "@/lib/post-time";
@@ -96,6 +97,10 @@ type DragMode = "dismiss" | "page";
  *   いいねのボタンや件数はここには置かない（閉じたあとの投稿の表示に反映される）。
  * ★重なり順を明示する★ 写真は z-0、ハートの演出は z-10、文字情報は z-20、見えない閉じるボタンは z-30。
  *   position の付いた写真の箱は、z-index が無いと DOM 順で後ろの操作系を覆ってしまう。
+ * ★拡大中は、1本指で拡大した写真を動かせる★（Issue #302）ブラウザのピンチ拡大のまま、拡大している間だけ
+ *   touch-action を pinch-zoom → manipulation（移動とピンチ）に変え、写真送り・閉じる操作（useSwipe）は止める
+ *   （useSwipe は拡大中に始めない）。等倍に戻ったら元に戻る。pinch-zoom のままだと、1本指の移動をブラウザが受け付けない。
+ *   ダブルタップでいいね・左右 24px のガード・戻るで閉じる・動画のシークは、今までどおり。
  * ★body 直下に portal で出す★ 詳細シートの展開中は親に transform が付き、
  *   その中の fixed は画面ではなくシートに固定されてしまう。
  */
@@ -120,6 +125,7 @@ export function MediaLightbox({
 }) {
   const doubleTap = useDoubleTap();
   const hearts = useHeartBursts();
+  const zoomed = usePinchZoomed();
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
   // ★新郎新婦の投稿は時刻を出さず、日付だけ★（Issue #301。lib/post-time.ts）
   const dateOnly = useDateOnly(post.authorUid);
@@ -381,7 +387,8 @@ export function MediaLightbox({
       aria-label="写真の拡大表示"
       onClick={onTap}
       className="allow-callout fixed inset-0 z-[60] select-none overflow-hidden"
-      style={{ touchAction: "pinch-zoom" }}
+      // 等倍：ピンチだけ（1本指は写真送り・閉じる）。拡大中：移動もブラウザに任せる（上の★）
+      style={{ touchAction: zoomed ? "manipulation" : "pinch-zoom" }}
     >
       <div ref={backdrop} className="absolute inset-0 bg-black" />
 
