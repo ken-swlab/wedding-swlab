@@ -11,20 +11,11 @@ import { PostCard } from "@/components/guestbook/PostCard";
 import { RichText } from "@/components/guestbook/RichText";
 import { usePost } from "@/hooks/usePost";
 import { markNotificationsRead, useMentionedComment, useNotifications } from "@/hooks/useNotifications";
-import { useAuthorProfile } from "@/lib/profiles-client";
+import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
+import { relativeTime } from "@/lib/post-time";
 import { postPath } from "@/config/guestbook";
 import { commentAnchorId } from "@/config/mentions";
 import type { AppNotification, Comment } from "@/types";
-
-function shortTime(n: AppNotification): string {
-  if (!n.createdAt) return "";
-  const d = n.createdAt.toDate();
-  const min = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (min < 1) return "たった今";
-  if (min < 60) return `${min}分前`;
-  if (min < 1440) return `${Math.floor(min / 60)}時間前`;
-  return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
 
 /**
  * 通知（Issue #92）。自分あての @メンションを新しい順に並べ、元の投稿・コメントをその場に出す。
@@ -103,6 +94,10 @@ function NotificationRow({
 }) {
   // 名前とアイコンは最新を出す（通知に保存した名前は、通知を作ったときのもの）
   const sender = useAuthorProfile(n.fromUid, { name: n.fromName });
+  // ★新郎新婦からのメンションは時刻を出さず、日付だけ★（Issue #310。通知の時刻＝新郎新婦が投稿・コメントした時刻。
+  //   #301 と同じ理由・同じ決め方。判定が届く前も日付だけ。lib/post-time.ts）。保存していない（送信中の）通知は空
+  const dateOnly = useDateOnly(n.fromUid);
+  const when = n.createdAt ? relativeTime(n.createdAt.toDate(), { dateOnly, withClock: true }) : "";
 
   return (
     <article>
@@ -112,7 +107,7 @@ function NotificationRow({
           <span className="font-semibold text-stone-900">{sender.name}</span>
           さんがあなたをメンションしました
         </p>
-        <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{shortTime(n)}</time>
+        <time className="shrink-0 whitespace-nowrap text-xs tabular-nums text-stone-400">{when}</time>
         {unread && (
           <span className="shrink-0 rounded-full bg-rose-500 px-1.5 py-0.5 text-[length:calc(10px*var(--inv-scale))] font-semibold leading-none text-white">
             新着
