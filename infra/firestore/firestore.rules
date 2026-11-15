@@ -115,9 +115,9 @@ service cloud.firestore {
       allow list: if signedIn() && request.query.limit <= 50 && canRead(resource.data);
       allow create: if signedIn() && request.resource.data.authorUid == myUid() && validPost(request.resource.data) && tagsInMyScope(request.resource.data);
       // ★投稿者本人が変えられるのは media（高画質版の状態）と updatedAt だけ★
-      //   本文・公開範囲（visibleToTags）を後から変える画面は無い。特に公開範囲を狭められると、
-      //   投稿時の範囲を写したコメントの visibleToTags が広いまま残り、collectionGroup の購読から漏れる。
-      //   編集機能を足すときは、コメントの範囲との整合を決めてからここを開ける。
+      //   本文の編集は /api/posts/[id]、公開範囲（visibleToTags）の変更は /api/posts/[id]/visibility（Issue #300）が
+      //   サーバーから行う。範囲はサーバーがコメント・エピソードとまとめて変える（投稿だけを変えると、投稿時の範囲を写した
+      //   コメントの visibleToTags が古いまま残り、collectionGroup の購読からはみ出す）。クライアントからの update は引き続き禁止。
       allow update: if isAdmin()
         || (signedIn() && resource.data.authorUid == myUid()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['media','updatedAt'])

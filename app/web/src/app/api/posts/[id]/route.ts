@@ -114,7 +114,8 @@ async function _PATCH(req: Request) {
  * ★本人の投稿だけ★ 管理者でも、この API では他人の投稿を変えない（管理者の非表示は /api/admin/posts/visibility）。
  * ★変えるのは text・media と、そこから決まる hashtags・mentions・editedAt だけ★
  *   visibleToTags・status・カウンタ・createdAt・mentionUids は受け取らず、変えない。
- *   公開範囲を変えると、投稿時の範囲を写したコメントの visibleToTags と食い違う（Rules の★参照）。
+ *   公開範囲は /api/posts/[id]/visibility（Issue #300）が、コメント・エピソードの範囲とまとめて変える
+ *   （ここで投稿だけ変えると、投稿時の範囲を写したコメントの visibleToTags と食い違う。Rules の★参照）。
  * ★残す写真は、いま保存されている要素をそのまま使う★（照合は storagePath）
  *   高画質版の状態（originalStatus など）はあとから Worker が書くので、クライアントの値で上書きしない。
  *   読んで書くまでをトランザクションにする（原本の紐付け・webhook と同時に走ると書き負ける）。
