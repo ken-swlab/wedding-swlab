@@ -1,7 +1,7 @@
 // 投稿画面の公開範囲の選び方（Issue #272）。実行: cd app/web && npm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { scopeForDisplay, toggleScope } from "../src/lib/visibility-scope.ts";
+import { defaultScope, scopeForDisplay, toggleScope } from "../src/lib/visibility-scope.ts";
 
 test("個別のタグを選んだら「全員」を外す", () => {
   assert.deepEqual(toggleScope(["all"], "c_hama", true), ["c_hama"]);
@@ -34,4 +34,37 @@ test("表示: 個別のタグがあれば「全員」を出さない", () => {
   assert.deepEqual(scopeForDisplay(["all", "c_hama"]), ["c_hama"]);
   assert.deepEqual(scopeForDisplay(["all"]), ["all"]);
   assert.deepEqual(scopeForDisplay(["couple"]), ["couple"]);
+});
+
+// 公開範囲の初期値（Issue #299）。defs はタグの管理の並び順で渡す
+const defs = [
+  { id: "all", selectable: true },
+  { id: "guest", selectable: false, system: true },
+  { id: "couple", selectable: true },
+  { id: "friends_groom", selectable: true },
+  { id: "c_hidden", selectable: true, archived: true },
+  { id: "c_locked", selectable: false },
+  { id: "c_company", selectable: true },
+];
+
+test("初期値：持っているタグのうち、並び順でいちばん上", () => {
+  assert.deepEqual(defaultScope(["all", "guest", "c_company", "friends_groom"], defs), ["friends_groom"]);
+  assert.deepEqual(defaultScope(["all", "guest", "c_company"], defs), ["c_company"]);
+});
+
+test("初期値：全員・承認済・新郎新婦・隠したタグ・選べないタグは候補にしない", () => {
+  assert.deepEqual(defaultScope(["all", "guest", "couple", "c_hidden", "c_locked"], defs), ["all"]);
+});
+
+test("初期値：新郎新婦本人も、持っているタグのいちばん上（couple は外す）", () => {
+  assert.deepEqual(defaultScope(["all", "guest", "couple", "c_company"], defs), ["c_company"]);
+});
+
+test("初期値：候補が無ければ「全員」。全員も無ければ空", () => {
+  assert.deepEqual(defaultScope(["all", "guest"], defs), ["all"]);
+  assert.deepEqual(defaultScope(["guest"], defs), []);
+});
+
+test("初期値：辞書に無いタグ（まだ届いていないカスタムタグ）は候補にしない", () => {
+  assert.deepEqual(defaultScope(["all", "c_unknown"], defs), ["all"]);
 });

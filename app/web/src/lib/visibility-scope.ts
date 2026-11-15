@@ -32,3 +32,22 @@ export function scopeForDisplay(ids: readonly string[]): string[] {
   const specific = ids.filter((x) => x !== ALL_TAG);
   return specific.length > 0 && ids.includes(ALL_TAG) ? specific : [...ids];
 }
+
+/** 初期値を決めるのに要るタグの情報（config/tags.ts の TagDef の一部。`@/` を import しないため型を写す） */
+export type ScopeTagInfo = { id: string; selectable: boolean; archived?: boolean; system?: boolean };
+
+/**
+ * 投稿画面の公開範囲の初期値（Issue #299）。
+ *   持っているタグのうち、タグの管理の並び順（compareTagOrder。orderedDefs はその順で渡す）でいちばん上を1つ。
+ *   全員（all）・新郎新婦（couple）・仕組み用のタグ（承認済）・隠したタグ・選べないタグは候補から外す。
+ *   候補が無ければ「全員」（全員も持っていなければ空。投稿画面が「1つ以上選んでください」と出す）。
+ * ★仲間内の話が、そのまま全員に出ないようにする★ 一投稿目のためらいを減らす（product-decisions.md）。
+ *   新郎新婦本人も同じ決め方（couple は外す）。書きかけに範囲が残っていれば、呼び出し側がそちらを優先する。
+ */
+export function defaultScope(myTags: readonly string[], orderedDefs: readonly ScopeTagInfo[]): string[] {
+  const top = orderedDefs.find(
+    (t) => t.id !== ALL_TAG && t.id !== COUPLE_TAG && t.selectable && !t.archived && !t.system && myTags.includes(t.id),
+  );
+  if (top) return [top.id];
+  return myTags.includes(ALL_TAG) ? [ALL_TAG] : [];
+}
