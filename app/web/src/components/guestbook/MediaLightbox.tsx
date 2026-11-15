@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useAuthorProfile } from "@/lib/profiles-client";
+import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
+import { fullDate } from "@/lib/post-time";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { createPortal } from "react-dom";
 import type { MediaItem, Post } from "@/types";
@@ -75,13 +76,6 @@ function onScreen(rect: DOMRect | null, w: number, h: number): rect is DOMRect {
   return !!rect && rect.width > 0 && rect.bottom > 0 && rect.top < h && rect.right > 0 && rect.left < w;
 }
 
-function fullDate(post: Post) {
-  if (!post.createdAt) return "";
-  return post.createdAt.toDate().toLocaleString("ja-JP", {
-    month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
 /** スワイプ中の操作の種類。縦横が決まった時点で決める */
 type DragMode = "dismiss" | "page";
 
@@ -127,6 +121,8 @@ export function MediaLightbox({
   const doubleTap = useDoubleTap();
   const hearts = useHeartBursts();
   const author = useAuthorProfile(post.authorUid, { name: post.authorName, photoURL: post.authorPhotoURL });
+  // ★新郎新婦の投稿は時刻を出さず、日付だけ★（Issue #301。lib/post-time.ts）
+  const dateOnly = useDateOnly(post.authorUid);
   const [index, setIndex] = useState(startIndex);
   const [sizes, setSizes] = useState<(MediaSize | null)[]>(() =>
     media.map((m, i) =>
@@ -466,7 +462,7 @@ export function MediaLightbox({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{author.name}</p>
-              <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/55">{fullDate(post)}</p>
+              <p className="text-[length:calc(11px*var(--inv-scale))] tabular-nums text-white/55">{fullDate(post.createdAt?.toDate() ?? null, dateOnly)}</p>
             </div>
             {media.length > 1 && (
               <p className="shrink-0 text-xs tabular-nums text-white/70">

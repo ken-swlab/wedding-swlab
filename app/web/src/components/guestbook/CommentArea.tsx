@@ -12,26 +12,19 @@ import { RichText } from "./RichText";
 import { AuthorAvatar } from "./AuthorAvatar";
 import { useGuestSessionContext } from "./GuestSessionContext";
 import { MentionSuggestions } from "./MentionSuggestions";
-import { useAuthorProfile } from "@/lib/profiles-client";
+import { useAuthorProfile, useDateOnly } from "@/lib/profiles-client";
+import { relativeTime } from "@/lib/post-time";
 import { postJson } from "@/lib/api-client";
 import { useMentionInput } from "@/hooks/useMentionInput";
 import { MENTION_NOTIFY_API, commentAnchorId } from "@/config/mentions";
 import type { Comment, Post } from "@/types";
 import { CommentIcon } from "@/components/icons";
 
-function shortTime(c: Comment): string {
-  if (!c.createdAt) return "送信中…";
-  const d = c.createdAt.toDate();
-  const min = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (min < 1) return "たった今";
-  if (min < 60) return `${min}分前`;
-  if (min < 1440) return `${Math.floor(min / 60)}時間前`;
-  return d.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
-}
-
 function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid: string }) {
   const mine = comment.authorUid === uid;
   const author = useAuthorProfile(comment.authorUid, { name: comment.authorName, photoURL: comment.authorPhotoURL });
+  // ★新郎新婦のコメントは時刻を出さず、日付だけ★（Issue #301。lib/post-time.ts）
+  const when = relativeTime(comment.createdAt?.toDate() ?? null, { dateOnly: useDateOnly(comment.authorUid), withClock: false });
 
   return (
     <li id={commentAnchorId(comment.id)} className="flex scroll-mt-4 gap-2.5 py-2.5">
@@ -41,7 +34,7 @@ function CommentRow({ comment, post, uid }: { comment: Comment; post: Post; uid:
           <span className="truncate text-[length:calc(13px*var(--inv-scale))] font-semibold text-stone-800">
             {author.name}
           </span>
-          <time className="shrink-0 text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">{shortTime(comment)}</time>
+          <time className="shrink-0 text-[length:calc(11px*var(--inv-scale))] tabular-nums text-stone-400">{when}</time>
           {mine && (
             <button
               type="button"

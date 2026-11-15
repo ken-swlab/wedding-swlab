@@ -3,6 +3,7 @@
 import { collection, limit, onSnapshot, query } from "firebase/firestore";
 import { useSyncExternalStore } from "react";
 import { db } from "@/lib/firebase";
+import { COUPLE_TAG } from "@/config/tags";
 
 /** 他のゲストに見せるプロフィール（guests の公開してよい値だけ） */
 export type PublicProfile = {
@@ -27,6 +28,11 @@ const PAGE = 200;
  */
 const EMPTY: ReadonlyMap<string, PublicProfile> = new Map();
 let cached: ReadonlyMap<string, PublicProfile> = EMPTY;
+/**
+ * 新郎新婦の uid（guests.tags に couple がある人。Issue #301）。★null は「まだ分からない」★
+ *   届く前・購読に失敗したときは、全員の時刻を日付だけにする（新郎新婦の時刻を一瞬でも出さない側に倒す）。
+ */
+let couples: ReadonlySet<string> | null = null;
 let started = false;
 const listeners = new Set<() => void>();
 
@@ -37,8 +43,11 @@ function start() {
     query(collection(db, "guests"), limit(PAGE)),
     (snap) => {
       const next = new Map<string, PublicProfile>();
+      const nextCouples = new Set<string>();
       for (const d of snap.docs) {
         const v = d.data();
+        // 新郎新婦は登録の状態に関係なく数える（時刻を出さない判定にだけ使う）
+        if (Array.isArray(v.tags) && v.tags.includes(COUPLE_TAG)) nextCouples.add(d.id);
         if (v.isArchived === true || v.mergedInto || v.isRegistered !== true) continue;
         next.set(d.id, {
           name: typeof v.nickname === "string" ? v.nickname.trim() : "",
@@ -47,6 +56,7 @@ function start() {
         });
       }
       cached = next;
+      couples = nextCouples;
       listeners.forEach((l) => l());
     },
     (e) => {
@@ -82,4 +92,13 @@ export function useAuthorProfile(
     photoURL: live?.photoURL || saved.photoURL || "",
     bio: live?.bio ?? "",
   };
+}
+
+/**
+ * この人の投稿・コメントの日時を、日付だけにするか（Issue #301）。新郎新婦なら true。
+ * ★まだ分からない間も true★（lib/post-time.ts の★参照。新郎新婦の時刻を一瞬でも出さない）
+ */
+export function useDateOnly(uid: string): boolean {
+  const set = useSyncExternalStore(subscribe, () => couples, () => null);
+  return set === null || set.has(uid);
 }
