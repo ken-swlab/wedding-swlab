@@ -1,4 +1,6 @@
 "use client";
+
+import { entryDestination } from "@/lib/entry-destination";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiffAuth } from "@/hooks/useLiffAuth";
@@ -68,8 +70,9 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
     loadView(kind)
       .then((next) => {
         if (cancelled) return;
-        // 登録済みの人はこれまでどおりゲストブックへ（承認待ちなら layout が /pending に振り分ける）
-        if (next === "registered") router.replace("/guestbook");
+        // 登録済みの人はこれまでどおりゲストブックへ（承認待ちなら layout が /pending に振り分ける）。
+        // ★リッチメニューから来たら、押した画面へ★（Issue #303。LIFF のエンドポイントは /invitation。lib/deep-link.ts）
+        if (next === "registered") router.replace(entryDestination());
         else setView(next);
       })
       .catch((e: unknown) => {
@@ -105,7 +108,7 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
   const passcodeCleared = useCallback(() => {
     const next = afterPasscode.current;
     afterPasscode.current = null;
-    if (next === "registered") router.replace("/guestbook");
+    if (next === "registered") router.replace(entryDestination());
     else if (next) setView(next);
     else reload();
   }, [reload, router]);
@@ -164,7 +167,7 @@ export function InvitationEntry({ kind }: { kind: InvitationKind }) {
         />
       }
       onRetry={reload}
-      onEntryNext={() => router.replace("/guestbook")}
+      onEntryNext={() => router.replace(entryDestination())}
     />
   );
 }

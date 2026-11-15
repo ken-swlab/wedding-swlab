@@ -15,6 +15,7 @@ import { effectiveTextScale } from "@/config/text-scale";
 import { readLastScreen, saveLastScreen } from "@/lib/resume";
 import { useResumeScroll } from "@/hooks/useResumeScroll";
 import { useBootMark } from "@/hooks/useBootMark";
+import { hasMenuMark } from "@/lib/deep-link";
 
 
 /**
@@ -69,15 +70,25 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
   //   ★決めるのは、承認済みと分かった最初の1回だけ（decided）★ この layout はゲストの画面を移っても作り直されない。
   //   ★戻すのは、最初にゲストブックのトップ（/guestbook。クエリなし）に入ってきたときだけ★ LIFF の入口・招待状・
   //   トップ（/）はどれも /guestbook へ移る。リッチメニューなどで別の画面を直接開いたときは、その画面のまま。
+  //   ★リッチメニューから来たとき（?via=menu。Issue #303。lib/deep-link.ts）は、押した画面のまま★
+  //   押した画面が前回の画面と同じならスクロール位置だけ戻し、違えば一番上から。「写真」（/guestbook?via=menu）も
+  //   クエリがあるのでトップから入ったとは見なさず、前回がご案内でもタイムラインを出す。印は読んだら URL から消す。
   const [decided, setDecided] = useState(false);
   const [resume, setResume] = useState<{ path: string; y: number } | null>(null);
   // スクロール位置を戻す先（戻る先に着いたあとも、位置を戻し終えるまで持つ）
   const [resumeScroll, setResumeScroll] = useState<{ path: string; y: number } | null>(null);
+  // リッチメニューの印（?via=menu）を URL から消すか（描画の中では消さず、下の effect で）
+  const [stripMenuMark, setStripMenuMark] = useState(false);
   if (approved && !decided) {
     setDecided(true);
-    const atHome = pathname === GUESTBOOK_PATHS.home && (typeof window === "undefined" || window.location.search === "");
-    const last = atHome && user ? readLastScreen(user.uid) : null;
-    if (last) {
+    const search = typeof window === "undefined" ? "" : window.location.search;
+    const atHome = pathname === GUESTBOOK_PATHS.home && search === "";
+    const viaMenu = hasMenuMark(search);
+    const last = (atHome || viaMenu) && user ? readLastScreen(user.uid) : null;
+    if (viaMenu) {
+      if (last && last.path === pathname) setResumeScroll(last);
+      setStripMenuMark(true);
+    } else if (last) {
       setResume(last);
       setResumeScroll(last);
     }
@@ -118,6 +129,10 @@ export default function GuestLayout({ children }: { children: ReactNode }) {
       window.removeEventListener("pagehide", save);
     };
   }, [uid, pathname]);
+  // リッチメニューの印を消す（再読み込みで、もう一度リッチメニューから来たことにしない）
+  useEffect(() => {
+    if (stripMenuMark && hasMenuMark(window.location.search)) window.history.replaceState(window.history.state, "", window.location.pathname);
+  }, [stripMenuMark]);
   // 戻った先で、スクロール位置も戻す
   useResumeScroll(pathname, resumeScroll);
 

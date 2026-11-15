@@ -55,7 +55,7 @@ Issue を書くとき・実装するときに、まずこれを読む。決ま�
 - 本番の Firestore Rules・インデックスは Terraform で反映する（`firebase deploy` は使わない）。Rules やインデックスを変える Issue には「オーナー作業：terraform plan / apply」を必ず書く。
 - `terraform apply` は plan で中身を確認してから。関係ない差分（identity_platform_config など）があれば `-target` で絞る。
 - コマンドはサブシェル `( … )` で包み、スマホからコピペできる1ブロックにする。
+- LINE のリッチメニューの行き先：写真＝`/guestbook`、会費＝`/guide/payment`、案内＝`/guide`。URL は `https://liff.line.me/{LIFF ID}?to=<行き先>`（LIFF のエンドポイントは `/invitation` なので、パスを付けた形は使わない）。前回と同じ画面ならスクロール位置を戻し、違えば一番上から。ログインしていない人は招待状へ。受け付けるのはゲストブックとご案内の中だけ。
 
 ## 未決・保留
-- リッチメニューからの直接遷移（Issue 化待ち）。
 - 会費の金額（仕組みだけ先に作る。公開は金額が決まってから）。
