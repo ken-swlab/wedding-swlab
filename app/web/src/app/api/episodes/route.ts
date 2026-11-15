@@ -186,14 +186,18 @@ async function handle(req: Request) {
   });
 
   /**
-   * ★投稿にもお題（promptId）を付ける★（Issue #284）投稿はブラウザが Rules の範囲で作る（validPost の項目は変えない）ので、
+   * ★投稿にもお題（promptId）を付け、エピソードには投稿の ID（postId）を残す★（Issue #284・#300）投稿はブラウザが Rules の範囲で作る（validPost の項目は変えない）ので、
    *   お題はここで、サーバーから付ける。★本人の投稿だけ★（authorUid を確かめる）。書けなくてもエピソードは保存済みなので止めない。
    */
   if (postId) {
     try {
       const postRef = db.collection("posts").doc(postId);
       const post = await postRef.get();
-      if (post.exists && post.get("authorUid") === uid) await postRef.update({ promptId: theme });
+      if (post.exists && post.get("authorUid") === uid) {
+        await postRef.update({ promptId: theme });
+        // ★エピソードにも元の投稿の ID を残す★（Issue #300）投稿の公開範囲を変えたとき、エピソードの範囲も一緒に変えるため
+        await ref.update({ postId });
+      }
     } catch (e) {
       console.error("[episodes POST] 投稿にお題を付けられませんでした", e);
     }

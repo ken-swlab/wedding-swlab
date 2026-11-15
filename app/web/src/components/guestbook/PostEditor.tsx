@@ -2,7 +2,7 @@
 
 import { takeFiles } from "@/lib/file-input";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { User } from "firebase/auth";
 import { compressForTimeline, makeImageVariants, makePosterPlaceholder, makeVideoPoster, type ImageVariants } from "@/lib/image";
@@ -11,14 +11,16 @@ import {
   reserveOriginalKey, uploadThumb, uploadVariants, uploadVideo,
 } from "@/lib/media";
 import { gridSrc, posterSrc, thumbSrc } from "@/lib/media-url";
-import { updatePost, type EditedMedia } from "@/lib/posts";
+import { updatePost, updatePostScope, type EditedMedia } from "@/lib/posts";
 import { MAX_POST_LENGTH } from "@/lib/text";
 import type { ReencodedJpeg } from "@/lib/thumb-guard";
 import type { EnqueueItem } from "@/hooks/useUpload";
 import { useGuestbookUpload } from "./GuestbookDataProvider";
-import { TagBadge } from "./TagBadge";
-import { displayVisibleTags } from "@/config/tags";
-import { scopeForDisplay } from "@/lib/visibility-scope";
+import { useGuestSessionContext } from "./GuestSessionContext";
+import { ScopePicker } from "./ScopePicker";
+import { COUPLE_TAG, displayVisibleTags } from "@/config/tags";
+import { useTags } from "@/lib/tags-client";
+import { ALL_TAG, scopeChangeNotes, scopeForDisplay, toggleScope } from "@/lib/visibility-scope";
 import type { MediaItem, Post } from "@/types";
 import { CameraIcon } from "@/components/icons";
 
@@ -43,7 +45,11 @@ type Picked = {
 type Sent = { media: EditedMedia; original?: Omit<EnqueueItem, "postId"> };
 
 /**
- * 自分の投稿の編集画面（全画面。Issue #94）。本文と写真・動画を変えられる。公開範囲は変えられない。
+ * 自分の投稿の編集画面（全画面。Issue #94）。本文と写真・動画、公開範囲（Issue #300）を変えられる。
+ *
+ * ★公開範囲は投稿画面と同じ「文字とチェック」（ScopePicker）・同じ選び方（toggleScope）★
+ *   変えたときは、保存の前に確認を出す（狭める・広げるで注意書きを変える。scopeChangeNotes）。
+ *   保存は本文・写真（/api/posts/[id]）→ 公開範囲（/api/posts/[id]/visibility。コメント・エピソードもまとめて変える）の順。
  *
  * ★保存を押すまで、足した写真を公開バケットへ送らない★ キャンセルしたときに、使われない画像を残さないため。
  *   保存でまとめてアップロードしてから API（/api/posts/[id]）を呼ぶ。
@@ -78,6 +84,25 @@ export function PostEditor({
 
   const storageReady = isStorageConfigured();
   const total = kept.length + added.length;
+
+  // --- 公開範囲（Issue #300）---
+  // 選べるタグは投稿画面（Composer）と同じ：自分のタグ（選べる・隠していない・仕組み用でない）と、新郎新婦
+  const { tags } = useGuestSessionContext();
+  const { allTags } = useTags();
+  const scopeOptions = useMemo(
+    () => allTags.filter((t) => t.selectable && !t.archived && !t.system && (tags.includes(t.id) || t.id === COUPLE_TAG)),
+    [allTags, tags],
+  );
+  // ★比べる元は表示の形にそろえた範囲★（以前の投稿の「全員＋個別のタグ」「承認済だけ」を、触っていないのに「変えた」と数えない）
+  const [initialScope] = useState(() => scopeForDisplay(displayVisibleTags(post.visibleToTags)));
+  const [scope, setScope] = useState<string[]>(initialScope);
+  const scopeChanged = [...scope].sort().join(",") !== [...initialScope].sort().join(",");
+  const canAll = scopeOptions.some((t) => t.id === ALL_TAG);
+  function toggleTag(id: string) {
+    // 今は選べないタグ（外れたタグ）が残っていれば、選び直すときに外す（サーバーが断るため）
+    const base = scope.filter((t) => t === COUPLE_TAG || scopeOptions.some((o) => o.id === t));
+    setScope(toggleScope(base, id, canAll));
+  }
 
   // 裏の画面を止める。PullToRefresh と useCompactChrome もこれを見る
   useEffect(() => {
@@ -149,7 +174,7 @@ export function PostEditor({
   const preparing = added.some((p) => p.compressing);
   const hasError = added.some((p) => p.error);
   const empty = !text.trim() && total === 0;
-  const canSave = !busy && !preparing && !hasError && !empty;
+  const canSave = !busy && !preparing && !hasError && !empty && scope.length > 0;
 
   /** 足した1件を送る（すでに送ってあれば、その結果を使う） */
   async function send(p: Picked): Promise<Sent> {
@@ -184,6 +209,8 @@ export function PostEditor({
 
   async function onSave() {
     if (!canSave) return;
+    // ★範囲を変えたときは、保存の前に確かめる★（Issue #300）狭めても、すでに見た人の画面や保存された写真は取り消せない
+    if (scopeChanged && !confirm(["公開範囲を変えますか？", ...scopeChangeNotes(initialScope, scope)].join("\n\n"))) return;
     setBusy(true);
     setError(null);
     try {
@@ -194,6 +221,7 @@ export function PostEditor({
         text,
         media: [...kept.map((m) => ({ type: m.type, storagePath: m.storagePath })), ...fresh.map((f) => f.media)],
       });
+      if (scopeChanged) await updatePostScope(post.id, scope);
 
       // 外した写真の原本が送信待ちに残っていれば取り除く（送らない）
       const keptPaths = new Set(kept.map((m) => m.storagePath));
@@ -343,15 +371,9 @@ export function PostEditor({
             </span>
           </button>
 
-          <div className="mt-5 rounded-xl bg-stone-50 p-3">
-            <p className="text-xs font-medium text-stone-500">公開範囲</p>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {/* 個別のタグがあれば「全員」は出さない（Issue #272。投稿画面の1行と同じ決まり） */}
-              {scopeForDisplay(displayVisibleTags(post.visibleToTags)).map((t) => (
-                <TagBadge key={t} id={t} />
-              ))}
-            </div>
-            <p className="mt-1.5 text-xs leading-relaxed text-stone-500">公開範囲は変更できません。</p>
+          {/* 公開範囲（Issue #300。投稿画面と同じ文字とチェック）。罫線で区切る */}
+          <div className="mt-5 border-t border-stone-200 pt-3">
+            <ScopePicker options={scopeOptions} selected={scope} onSelect={toggleTag} disabled={busy} />
           </div>
 
           {empty && <p className="mt-3 text-sm text-amber-700">本文か写真のどちらかは必要です</p>}

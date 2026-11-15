@@ -12,6 +12,15 @@ export function postApiPath(id: string): string {
 /** API のパスから投稿の ID を取り出す（形の検査は POST_ID_RE で別に行う） */
 export const POSTS_API_PATH_RE = /^\/api\/posts\/([^/]+)\/?$/;
 
+/** 公開範囲の変更の API のパス（Issue #300） */
+export function postVisibilityApiPath(id: string): string {
+  return `/api/posts/${encodeURIComponent(id)}/visibility`;
+}
+export const POSTS_VISIBILITY_API_PATH_RE = /^\/api\/posts\/([^/]+)\/visibility\/?$/;
+
+/** 公開範囲のタグの数の上限（Rules の tagsInMyScope の visibleToTags.size() <= 20 と同じ） */
+export const MAX_VISIBLE_TAGS = 20;
+
 /**
  * 編集で足せるメディアのキー（軽量版の名前空間 u/{uid}/t/{uuid}.{ext}）。
  * 写真はブラウザで JPEG に作り直したものだけ（uploadThumb）。動画は拡張子が英数字であること。

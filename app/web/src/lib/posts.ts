@@ -6,8 +6,8 @@ import { db } from "@/lib/firebase";
 import { extractTags } from "@/lib/text";
 import type { MentionPerson } from "@/lib/mentions";
 import { MAX_MENTIONS } from "@/config/mentions";
-import { postApiPath } from "@/config/post-edit";
-import { deleteJson, patchJson } from "@/lib/api-client";
+import { postApiPath, postVisibilityApiPath } from "@/config/post-edit";
+import { deleteJson, patchJson, putJson } from "@/lib/api-client";
 import type { MediaItem, Post } from "@/types";
 
 /** snapshot -> Post。欠損フィールドをここで吸収する。 */
@@ -124,6 +124,15 @@ export type EditedMedia = Pick<MediaItem, "type" | "storagePath"> &
  */
 export function updatePost(id: string, patch: { text: string; media: EditedMedia[] }) {
   return patchJson<{ changed?: boolean; detectFaces?: boolean }>(postApiPath(id), patch);
+}
+
+/**
+ * 自分の投稿の公開範囲を変える（Issue #300）。
+ * ★posts を直接書き換えず、API（/api/posts/[id]/visibility）を通す★ コメント・エピソードの範囲も一緒に変える必要があり、
+ *   Rules も本人の visibleToTags の更新を許していない。
+ */
+export function updatePostScope(id: string, visibleToTags: string[]) {
+  return putJson<{ changed?: boolean }>(postVisibilityApiPath(id), { visibleToTags });
 }
 
 /**

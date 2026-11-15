@@ -51,3 +51,25 @@ export function defaultScope(myTags: readonly string[], orderedDefs: readonly Sc
   if (top) return [top.id];
   return myTags.includes(ALL_TAG) ? [ALL_TAG] : [];
 }
+
+/** 範囲を狭めたときの注意書き（Issue #300） */
+export const SCOPE_NARROW_NOTE =
+  "すでに見た人の画面や、保存された写真は取り消せません。範囲から外れる人のコメントも、その人からは見えなくなります。";
+/** 範囲を広げたときの注意書き（Issue #300） */
+export const SCOPE_WIDEN_NOTE = "コメントも、新しく見える人に表示されます。";
+
+/**
+ * 投稿の公開範囲を変えるときの注意書き（Issue #300）。狭める・広げる・両方（入れ替え）で出し分ける。
+ *   「全員」を外す＝狭める、「全員」を足す＝広げる（全員はほかのどのタグより広い）。
+ *   それ以外は、外したタグがあれば狭める、足したタグがあれば広げる（新郎新婦との入れ替えは両方）。
+ */
+export function scopeChangeNotes(prev: readonly string[], next: readonly string[]): string[] {
+  const hadAll = prev.includes(ALL_TAG);
+  const hasAll = next.includes(ALL_TAG);
+  if (hadAll && !hasAll) return [SCOPE_NARROW_NOTE];
+  if (!hadAll && hasAll) return [SCOPE_WIDEN_NOTE];
+  const notes: string[] = [];
+  if (prev.some((t) => !next.includes(t))) notes.push(SCOPE_NARROW_NOTE);
+  if (next.some((t) => !prev.includes(t))) notes.push(SCOPE_WIDEN_NOTE);
+  return notes;
+}

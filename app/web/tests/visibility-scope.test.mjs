@@ -1,7 +1,7 @@
 // 投稿画面の公開範囲の選び方（Issue #272）。実行: cd app/web && npm test
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { defaultScope, scopeForDisplay, toggleScope } from "../src/lib/visibility-scope.ts";
+import { SCOPE_NARROW_NOTE, SCOPE_WIDEN_NOTE, defaultScope, scopeChangeNotes, scopeForDisplay, toggleScope } from "../src/lib/visibility-scope.ts";
 
 test("個別のタグを選んだら「全員」を外す", () => {
   assert.deepEqual(toggleScope(["all"], "c_hama", true), ["c_hama"]);
@@ -67,4 +67,20 @@ test("初期値：候補が無ければ「全員」。全員も無ければ空",
 
 test("初期値：辞書に無いタグ（まだ届いていないカスタムタグ）は候補にしない", () => {
   assert.deepEqual(defaultScope(["all", "c_unknown"], defs), ["all"]);
+});
+
+// 公開範囲を変えるときの注意書き（Issue #300）
+test("注意書き：全員を外すと狭める、全員にすると広げる", () => {
+  assert.deepEqual(scopeChangeNotes(["all"], ["friends_groom"]), [SCOPE_NARROW_NOTE]);
+  assert.deepEqual(scopeChangeNotes(["friends_groom"], ["all"]), [SCOPE_WIDEN_NOTE]);
+});
+
+test("注意書き：タグを外すと狭める、足すと広げる、入れ替えは両方", () => {
+  assert.deepEqual(scopeChangeNotes(["friends_groom", "c_company"], ["friends_groom"]), [SCOPE_NARROW_NOTE]);
+  assert.deepEqual(scopeChangeNotes(["friends_groom"], ["friends_groom", "c_company"]), [SCOPE_WIDEN_NOTE]);
+  assert.deepEqual(scopeChangeNotes(["couple"], ["friends_groom"]), [SCOPE_NARROW_NOTE, SCOPE_WIDEN_NOTE]);
+});
+
+test("注意書き：変わっていなければ出さない", () => {
+  assert.deepEqual(scopeChangeNotes(["friends_groom"], ["friends_groom"]), []);
 });
